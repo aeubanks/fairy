@@ -3,35 +3,35 @@ use std::ops::{Index, IndexMut};
 
 pub struct Board {
     pieces: Vec<Option<Piece>>,
-    width: usize,
-    height: usize,
+    width: u8,
+    height: u8,
 }
 
 impl Board {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new(width: u8, height: u8) -> Self {
         Self {
-            pieces: vec![None; width * height],
+            pieces: vec![None; (width * height) as usize],
             width,
             height,
         }
     }
 }
 
-impl Index<(usize, usize)> for Board {
+impl Index<(u8, u8)> for Board {
     type Output = Option<Piece>;
 
-    fn index(&self, (x, y): (usize, usize)) -> &Self::Output {
+    fn index(&self, (x, y): (u8, u8)) -> &Self::Output {
         assert!(x < self.width);
         assert!(y < self.height);
-        &self.pieces[y * self.width + x]
+        &self.pieces[(y * self.width + x) as usize]
     }
 }
 
-impl IndexMut<(usize, usize)> for Board {
-    fn index_mut(&mut self, (x, y): (usize, usize)) -> &mut Self::Output {
+impl IndexMut<(u8, u8)> for Board {
+    fn index_mut(&mut self, (x, y): (u8, u8)) -> &mut Self::Output {
         assert!(x < self.width);
         assert!(y < self.height);
-        &mut self.pieces[y * self.width + x]
+        &mut self.pieces[(y * self.width + x) as usize]
     }
 }
 
