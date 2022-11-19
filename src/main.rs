@@ -1,4 +1,5 @@
 mod board;
+mod coord;
 mod piece;
 
 use board::Board;
