@@ -1,5 +1,6 @@
 use crate::coord::Coord;
 use crate::piece::{Piece, Type::*};
+use bitvec::prelude::*;
 use std::ops::{Index, IndexMut};
 
 pub struct Board {
@@ -8,6 +9,7 @@ pub struct Board {
     pub height: i8,
     pub player_turn: u8,
     pub last_pawn_double_move: Option<Coord>,
+    moved: BitVec,
 }
 
 #[derive(PartialEq, Eq)]
@@ -25,6 +27,7 @@ impl Board {
             height,
             player_turn: 0,
             last_pawn_double_move: None,
+            moved: bitvec![0; (width * height) as usize],
         }
     }
 
@@ -78,6 +81,18 @@ impl Board {
             }
         }
     }
+
+    pub fn set_moved(&mut self, coord: Coord) {
+        self.moved
+            .set((coord.y * self.width + coord.x) as usize, true);
+    }
+
+    pub fn get_moved(&self, coord: Coord) -> bool {
+        *self
+            .moved
+            .get((coord.y * self.width + coord.x) as usize)
+            .unwrap()
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -107,6 +122,7 @@ impl Board {
         }
         self[m.to] = Some(piece);
         self.player_turn = (self.player_turn + 1) % 2;
+        self.set_moved(m.from);
     }
 }
 
@@ -129,6 +145,7 @@ fn test_make_move() {
     );
     assert_eq!(board.last_pawn_double_move, None);
     assert!(board[(2, 1)].is_some());
+    assert!(!board.get_moved((2, 1).into()));
     assert_eq!(board.player_turn, 0);
 
     board.make_move(Move {
@@ -137,14 +154,17 @@ fn test_make_move() {
     });
     assert!(board[(2, 1)].is_none());
     assert!(board[(2, 3)].is_some());
+    assert!(board.get_moved((2, 1).into()));
     assert_eq!(board.player_turn, 1);
     assert_eq!(board.last_pawn_double_move, Some(Coord::new(2, 3)));
+    assert!(!board.get_moved((3, 6).into()));
 
     board.make_move(Move {
         from: Coord::new(3, 6),
         to: Coord::new(3, 4),
     });
     assert_eq!(board.player_turn, 0);
+    assert!(board.get_moved((3, 6).into()));
     assert_eq!(board.last_pawn_double_move, Some(Coord::new(3, 4)));
 
     board.make_move(Move {
