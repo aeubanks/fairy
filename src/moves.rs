@@ -372,7 +372,11 @@ fn add_pawn_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
         }
     }
 
-    // TODO: en passant
+    if let Some(p) = board.last_pawn_double_move {
+        if p.y == coord.y && (p.x - coord.x).abs() == 1 {
+            moves.push(p + Coord { x: 0, y: dy });
+        }
+    }
 }
 
 #[test]

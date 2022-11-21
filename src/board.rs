@@ -7,7 +7,7 @@ pub struct Board {
     pub width: i8,
     pub height: i8,
     pub player_turn: u8,
-    pub last_move_dest: Coord,
+    pub last_pawn_double_move: Option<Coord>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -24,7 +24,7 @@ impl Board {
             width,
             height,
             player_turn: 0,
-            last_move_dest: Coord::new(0, 0), // (0, 0) shouldn't affect anything
+            last_pawn_double_move: None,
         }
     }
 
@@ -91,9 +91,22 @@ impl Board {
         debug_assert!(self.existing_piece_result(m.from) == ExistingPieceResult::Friend);
         debug_assert!(self.existing_piece_result(m.to) != ExistingPieceResult::Friend);
         let piece = self[m.from].take().unwrap();
+        if piece.ty == Pawn && (m.from.y - m.to.y).abs() == 2 {
+            self.last_pawn_double_move = Some(m.to);
+        } else {
+            self.last_pawn_double_move = None;
+        }
+        if piece.ty == Pawn && m.from.x != m.to.x && self[m.to].is_none() {
+            // en passant
+            let opponent_pawn_coord = Coord::new(m.to.x, m.from.y);
+            debug_assert!(
+                self.existing_piece_result(opponent_pawn_coord) == ExistingPieceResult::Opponent
+            );
+            debug_assert!(self[opponent_pawn_coord].as_ref().unwrap().ty == Pawn);
+            self[opponent_pawn_coord] = None;
+        }
         self[m.to] = Some(piece);
         self.player_turn = (self.player_turn + 1) % 2;
-        self.last_move_dest = m.to;
     }
 }
 
@@ -101,36 +114,72 @@ impl Board {
 fn test_make_move() {
     let mut board = Board::new(8, 8);
     board.add_piece(
-        Coord::new(1, 2),
+        Coord::new(2, 1),
         Piece {
             player: 0,
-            ty: Rook,
+            ty: Pawn,
         },
     );
     board.add_piece(
-        Coord::new(6, 2),
+        Coord::new(3, 6),
         Piece {
             player: 1,
-            ty: Rook,
+            ty: Pawn,
         },
     );
-    assert!(board[(1, 2)].is_some());
+    assert_eq!(board.last_pawn_double_move, None);
+    assert!(board[(2, 1)].is_some());
     assert_eq!(board.player_turn, 0);
-    board.make_move(Move {
-        from: Coord::new(1, 2),
-        to: Coord::new(2, 2),
-    });
-    assert!(board[(1, 2)].is_none());
-    assert!(board[(2, 2)].is_some());
-    assert_eq!(board.player_turn, 1);
-    assert_eq!(board.last_move_dest, Coord::new(2, 2));
 
     board.make_move(Move {
-        from: Coord::new(6, 2),
-        to: Coord::new(5, 2),
+        from: Coord::new(2, 1),
+        to: Coord::new(2, 3),
+    });
+    assert!(board[(2, 1)].is_none());
+    assert!(board[(2, 3)].is_some());
+    assert_eq!(board.player_turn, 1);
+    assert_eq!(board.last_pawn_double_move, Some(Coord::new(2, 3)));
+
+    board.make_move(Move {
+        from: Coord::new(3, 6),
+        to: Coord::new(3, 4),
     });
     assert_eq!(board.player_turn, 0);
-    assert_eq!(board.last_move_dest, Coord::new(5, 2));
+    assert_eq!(board.last_pawn_double_move, Some(Coord::new(3, 4)));
+
+    board.make_move(Move {
+        from: Coord::new(2, 3),
+        to: Coord::new(2, 4),
+    });
+    assert_eq!(board.player_turn, 1);
+    assert_eq!(board.last_pawn_double_move, None);
+}
+
+#[test]
+fn test_en_passant() {
+    let mut board = Board::new(8, 8);
+    board.add_piece(
+        Coord::new(2, 4),
+        Piece {
+            player: 0,
+            ty: Pawn,
+        },
+    );
+    board.add_piece(
+        Coord::new(3, 4),
+        Piece {
+            player: 1,
+            ty: Pawn,
+        },
+    );
+    board.last_pawn_double_move = Some(Coord::new(3, 4));
+    assert!(board[(3, 4)].is_some());
+
+    board.make_move(Move {
+        from: Coord::new(2, 4),
+        to: Coord::new(3, 5),
+    });
+    assert!(board[(3, 4)].is_none());
 }
 
 impl Index<Coord> for Board {
