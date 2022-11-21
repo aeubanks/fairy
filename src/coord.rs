@@ -1,7 +1,13 @@
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Coord {
     pub x: i8,
     pub y: i8,
+}
+
+impl Coord {
+    pub fn new(x: i8, y: i8) -> Self {
+        Self { x, y }
+    }
 }
 
 impl std::ops::Add for Coord {

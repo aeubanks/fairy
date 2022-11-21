@@ -1,23 +1,22 @@
 mod board;
 mod coord;
+mod moves;
 mod piece;
 
 use board::Board;
-use piece::{Piece, Type::*};
-
-fn create_board() -> Board {
-    let mut board = Board::new(8, 8);
-    board[(0, 0)] = Some(Piece {
-        player: 0,
-        ty: Rook,
-    });
-    board[(7, 7)] = Some(Piece {
-        player: 1,
-        ty: Rook,
-    });
-    board
-}
+use coord::Coord;
 
 fn main() {
-    let _ = create_board();
+    let mut board = Board::classical();
+    println!("1: {} moves", moves::all_moves(&board).len());
+    board.make_move(board::Move {
+        from: Coord::new(4, 1),
+        to: Coord::new(4, 3),
+    });
+    println!("2: {} moves", moves::all_moves(&board).len());
+    board.make_move(board::Move {
+        from: Coord::new(4, 6),
+        to: Coord::new(4, 4),
+    });
+    println!("3: {} moves", moves::all_moves(&board).len());
 }

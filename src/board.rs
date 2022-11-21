@@ -1,11 +1,20 @@
 use crate::coord::Coord;
-use crate::piece::Piece;
+use crate::piece::{Piece, Type::*};
 use std::ops::{Index, IndexMut};
 
 pub struct Board {
     pieces: Vec<Option<Piece>>,
-    width: i8,
-    height: i8,
+    pub width: i8,
+    pub height: i8,
+    pub player_turn: u8,
+    pub last_move_dest: Coord,
+}
+
+#[derive(PartialEq, Eq)]
+pub enum ExistingPieceResult {
+    Empty,
+    Friend,
+    Opponent,
 }
 
 impl Board {
@@ -14,12 +23,114 @@ impl Board {
             pieces: vec![None; (width * height) as usize],
             width,
             height,
+            player_turn: 0,
+            last_move_dest: Coord::new(0, 0), // (0, 0) shouldn't affect anything
         }
+    }
+
+    pub fn classical() -> Self {
+        let mut board = Self::new(8, 8);
+        for i in 0..board.width {
+            board.add_piece(
+                Coord::new(i, 1),
+                Piece {
+                    player: 0,
+                    ty: Pawn,
+                },
+            );
+            board.add_piece(
+                Coord::new(i, 6),
+                Piece {
+                    player: 1,
+                    ty: Pawn,
+                },
+            );
+        }
+        for (i, ty) in [Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook]
+            .into_iter()
+            .enumerate()
+        {
+            board.add_piece(Coord::new(i as i8, 0), Piece { player: 0, ty });
+            board.add_piece(Coord::new(i as i8, 7), Piece { player: 1, ty });
+        }
+        board
     }
 
     pub fn in_bounds(&self, coord: Coord) -> bool {
         coord.x < self.width && coord.x >= 0 && coord.y < self.height && coord.y >= 0
     }
+
+    pub fn add_piece(&mut self, coord: Coord, piece: Piece) {
+        assert!(self[coord].is_none());
+        self[coord] = Some(piece);
+    }
+
+    pub fn existing_piece_result(&self, coord: Coord) -> ExistingPieceResult {
+        use ExistingPieceResult::*;
+        match &self[coord] {
+            None => Empty,
+            Some(other_piece) => {
+                if other_piece.player == self.player_turn {
+                    Friend
+                } else {
+                    Opponent
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct Move {
+    pub from: Coord,
+    pub to: Coord,
+}
+
+impl Board {
+    pub fn make_move(&mut self, m: Move) {
+        debug_assert!(self.existing_piece_result(m.from) == ExistingPieceResult::Friend);
+        debug_assert!(self.existing_piece_result(m.to) != ExistingPieceResult::Friend);
+        let piece = self[m.from].take().unwrap();
+        self[m.to] = Some(piece);
+        self.player_turn = (self.player_turn + 1) % 2;
+        self.last_move_dest = m.to;
+    }
+}
+
+#[test]
+fn test_make_move() {
+    let mut board = Board::new(8, 8);
+    board.add_piece(
+        Coord::new(1, 2),
+        Piece {
+            player: 0,
+            ty: Rook,
+        },
+    );
+    board.add_piece(
+        Coord::new(6, 2),
+        Piece {
+            player: 1,
+            ty: Rook,
+        },
+    );
+    assert!(board[(1, 2)].is_some());
+    assert_eq!(board.player_turn, 0);
+    board.make_move(Move {
+        from: Coord::new(1, 2),
+        to: Coord::new(2, 2),
+    });
+    assert!(board[(1, 2)].is_none());
+    assert!(board[(2, 2)].is_some());
+    assert_eq!(board.player_turn, 1);
+    assert_eq!(board.last_move_dest, Coord::new(2, 2));
+
+    board.make_move(Move {
+        from: Coord::new(6, 2),
+        to: Coord::new(5, 2),
+    });
+    assert_eq!(board.player_turn, 0);
+    assert_eq!(board.last_move_dest, Coord::new(5, 2));
 }
 
 impl Index<Coord> for Board {
