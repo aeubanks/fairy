@@ -285,6 +285,19 @@ fn test_knight() {
     }
 }
 
+fn no_pieces_between(board: &Board, c1: Coord, c2: Coord) -> bool {
+    debug_assert!(c1.y == c2.y);
+    debug_assert!(c1.x < c2.x);
+    let mut x = c1.x + 1;
+    while x != c2.x {
+        if board.existing_piece_result(Coord::new(x, c1.y)) != ExistingPieceResult::Empty {
+            return false;
+        }
+        x += 1;
+    }
+    true
+}
+
 fn add_king_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
     add_moves_for_leaper(moves, board, coord, &offsets((1, 1).into()));
     add_moves_for_leaper(moves, board, coord, &offsets((1, 0).into()));
@@ -295,12 +308,14 @@ fn add_king_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
         let left = Coord::new(0, coord.y);
         if board.existing_piece_result(left) == ExistingPieceResult::Friend
             && !board.get_moved(left)
+            && no_pieces_between(board, left, coord)
         {
             moves.push(Coord::new(coord.x - 2, coord.y));
         }
         let right = Coord::new(board.width - 1, coord.y);
         if board.existing_piece_result(right) == ExistingPieceResult::Friend
             && !board.get_moved(right)
+            && no_pieces_between(board, coord, right)
         {
             moves.push(Coord::new(coord.x + 2, coord.y));
         }
@@ -388,6 +403,28 @@ fn test_king() {
             add_king_moves(&mut moves, &board, Coord::new(4, 0));
             assert!(moves.contains(&Coord::new(2, 0)));
             assert!(moves.contains(&Coord::new(6, 0)));
+        }
+        {
+            let mut moves = Vec::new();
+            board.add_piece(
+                Coord::new(1, 0),
+                Piece {
+                    player: 0,
+                    ty: Knight,
+                },
+            );
+            board.add_piece(
+                Coord::new(6, 0),
+                Piece {
+                    player: 1,
+                    ty: Knight,
+                },
+            );
+            add_king_moves(&mut moves, &board, Coord::new(4, 0));
+            assert!(!moves.contains(&Coord::new(2, 0)));
+            assert!(!moves.contains(&Coord::new(6, 0)));
+            board.remove_piece(Coord::new(1, 0));
+            board.remove_piece(Coord::new(6, 0));
         }
         {
             board.set_moved(Coord::new(0, 0));
