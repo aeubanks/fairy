@@ -290,6 +290,7 @@ fn add_king_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
     add_moves_for_leaper(moves, board, coord, &offsets((1, 0).into()));
 
     // castling
+    // TODO: prevent castling from/through check
     if !board.get_moved(coord) {
         let left = Coord::new(0, coord.y);
         if board.existing_piece_result(left) == ExistingPieceResult::Friend
