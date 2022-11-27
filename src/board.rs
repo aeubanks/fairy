@@ -1,5 +1,5 @@
 use crate::coord::Coord;
-use crate::piece::{Piece, Type::*};
+use crate::piece::{Piece, Type, Type::*};
 use bitvec::prelude::*;
 use std::ops::{Index, IndexMut};
 
@@ -29,34 +29,6 @@ impl Board {
             last_pawn_double_move: None,
             moved: bitvec![0; (width * height) as usize],
         }
-    }
-
-    pub fn classical() -> Self {
-        let mut board = Self::new(8, 8);
-        for i in 0..board.width {
-            board.add_piece(
-                Coord::new(i, 1),
-                Piece {
-                    player: 0,
-                    ty: Pawn,
-                },
-            );
-            board.add_piece(
-                Coord::new(i, 6),
-                Piece {
-                    player: 1,
-                    ty: Pawn,
-                },
-            );
-        }
-        for (i, ty) in [Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook]
-            .into_iter()
-            .enumerate()
-        {
-            board.add_piece(Coord::new(i as i8, 0), Piece { player: 0, ty });
-            board.add_piece(Coord::new(i as i8, 7), Piece { player: 1, ty });
-        }
-        board
     }
 
     pub fn in_bounds(&self, coord: Coord) -> bool {
@@ -313,4 +285,53 @@ fn test_mut_board_panic_y_1() {
 fn test_mut_board_panic_y_2() {
     let mut b = Board::new(2, 3);
     b[(1, -1)] = None;
+}
+
+impl Board {
+    pub fn los_alamos() -> Self {
+        Self::setup_with_pawns(6, 6, &[Rook, Knight, Queen, King, Knight, Rook])
+    }
+
+    pub fn classical() -> Self {
+        Self::setup_with_pawns(
+            8,
+            8,
+            &[Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook],
+        )
+    }
+
+    fn setup_with_pawns(width: i8, height: i8, pieces: &[Type]) -> Self {
+        let mut board = Self::new(width, height);
+        for i in 0..board.width {
+            board.add_piece(
+                Coord::new(i, 1),
+                Piece {
+                    player: 0,
+                    ty: Pawn,
+                },
+            );
+            board.add_piece(
+                Coord::new(i, board.height - 2),
+                Piece {
+                    player: 1,
+                    ty: Pawn,
+                },
+            );
+        }
+        assert!(pieces.len() == board.width as usize);
+        for (i, ty) in pieces.into_iter().enumerate() {
+            board.add_piece(Coord::new(i as i8, 0), Piece { player: 0, ty: *ty });
+            board.add_piece(
+                Coord::new(i as i8, board.height - 1),
+                Piece { player: 1, ty: *ty },
+            );
+        }
+        board
+    }
+}
+
+#[test]
+fn test_premade_boards() {
+    Board::classical();
+    Board::los_alamos();
 }
