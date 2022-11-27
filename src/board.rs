@@ -77,7 +77,7 @@ impl Board {
     pub fn make_move(&mut self, m: Move) {
         debug_assert!(self.existing_piece_result(m.from) == ExistingPieceResult::Friend);
         debug_assert!(self.existing_piece_result(m.to) != ExistingPieceResult::Friend);
-        let piece = self[m.from].take().unwrap();
+        let mut piece = self[m.from].take().unwrap();
         if piece.ty == Pawn && (m.from.y - m.to.y).abs() == 2 {
             self.last_pawn_double_move = Some(m.to);
         } else {
@@ -91,6 +91,11 @@ impl Board {
             );
             debug_assert!(self[opponent_pawn_coord].as_ref().unwrap().ty == Pawn);
             self[opponent_pawn_coord] = None;
+        }
+        if piece.ty == Pawn && (m.to.y == 0 || m.to.y == self.height - 1) {
+            // promotion
+            // TODO: support more than promoting to queen
+            piece.ty = Queen;
         }
         self[m.to] = Some(piece);
         self.player_turn = (self.player_turn + 1) % 2;
@@ -172,6 +177,49 @@ fn test_en_passant() {
         to: Coord::new(3, 5),
     });
     assert!(board[(3, 4)].is_none());
+}
+
+#[test]
+fn test_en_promotion() {
+    let mut board = Board::new(8, 8);
+    board.add_piece(
+        Coord::new(2, 5),
+        Piece {
+            player: 0,
+            ty: Pawn,
+        },
+    );
+    board.add_piece(
+        Coord::new(3, 2),
+        Piece {
+            player: 1,
+            ty: Pawn,
+        },
+    );
+
+    board.make_move(Move {
+        from: Coord::new(2, 5),
+        to: Coord::new(2, 6),
+    });
+    assert!(board[(2, 6)].as_ref().unwrap().ty == Pawn);
+
+    board.make_move(Move {
+        from: Coord::new(3, 2),
+        to: Coord::new(3, 1),
+    });
+    assert!(board[(3, 1)].as_ref().unwrap().ty == Pawn);
+
+    board.make_move(Move {
+        from: Coord::new(2, 6),
+        to: Coord::new(2, 7),
+    });
+    assert!(board[(2, 7)].as_ref().unwrap().ty == Queen);
+
+    board.make_move(Move {
+        from: Coord::new(3, 1),
+        to: Coord::new(3, 0),
+    });
+    assert!(board[(3, 0)].as_ref().unwrap().ty == Queen);
 }
 
 impl Index<Coord> for Board {
