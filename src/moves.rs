@@ -9,7 +9,7 @@ fn add_move_if_result(
     coord: Coord,
     result: ExistingPieceResult,
 ) -> bool {
-    debug_assert!(board.in_bounds(coord));
+    assert!(board.in_bounds(coord));
     if board.existing_piece_result(coord) == result {
         moves.push(coord);
         return true;
@@ -64,9 +64,9 @@ fn add_moves_for_leaper(moves: &mut Vec<Coord>, board: &Board, coord: Coord, off
 }
 
 fn offsets(offset: Coord) -> Vec<Coord> {
-    debug_assert!(offset.x >= 0);
-    debug_assert!(offset.y >= 0);
-    debug_assert!(offset.x > 0 || offset.y > 0);
+    assert!(offset.x >= 0);
+    assert!(offset.y >= 0);
+    assert!(offset.x > 0 || offset.y > 0);
     let mut ret = Vec::new();
     ret.push(Coord {
         x: offset.x,
@@ -286,8 +286,8 @@ fn test_knight() {
 }
 
 fn no_pieces_between(board: &Board, c1: Coord, c2: Coord) -> bool {
-    debug_assert!(c1.y == c2.y);
-    debug_assert!(c1.x < c2.x);
+    assert!(c1.y == c2.y);
+    assert!(c1.x < c2.x);
     let mut x = c1.x + 1;
     while x != c2.x {
         if board.existing_piece_result(Coord::new(x, c1.y)) != ExistingPieceResult::Empty {
@@ -446,7 +446,7 @@ fn test_king() {
 fn add_pawn_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
     let dy = if board.player_turn == 0 { 1 } else { -1 };
     let front = coord + Coord { x: 0, y: dy };
-    debug_assert!(board.in_bounds(front));
+    assert!(board.in_bounds(front));
     let front_empty = add_move_if_result(moves, board, front, ExistingPieceResult::Empty);
     let left = coord + Coord { x: -1, y: dy };
     add_move_if_in_bounds_and_result(moves, board, left, ExistingPieceResult::Opponent);

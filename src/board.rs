@@ -80,8 +80,8 @@ pub struct Move {
 
 impl Board {
     pub fn make_move(&mut self, m: Move) {
-        debug_assert!(self.existing_piece_result(m.from) == ExistingPieceResult::Friend);
-        debug_assert!(self.existing_piece_result(m.to) != ExistingPieceResult::Friend);
+        assert!(self.existing_piece_result(m.from) == ExistingPieceResult::Friend);
+        assert!(self.existing_piece_result(m.to) != ExistingPieceResult::Friend);
         let mut piece = self[m.from].take().unwrap();
         if piece.ty == Pawn && (m.from.y - m.to.y).abs() == 2 {
             self.last_pawn_double_move = Some(m.to);
@@ -91,10 +91,10 @@ impl Board {
         if piece.ty == Pawn && m.from.x != m.to.x && self[m.to].is_none() {
             // en passant
             let opponent_pawn_coord = Coord::new(m.to.x, m.from.y);
-            debug_assert!(
+            assert!(
                 self.existing_piece_result(opponent_pawn_coord) == ExistingPieceResult::Opponent
             );
-            debug_assert!(self[opponent_pawn_coord].as_ref().unwrap().ty == Pawn);
+            assert!(self[opponent_pawn_coord].as_ref().unwrap().ty == Pawn);
             self[opponent_pawn_coord] = None;
         }
         if piece.ty == Pawn && (m.to.y == 0 || m.to.y == self.height - 1) {
@@ -231,7 +231,7 @@ impl Index<Coord> for Board {
     type Output = Option<Piece>;
 
     fn index(&self, coord: Coord) -> &Self::Output {
-        debug_assert!(self.in_bounds(coord));
+        assert!(self.in_bounds(coord));
         &self.pieces[(coord.y * self.width + coord.x) as usize]
     }
 }
@@ -246,7 +246,7 @@ impl Index<(i8, i8)> for Board {
 
 impl IndexMut<Coord> for Board {
     fn index_mut(&mut self, coord: Coord) -> &mut Self::Output {
-        debug_assert!(self.in_bounds(coord));
+        assert!(self.in_bounds(coord));
         &mut self.pieces[(coord.y * self.width + coord.x) as usize]
     }
 }
@@ -278,7 +278,6 @@ fn test_board() {
 
 #[test]
 #[should_panic]
-#[cfg(debug_assertions)]
 fn test_board_panic_x_1() {
     let b = Board::new(2, 3);
     let _ = b[(2, 1)];
@@ -286,7 +285,6 @@ fn test_board_panic_x_1() {
 
 #[test]
 #[should_panic]
-#[cfg(debug_assertions)]
 fn test_board_panic_x_2() {
     let b = Board::new(2, 3);
     let _ = b[(-1, 1)];
@@ -294,7 +292,6 @@ fn test_board_panic_x_2() {
 
 #[test]
 #[should_panic]
-#[cfg(debug_assertions)]
 fn test_board_panic_y_1() {
     let b = Board::new(2, 3);
     let _ = b[(1, 3)];
@@ -302,7 +299,6 @@ fn test_board_panic_y_1() {
 
 #[test]
 #[should_panic]
-#[cfg(debug_assertions)]
 fn test_board_panic_y_2() {
     let b = Board::new(2, 3);
     let _ = b[(1, -1)];
@@ -310,7 +306,6 @@ fn test_board_panic_y_2() {
 
 #[test]
 #[should_panic]
-#[cfg(debug_assertions)]
 fn test_mut_board_panic_x_1() {
     let mut b = Board::new(2, 3);
     b[(2, 1)] = None;
@@ -318,7 +313,6 @@ fn test_mut_board_panic_x_1() {
 
 #[test]
 #[should_panic]
-#[cfg(debug_assertions)]
 fn test_mut_board_panic_x_2() {
     let mut b = Board::new(2, 3);
     b[(-1, 1)] = None;
@@ -326,7 +320,6 @@ fn test_mut_board_panic_x_2() {
 
 #[test]
 #[should_panic]
-#[cfg(debug_assertions)]
 fn test_mut_board_panic_y_1() {
     let mut b = Board::new(2, 3);
     b[(1, 3)] = None;
@@ -334,7 +327,6 @@ fn test_mut_board_panic_y_1() {
 
 #[test]
 #[should_panic]
-#[cfg(debug_assertions)]
 fn test_mut_board_panic_y_2() {
     let mut b = Board::new(2, 3);
     b[(1, -1)] = None;
