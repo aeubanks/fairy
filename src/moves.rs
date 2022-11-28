@@ -305,18 +305,20 @@ fn add_king_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
     // castling
     // TODO: prevent castling from/through check
     if !board.get_moved(coord) {
+        fn is_friendly_unmoved_rook(board: &Board, coord: Coord) -> bool {
+            if let Some(piece) = board[coord].as_ref() {
+                piece.ty == Rook && !board.get_moved(coord) && piece.player == board.player_turn
+            } else {
+                false
+            }
+        }
+
         let left = Coord::new(0, coord.y);
-        if board.existing_piece_result(left) == ExistingPieceResult::Friend
-            && !board.get_moved(left)
-            && no_pieces_between(board, left, coord)
-        {
+        if is_friendly_unmoved_rook(board, left) && no_pieces_between(board, left, coord) {
             moves.push(Coord::new(coord.x - 2, coord.y));
         }
         let right = Coord::new(board.width - 1, coord.y);
-        if board.existing_piece_result(right) == ExistingPieceResult::Friend
-            && !board.get_moved(right)
-            && no_pieces_between(board, coord, right)
-        {
+        if is_friendly_unmoved_rook(board, right) && no_pieces_between(board, coord, right) {
             moves.push(Coord::new(coord.x + 2, coord.y));
         }
     }
@@ -405,26 +407,33 @@ fn test_king() {
             assert!(moves.contains(&Coord::new(6, 0)));
         }
         {
+            let mut board2 = board.clone();
             let mut moves = Vec::new();
-            board.add_piece(
+            board2[(0, 0)].as_mut().unwrap().player = 1;
+            add_king_moves(&mut moves, &board2, Coord::new(4, 0));
+            assert!(!moves.contains(&Coord::new(2, 0)));
+            assert!(moves.contains(&Coord::new(6, 0)));
+        }
+        {
+            let mut board2 = board.clone();
+            let mut moves = Vec::new();
+            board2.add_piece(
                 Coord::new(1, 0),
                 Piece {
                     player: 0,
                     ty: Knight,
                 },
             );
-            board.add_piece(
+            board2.add_piece(
                 Coord::new(6, 0),
                 Piece {
                     player: 1,
                     ty: Knight,
                 },
             );
-            add_king_moves(&mut moves, &board, Coord::new(4, 0));
+            add_king_moves(&mut moves, &board2, Coord::new(4, 0));
             assert!(!moves.contains(&Coord::new(2, 0)));
             assert!(!moves.contains(&Coord::new(6, 0)));
-            board.remove_piece(Coord::new(1, 0));
-            board.remove_piece(Coord::new(6, 0));
         }
         {
             board.set_moved(Coord::new(0, 0));

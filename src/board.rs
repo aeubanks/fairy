@@ -3,6 +3,7 @@ use crate::piece::{Piece, Type, Type::*};
 use bitvec::prelude::*;
 use std::ops::{Index, IndexMut};
 
+#[derive(Clone)]
 pub struct Board {
     pieces: Vec<Option<Piece>>,
     pub width: i8,
