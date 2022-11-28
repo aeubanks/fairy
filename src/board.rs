@@ -80,6 +80,10 @@ pub struct Move {
 }
 
 impl Board {
+    pub fn advance_player(&mut self) {
+        self.player_turn = (self.player_turn + 1) % 2;
+    }
+
     pub fn make_move(&mut self, m: Move) {
         assert!(self.existing_piece_result(m.from) == ExistingPieceResult::Friend);
         assert!(self.existing_piece_result(m.to) != ExistingPieceResult::Friend);
@@ -104,9 +108,9 @@ impl Board {
             piece.ty = Queen;
         }
         self[m.to] = Some(piece);
-        self.player_turn = (self.player_turn + 1) % 2;
         self.set_moved(m.from);
         self.set_moved(m.to);
+        self.advance_player();
     }
 }
 

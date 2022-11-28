@@ -285,25 +285,11 @@ fn test_knight() {
     }
 }
 
-fn no_pieces_between(board: &Board, c1: Coord, c2: Coord) -> bool {
-    assert!(c1.y == c2.y);
-    assert!(c1.x < c2.x);
-    let mut x = c1.x + 1;
-    while x != c2.x {
-        if board.existing_piece_result(Coord::new(x, c1.y)) != ExistingPieceResult::Empty {
-            return false;
-        }
-        x += 1;
-    }
-    true
-}
-
 fn add_king_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
     add_moves_for_leaper(moves, board, coord, &offsets((1, 1).into()));
     add_moves_for_leaper(moves, board, coord, &offsets((1, 0).into()));
 
     // castling
-    // TODO: prevent castling from/through check
     if !board.get_moved(coord) {
         fn is_friendly_unmoved_rook(board: &Board, coord: Coord) -> bool {
             if let Some(piece) = board[coord].as_ref() {
@@ -313,13 +299,46 @@ fn add_king_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
             }
         }
 
-        let left = Coord::new(0, coord.y);
-        if is_friendly_unmoved_rook(board, left) && no_pieces_between(board, left, coord) {
-            moves.push(Coord::new(coord.x - 2, coord.y));
+        fn no_pieces_between_exc(board: &Board, c1: Coord, c2: Coord) -> bool {
+            assert!(c1.y == c2.y);
+            assert!(c1.x < c2.x);
+            let mut x = c1.x + 1;
+            while x != c2.x {
+                if board.existing_piece_result(Coord::new(x, c1.y)) != ExistingPieceResult::Empty {
+                    return false;
+                }
+                x += 1;
+            }
+            true
         }
-        let right = Coord::new(board.width - 1, coord.y);
-        if is_friendly_unmoved_rook(board, right) && no_pieces_between(board, coord, right) {
-            moves.push(Coord::new(coord.x + 2, coord.y));
+
+        fn no_checks_between_inc(board: &Board, c1: Coord, c2: Coord) -> bool {
+            assert!(c1.y == c2.y);
+            assert!(c1.x < c2.x);
+            for x in c1.x..=c2.x {
+                // TODO: optimize
+                if is_under_attack(board, Coord::new(x, c1.y)) {
+                    return false;
+                }
+            }
+            true
+        }
+
+        let left_rook = Coord::new(0, coord.y);
+        let left_dest = Coord::new(coord.x - 2, coord.y);
+        if is_friendly_unmoved_rook(board, left_rook)
+            && no_pieces_between_exc(board, left_rook, coord)
+            && no_checks_between_inc(board, left_dest, coord)
+        {
+            moves.push(left_dest);
+        }
+        let right_rook = Coord::new(board.width - 1, coord.y);
+        let right_dest = Coord::new(coord.x + 2, coord.y);
+        if is_friendly_unmoved_rook(board, right_rook)
+            && no_pieces_between_exc(board, coord, right_rook)
+            && no_checks_between_inc(board, coord, right_dest)
+        {
+            moves.push(right_dest);
         }
     }
 }
@@ -408,8 +427,64 @@ fn test_king() {
         }
         {
             let mut board2 = board.clone();
+            board2.add_piece(
+                Coord::new(4, 2),
+                Piece {
+                    player: 1,
+                    ty: Rook,
+                },
+            );
             let mut moves = Vec::new();
-            board2[(0, 0)].as_mut().unwrap().player = 1;
+            add_king_moves(&mut moves, &board2, Coord::new(4, 0));
+            assert!(!moves.contains(&Coord::new(2, 0)));
+            assert!(!moves.contains(&Coord::new(6, 0)));
+        }
+        {
+            let mut board2 = board.clone();
+            board2.add_piece(
+                Coord::new(3, 2),
+                Piece {
+                    player: 1,
+                    ty: Rook,
+                },
+            );
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board2, Coord::new(4, 0));
+            assert!(!moves.contains(&Coord::new(2, 0)));
+            assert!(moves.contains(&Coord::new(6, 0)));
+        }
+        {
+            let mut board2 = board.clone();
+            board2.add_piece(
+                Coord::new(6, 2),
+                Piece {
+                    player: 1,
+                    ty: Rook,
+                },
+            );
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board2, Coord::new(4, 0));
+            assert!(moves.contains(&Coord::new(2, 0)));
+            assert!(!moves.contains(&Coord::new(6, 0)));
+        }
+        {
+            let mut board2 = board.clone();
+            let mut moves = Vec::new();
+            board2[(0, 0)] = Some(Piece {
+                player: 0,
+                ty: Knight,
+            });
+            add_king_moves(&mut moves, &board2, Coord::new(4, 0));
+            assert!(!moves.contains(&Coord::new(2, 0)));
+            assert!(moves.contains(&Coord::new(6, 0)));
+        }
+        {
+            let mut board2 = board.clone();
+            let mut moves = Vec::new();
+            board2[(0, 0)] = Some(Piece {
+                player: 1,
+                ty: Knight,
+            });
             add_king_moves(&mut moves, &board2, Coord::new(4, 0));
             assert!(!moves.contains(&Coord::new(2, 0)));
             assert!(moves.contains(&Coord::new(6, 0)));
@@ -626,4 +701,32 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
     }
 
     moves
+}
+
+// TODO: optimize
+pub fn is_under_attack(board: &Board, coord: Coord) -> bool {
+    let mut copy = board.clone();
+    copy.advance_player();
+    all_moves(&copy).iter().any(|m| m.to == coord)
+}
+
+#[test]
+fn test_under_attack() {
+    let mut board = Board::new(8, 8);
+    board.add_piece(
+        Coord::new(0, 0),
+        Piece {
+            player: 0,
+            ty: Rook,
+        },
+    );
+    board.add_piece(
+        Coord::new(7, 7),
+        Piece {
+            player: 1,
+            ty: Rook,
+        },
+    );
+    assert!(is_under_attack(&board, Coord::new(6, 7)));
+    assert!(!is_under_attack(&board, Coord::new(1, 0)));
 }
