@@ -28,9 +28,9 @@ fn add_move_if_in_bounds_and_result(
     }
 }
 
-fn add_moves_for_rider(moves: &mut Vec<Coord>, board: &Board, coord: Coord, offsets: &[Coord]) {
-    for offset in offsets {
-        let mut try_coord = coord + *offset;
+fn add_moves_for_rider(moves: &mut Vec<Coord>, board: &Board, coord: Coord, rider_offset: Coord) {
+    for offset in offsets(rider_offset) {
+        let mut try_coord = coord + offset;
         while board.in_bounds(try_coord) {
             match board.existing_piece_result(try_coord) {
                 ExistingPieceResult::Empty => {
@@ -44,7 +44,7 @@ fn add_moves_for_rider(moves: &mut Vec<Coord>, board: &Board, coord: Coord, offs
                     break;
                 }
             }
-            try_coord = try_coord + *offset;
+            try_coord = try_coord + offset;
         }
     }
 }
@@ -106,7 +106,7 @@ fn offsets(offset: Coord) -> Vec<Coord> {
 }
 
 fn add_rook_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
-    add_moves_for_rider(moves, board, coord, &offsets((1, 0).into()))
+    add_moves_for_rider(moves, board, coord, Coord::new(1, 0))
 }
 
 #[cfg(test)]
@@ -167,7 +167,7 @@ fn test_rook() {
 }
 
 fn add_bishop_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
-    add_moves_for_rider(moves, board, coord, &offsets((1, 1).into()))
+    add_moves_for_rider(moves, board, coord, Coord::new(1, 1))
 }
 
 #[test]
