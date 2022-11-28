@@ -733,8 +733,6 @@ fn enemy_piece_leaper(board: &Board, coord: Coord, offset: Coord, player: u8) ->
     None
 }
 
-// TODO: add tests that check that this matches with `all_moves` at least for
-// checks.
 pub fn is_under_attack(board: &Board, coord: Coord, player: u8) -> bool {
     if let Some(p) = board[coord].as_ref() {
         assert_eq!(p.player, player);

@@ -26,7 +26,11 @@ fn perft(board: &Board, depth: u64) -> u64 {
     for m in moves {
         let mut copy = board.clone();
         copy.make_move(m);
-        if is_under_attack(&copy, king_coord, player) {
+        let is_check_1 = is_under_attack(&copy, king_coord, player);
+        let is_check_2 = all_moves(&copy).into_iter().any(|om| om.to == king_coord);
+        // TODO: do more fuzz testing of checks?
+        assert_eq!(is_check_1, is_check_2);
+        if is_check_1 {
             continue;
         }
         if depth == 1 {
