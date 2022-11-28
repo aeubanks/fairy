@@ -107,6 +107,16 @@ impl Board {
             // TODO: support more than promoting to queen
             piece.ty = Queen;
         }
+        if piece.ty == King {
+            if m.from.x - m.to.x < -1 {
+                let w = self.width;
+                let rook = self[(w - 1, m.to.y)].take();
+                self[(m.to.x - 1, m.to.y)] = rook;
+            } else if m.from.x - m.to.x > 1 {
+                let rook = self[(0, m.to.y)].take();
+                self[(m.to.x + 1, m.to.y)] = rook;
+            }
+        }
         self[m.to] = Some(piece);
         self.set_moved(m.from);
         self.set_moved(m.to);
@@ -232,6 +242,77 @@ fn test_en_promotion() {
         to: Coord::new(3, 0),
     });
     assert!(board[(3, 0)].as_ref().unwrap().ty == Queen);
+}
+
+#[test]
+fn test_castle() {
+    {
+        let mut board = Board::new(8, 8);
+        board.add_piece(
+            Coord::new(0, 0),
+            Piece {
+                player: 0,
+                ty: Rook,
+            },
+        );
+        board.add_piece(
+            Coord::new(7, 0),
+            Piece {
+                player: 0,
+                ty: Rook,
+            },
+        );
+        board.add_piece(
+            Coord::new(4, 0),
+            Piece {
+                player: 0,
+                ty: King,
+            },
+        );
+        board.make_move(Move {
+            from: Coord::new(4, 0),
+            to: Coord::new(2, 0),
+        });
+        assert!(board[(2, 0)].as_ref().unwrap().ty == King);
+        assert!(board[(3, 0)].as_ref().unwrap().ty == Rook);
+        assert!(board[(7, 0)].as_ref().unwrap().ty == Rook);
+        assert!(board[(0, 0)].is_none());
+        assert!(board[(4, 0)].is_none());
+    }
+    {
+        let mut board = Board::new(8, 8);
+        board.advance_player();
+        board.add_piece(
+            Coord::new(0, 7),
+            Piece {
+                player: 1,
+                ty: Rook,
+            },
+        );
+        board.add_piece(
+            Coord::new(7, 7),
+            Piece {
+                player: 1,
+                ty: Rook,
+            },
+        );
+        board.add_piece(
+            Coord::new(4, 7),
+            Piece {
+                player: 1,
+                ty: King,
+            },
+        );
+        board.make_move(Move {
+            from: Coord::new(4, 7),
+            to: Coord::new(6, 7),
+        });
+        assert!(board[(6, 7)].as_ref().unwrap().ty == King);
+        assert!(board[(0, 7)].as_ref().unwrap().ty == Rook);
+        assert!(board[(5, 7)].as_ref().unwrap().ty == Rook);
+        assert!(board[(4, 7)].is_none());
+        assert!(board[(7, 7)].is_none());
+    }
 }
 
 impl Index<Coord> for Board {
