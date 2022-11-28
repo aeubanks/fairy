@@ -20,13 +20,13 @@ fn king_coord(board: &Board, player: u8) -> Coord {
 fn perft(board: &Board, depth: u64) -> u64 {
     assert_ne!(depth, 0);
     let moves = all_moves(board);
-    let king_coord = king_coord(board, board.player_turn);
+    let player = board.player_turn;
+    let king_coord = king_coord(board, player);
     let mut sum = 0;
     for m in moves {
         let mut copy = board.clone();
         copy.make_move(m);
-        let opponent_moves = all_moves(&copy);
-        if opponent_moves.into_iter().any(|om| om.to == king_coord) {
+        if is_under_attack(&copy, king_coord, player) {
             continue;
         }
         if depth == 1 {

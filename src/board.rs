@@ -32,6 +32,15 @@ impl Board {
         }
     }
 
+    #[cfg(test)]
+    pub fn with_pieces(width: i8, height: i8, pieces: &[(Coord, Piece)]) -> Self {
+        let mut board = Self::new(width, height);
+        for (c, p) in pieces {
+            board.add_piece(*c, p.clone());
+        }
+        board
+    }
+
     pub fn in_bounds(&self, coord: Coord) -> bool {
         coord.x < self.width && coord.x >= 0 && coord.y < self.height && coord.y >= 0
     }
