@@ -105,6 +105,7 @@ impl Board {
         self[m.to] = Some(piece);
         self.player_turn = (self.player_turn + 1) % 2;
         self.set_moved(m.from);
+        self.set_moved(m.to);
     }
 }
 
@@ -137,6 +138,7 @@ fn test_make_move() {
     assert!(board[(2, 1)].is_none());
     assert!(board[(2, 3)].is_some());
     assert!(board.get_moved((2, 1).into()));
+    assert!(board.get_moved((2, 3).into()));
     assert_eq!(board.player_turn, 1);
     assert_eq!(board.last_pawn_double_move, Some(Coord::new(2, 3)));
     assert!(!board.get_moved((3, 6).into()));
