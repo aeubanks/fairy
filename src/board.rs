@@ -41,11 +41,6 @@ impl Board {
         self[coord] = Some(piece);
     }
 
-    pub fn remove_piece(&mut self, coord: Coord) {
-        assert!(self[coord].is_some());
-        self[coord] = None;
-    }
-
     pub fn existing_piece_result(&self, coord: Coord) -> ExistingPieceResult {
         use ExistingPieceResult::*;
         match &self[coord] {
