@@ -43,7 +43,7 @@ fn perft(board: &Board, depth: u64) -> u64 {
 }
 
 fn fen(fen: &str) -> Board {
-    let mut board = Board::new(8, 8);
+    let mut board = Board::new_with_castling(8, 8);
     let space_split: Vec<&str> = fen.split(' ').collect();
     assert!(space_split.len() == 6 || space_split.len() == 4);
 

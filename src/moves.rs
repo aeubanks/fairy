@@ -291,7 +291,7 @@ fn add_king_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
     add_moves_for_leaper(moves, board, coord, &offsets((1, 0).into()));
 
     // castling
-    if !board.get_moved(coord) {
+    if board.can_castle && !board.get_moved(coord) {
         fn is_friendly_unmoved_rook(board: &Board, coord: Coord) -> bool {
             if let Some(piece) = board[coord].as_ref() {
                 piece.ty == Rook && !board.get_moved(coord) && piece.player == board.player_turn
@@ -406,6 +406,29 @@ fn test_king() {
     }
     {
         let mut board = Board::new(8, 8);
+        board.add_piece(
+            Coord::new(0, 0),
+            Piece {
+                player: 0,
+                ty: Rook,
+            },
+        );
+        board.add_piece(
+            Coord::new(7, 0),
+            Piece {
+                player: 0,
+                ty: Rook,
+            },
+        );
+        {
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board, Coord::new(4, 0));
+            assert!(!moves.contains(&Coord::new(2, 0)));
+            assert!(!moves.contains(&Coord::new(6, 0)));
+        }
+    }
+    {
+        let mut board = Board::new_with_castling(8, 8);
         board.add_piece(
             Coord::new(0, 0),
             Piece {

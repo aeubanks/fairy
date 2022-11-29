@@ -11,6 +11,7 @@ pub struct Board {
     pub player_turn: u8,
     pub last_pawn_double_move: Option<Coord>,
     moved: BitVec,
+    pub can_castle: bool,
 }
 
 #[derive(PartialEq, Eq)]
@@ -29,7 +30,14 @@ impl Board {
             player_turn: 0,
             last_pawn_double_move: None,
             moved: bitvec![0; (width * height) as usize],
+            can_castle: false,
         }
+    }
+
+    pub fn new_with_castling(width: i8, height: i8) -> Self {
+        let mut ret = Self::new(width, height);
+        ret.can_castle = true;
+        ret
     }
 
     #[cfg(test)]
@@ -426,19 +434,21 @@ fn test_mut_board_panic_y_2() {
 
 impl Board {
     pub fn los_alamos() -> Self {
-        Self::setup_with_pawns(6, 6, &[Rook, Knight, Queen, King, Knight, Rook])
+        Self::setup_with_pawns(6, 6, false, &[Rook, Knight, Queen, King, Knight, Rook])
     }
 
     pub fn classical() -> Self {
         Self::setup_with_pawns(
             8,
             8,
+            true,
             &[Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook],
         )
     }
 
-    fn setup_with_pawns(width: i8, height: i8, pieces: &[Type]) -> Self {
+    fn setup_with_pawns(width: i8, height: i8, castling: bool, pieces: &[Type]) -> Self {
         let mut board = Self::new(width, height);
+        board.can_castle = castling;
         for i in 0..board.width {
             board.add_piece(
                 Coord::new(i, 1),
