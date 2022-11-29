@@ -37,6 +37,18 @@ fn perft(board: &Board, depth: u64) -> u64 {
         if is_in_check(&copy, player) {
             continue;
         }
+        if board[m.from].as_ref().unwrap().ty == Pawn && (m.to.y == 0 || m.to.y == board.height - 1)
+        {
+            for ty in [Knight, Bishop, Rook] {
+                let mut promotion_copy = copy.clone();
+                promotion_copy[m.to].as_mut().unwrap().ty = ty;
+                if depth == 1 {
+                    sum += 1
+                } else {
+                    sum += perft(&promotion_copy, depth - 1);
+                }
+            }
+        }
         if depth == 1 {
             sum += 1
         } else {
@@ -201,4 +213,12 @@ fn classical_3() {
     assert_eq!(perft(&board, 2), 191);
     assert_eq!(perft(&board, 3), 2812);
     assert_eq!(perft(&board, 4), 43238);
+}
+
+#[test]
+fn classical_4() {
+    let board = fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+    assert_eq!(perft(&board, 1), 44);
+    assert_eq!(perft(&board, 2), 1486);
+    assert_eq!(perft(&board, 3), 62379);
 }
