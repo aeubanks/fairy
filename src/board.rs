@@ -1,5 +1,6 @@
 use crate::coord::Coord;
 use crate::piece::{Piece, Type, Type::*};
+use crate::player::{Player, Player::*};
 use bitvec::prelude::*;
 use std::ops::{Index, IndexMut};
 
@@ -8,7 +9,7 @@ pub struct Board {
     pieces: Vec<Option<Piece>>,
     pub width: i8,
     pub height: i8,
-    pub player_turn: u8,
+    pub player_turn: Player,
     pub last_pawn_double_move: Option<Coord>,
     moved: BitVec,
     pub can_castle: bool,
@@ -27,7 +28,7 @@ impl Board {
             pieces: vec![None; (width * height) as usize],
             width,
             height,
-            player_turn: 0,
+            player_turn: White,
             last_pawn_double_move: None,
             moved: bitvec![0; (width * height) as usize],
             can_castle: false,
@@ -93,7 +94,10 @@ pub struct Move {
 
 impl Board {
     pub fn advance_player(&mut self) {
-        self.player_turn = (self.player_turn + 1) % 2;
+        self.player_turn = match self.player_turn {
+            White => Black,
+            Black => White,
+        };
     }
 
     pub fn make_move(&mut self, m: Move) {
@@ -142,21 +146,21 @@ fn test_make_move() {
     board.add_piece(
         Coord::new(2, 1),
         Piece {
-            player: 0,
+            player: White,
             ty: Pawn,
         },
     );
     board.add_piece(
         Coord::new(3, 6),
         Piece {
-            player: 1,
+            player: Black,
             ty: Pawn,
         },
     );
     assert_eq!(board.last_pawn_double_move, None);
     assert!(board[(2, 1)].is_some());
     assert!(!board.get_moved((2, 1).into()));
-    assert_eq!(board.player_turn, 0);
+    assert_eq!(board.player_turn, White);
 
     board.make_move(Move {
         from: Coord::new(2, 1),
@@ -166,7 +170,7 @@ fn test_make_move() {
     assert!(board[(2, 3)].is_some());
     assert!(board.get_moved((2, 1).into()));
     assert!(board.get_moved((2, 3).into()));
-    assert_eq!(board.player_turn, 1);
+    assert_eq!(board.player_turn, Black);
     assert_eq!(board.last_pawn_double_move, Some(Coord::new(2, 3)));
     assert!(!board.get_moved((3, 6).into()));
 
@@ -174,7 +178,7 @@ fn test_make_move() {
         from: Coord::new(3, 6),
         to: Coord::new(3, 4),
     });
-    assert_eq!(board.player_turn, 0);
+    assert_eq!(board.player_turn, White);
     assert!(board.get_moved((3, 6).into()));
     assert_eq!(board.last_pawn_double_move, Some(Coord::new(3, 4)));
 
@@ -182,7 +186,7 @@ fn test_make_move() {
         from: Coord::new(2, 3),
         to: Coord::new(2, 4),
     });
-    assert_eq!(board.player_turn, 1);
+    assert_eq!(board.player_turn, Black);
     assert_eq!(board.last_pawn_double_move, None);
 }
 
@@ -192,14 +196,14 @@ fn test_en_passant() {
     board.add_piece(
         Coord::new(2, 4),
         Piece {
-            player: 0,
+            player: White,
             ty: Pawn,
         },
     );
     board.add_piece(
         Coord::new(3, 4),
         Piece {
-            player: 1,
+            player: Black,
             ty: Pawn,
         },
     );
@@ -219,14 +223,14 @@ fn test_en_promotion() {
     board.add_piece(
         Coord::new(2, 5),
         Piece {
-            player: 0,
+            player: White,
             ty: Pawn,
         },
     );
     board.add_piece(
         Coord::new(3, 2),
         Piece {
-            player: 1,
+            player: Black,
             ty: Pawn,
         },
     );
@@ -263,21 +267,21 @@ fn test_castle() {
         board.add_piece(
             Coord::new(0, 0),
             Piece {
-                player: 0,
+                player: White,
                 ty: Rook,
             },
         );
         board.add_piece(
             Coord::new(7, 0),
             Piece {
-                player: 0,
+                player: White,
                 ty: Rook,
             },
         );
         board.add_piece(
             Coord::new(4, 0),
             Piece {
-                player: 0,
+                player: White,
                 ty: King,
             },
         );
@@ -297,21 +301,21 @@ fn test_castle() {
         board.add_piece(
             Coord::new(0, 7),
             Piece {
-                player: 1,
+                player: Black,
                 ty: Rook,
             },
         );
         board.add_piece(
             Coord::new(7, 7),
             Piece {
-                player: 1,
+                player: Black,
                 ty: Rook,
             },
         );
         board.add_piece(
             Coord::new(4, 7),
             Piece {
-                player: 1,
+                player: Black,
                 ty: King,
             },
         );
@@ -362,11 +366,11 @@ fn test_board() {
     use crate::piece::*;
     let mut b = Board::new(4, 4);
     let p1 = Some(Piece {
-        player: 0,
+        player: White,
         ty: Type::Bishop,
     });
     let p2 = Some(Piece {
-        player: 1,
+        player: Black,
         ty: Type::Knight,
     });
     b[(0, 0)] = p1.clone();
@@ -453,24 +457,33 @@ impl Board {
             board.add_piece(
                 Coord::new(i, 1),
                 Piece {
-                    player: 0,
+                    player: White,
                     ty: Pawn,
                 },
             );
             board.add_piece(
                 Coord::new(i, board.height - 2),
                 Piece {
-                    player: 1,
+                    player: Black,
                     ty: Pawn,
                 },
             );
         }
         assert!(pieces.len() == board.width as usize);
         for (i, ty) in pieces.into_iter().enumerate() {
-            board.add_piece(Coord::new(i as i8, 0), Piece { player: 0, ty: *ty });
+            board.add_piece(
+                Coord::new(i as i8, 0),
+                Piece {
+                    player: White,
+                    ty: *ty,
+                },
+            );
             board.add_piece(
                 Coord::new(i as i8, board.height - 1),
-                Piece { player: 1, ty: *ty },
+                Piece {
+                    player: Black,
+                    ty: *ty,
+                },
             );
         }
         board

@@ -2,8 +2,9 @@ use fairy::board::Board;
 use fairy::coord::Coord;
 use fairy::moves::*;
 use fairy::piece::{Piece, Type, Type::*};
+use fairy::player::{Player, Player::*};
 
-fn king_coord(board: &Board, player: u8) -> Coord {
+fn king_coord(board: &Board, player: Player) -> Coord {
     for y in 0..board.height {
         for x in 0..board.width {
             let coord = Coord::new(x, y);
@@ -17,7 +18,7 @@ fn king_coord(board: &Board, player: u8) -> Coord {
     panic!()
 }
 
-fn is_in_check(board: &Board, player: u8) -> bool {
+fn is_in_check(board: &Board, player: Player) -> bool {
     let king_coord = king_coord(board, player);
     let is_check_1 = is_under_attack(board, king_coord, player);
     let is_check_2 = all_moves(board).into_iter().any(|om| om.to == king_coord);
@@ -74,18 +75,18 @@ fn fen(fen: &str) -> Board {
                     x += n as i8;
                 } else {
                     let (player, ty) = match c {
-                        'P' => (0, Pawn),
-                        'p' => (1, Pawn),
-                        'N' => (0, Knight),
-                        'n' => (1, Knight),
-                        'B' => (0, Bishop),
-                        'b' => (1, Bishop),
-                        'R' => (0, Rook),
-                        'r' => (1, Rook),
-                        'Q' => (0, Queen),
-                        'q' => (1, Queen),
-                        'K' => (0, King),
-                        'k' => (1, King),
+                        'P' => (White, Pawn),
+                        'p' => (Black, Pawn),
+                        'N' => (White, Knight),
+                        'n' => (Black, Knight),
+                        'B' => (White, Bishop),
+                        'b' => (Black, Bishop),
+                        'R' => (White, Rook),
+                        'r' => (Black, Rook),
+                        'Q' => (White, Queen),
+                        'q' => (Black, Queen),
+                        'K' => (White, King),
+                        'k' => (Black, King),
                         _ => panic!(),
                     };
                     board.add_piece(Coord::new(x, y), Piece { player, ty });
@@ -99,13 +100,13 @@ fn fen(fen: &str) -> Board {
     {
         let turn = space_split[1];
         assert!(turn == "w" || turn == "b");
-        board.player_turn = if turn == "w" { 0 } else { 1 };
+        board.player_turn = if turn == "w" { White } else { Black };
     }
 
     {
         let castling = space_split[2];
-        let white_king = king_coord(&board, 0);
-        let black_king = king_coord(&board, 1);
+        let white_king = king_coord(&board, White);
+        let black_king = king_coord(&board, Black);
         if castling == "-" {
             board.set_moved(white_king);
             board.set_moved(black_king);
@@ -163,7 +164,7 @@ fn test_fen() {
                 assert!(!board.get_moved(coord));
             }
         }
-        assert_eq!(board.player_turn, 0);
+        assert_eq!(board.player_turn, White);
         assert!(board.last_pawn_double_move.is_none());
     }
     {
@@ -171,7 +172,7 @@ fn test_fen() {
         assert_eq!(
             board[(0, 2)],
             Some(Piece {
-                player: 1,
+                player: Black,
                 ty: Queen
             })
         );
@@ -180,7 +181,7 @@ fn test_fen() {
         assert!(board.get_moved(Coord::new(7, 0)));
         assert!(!board.get_moved(Coord::new(0, 7)));
         assert!(!board.get_moved(Coord::new(7, 7)));
-        assert_eq!(board.player_turn, 1);
+        assert_eq!(board.player_turn, Black);
         assert!(board.last_pawn_double_move.is_none());
     }
     {

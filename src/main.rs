@@ -2,6 +2,7 @@ mod board;
 mod coord;
 mod moves;
 mod piece;
+mod player;
 
 use board::Board;
 use coord::Coord;

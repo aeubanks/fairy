@@ -1,8 +1,7 @@
 use crate::board::{Board, ExistingPieceResult, Move};
 use crate::coord::Coord;
-use crate::piece::Piece;
-use crate::piece::Type;
-use crate::piece::Type::*;
+use crate::piece::{Piece, Type, Type::*};
+use crate::player::{Player, Player::*};
 
 fn add_move_if_result(
     moves: &mut Vec<Coord>,
@@ -146,14 +145,14 @@ fn test_rook() {
     board.add_piece(
         Coord::new(2, 2),
         Piece {
-            player: 0,
+            player: White,
             ty: Rook,
         },
     );
     board.add_piece(
         Coord::new(1, 1),
         Piece {
-            player: 1,
+            player: Black,
             ty: Rook,
         },
     );
@@ -193,14 +192,14 @@ fn test_bishop() {
     board.add_piece(
         Coord::new(4, 5),
         Piece {
-            player: 0,
+            player: White,
             ty: Bishop,
         },
     );
     board.add_piece(
         Coord::new(2, 1),
         Piece {
-            player: 1,
+            player: Black,
             ty: Bishop,
         },
     );
@@ -257,14 +256,14 @@ fn test_knight() {
     board.add_piece(
         Coord::new(1, 0),
         Piece {
-            player: 0,
+            player: White,
             ty: Knight,
         },
     );
     board.add_piece(
         Coord::new(1, 4),
         Piece {
-            player: 1,
+            player: Black,
             ty: Knight,
         },
     );
@@ -378,14 +377,14 @@ fn test_king() {
         board.add_piece(
             Coord::new(1, 2),
             Piece {
-                player: 0,
+                player: White,
                 ty: Knight,
             },
         );
         board.add_piece(
             Coord::new(1, 3),
             Piece {
-                player: 1,
+                player: Black,
                 ty: Knight,
             },
         );
@@ -409,14 +408,14 @@ fn test_king() {
         board.add_piece(
             Coord::new(0, 0),
             Piece {
-                player: 0,
+                player: White,
                 ty: Rook,
             },
         );
         board.add_piece(
             Coord::new(7, 0),
             Piece {
-                player: 0,
+                player: White,
                 ty: Rook,
             },
         );
@@ -432,14 +431,14 @@ fn test_king() {
         board.add_piece(
             Coord::new(0, 0),
             Piece {
-                player: 0,
+                player: White,
                 ty: Rook,
             },
         );
         board.add_piece(
             Coord::new(7, 0),
             Piece {
-                player: 0,
+                player: White,
                 ty: Rook,
             },
         );
@@ -454,7 +453,7 @@ fn test_king() {
             board2.add_piece(
                 Coord::new(4, 2),
                 Piece {
-                    player: 1,
+                    player: Black,
                     ty: Rook,
                 },
             );
@@ -468,7 +467,7 @@ fn test_king() {
             board2.add_piece(
                 Coord::new(3, 2),
                 Piece {
-                    player: 1,
+                    player: Black,
                     ty: Rook,
                 },
             );
@@ -482,7 +481,7 @@ fn test_king() {
             board2.add_piece(
                 Coord::new(6, 2),
                 Piece {
-                    player: 1,
+                    player: Black,
                     ty: Rook,
                 },
             );
@@ -495,7 +494,7 @@ fn test_king() {
             let mut board2 = board.clone();
             let mut moves = Vec::new();
             board2[(0, 0)] = Some(Piece {
-                player: 0,
+                player: White,
                 ty: Knight,
             });
             add_king_moves(&mut moves, &board2, Coord::new(4, 0));
@@ -506,7 +505,7 @@ fn test_king() {
             let mut board2 = board.clone();
             let mut moves = Vec::new();
             board2[(0, 0)] = Some(Piece {
-                player: 1,
+                player: Black,
                 ty: Knight,
             });
             add_king_moves(&mut moves, &board2, Coord::new(4, 0));
@@ -519,14 +518,14 @@ fn test_king() {
             board2.add_piece(
                 Coord::new(1, 0),
                 Piece {
-                    player: 0,
+                    player: White,
                     ty: Knight,
                 },
             );
             board2.add_piece(
                 Coord::new(6, 0),
                 Piece {
-                    player: 1,
+                    player: Black,
                     ty: Knight,
                 },
             );
@@ -552,7 +551,10 @@ fn test_king() {
 }
 
 fn add_pawn_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
-    let dy = if board.player_turn == 0 { 1 } else { -1 };
+    let dy = match board.player_turn {
+        White => 1,
+        Black => -1,
+    };
 
     let left = coord + Coord { x: -1, y: dy };
     add_move_if_in_bounds_and_result(moves, board, left, ExistingPieceResult::Opponent);
@@ -564,10 +566,9 @@ fn add_pawn_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
     let front_empty = add_move_if_result(moves, board, front, ExistingPieceResult::Empty);
 
     if front_empty {
-        let initial_y = if board.player_turn == 0 {
-            1
-        } else {
-            board.height - 2
+        let initial_y = match board.player_turn {
+            White => 1,
+            Black => board.height - 2,
         };
         if coord.y == initial_y {
             let max_forward = (board.height / 2 - 2).max(1);
@@ -602,7 +603,7 @@ fn test_pawn() {
         board.add_piece(
             Coord::new(2, 4),
             Piece {
-                player: 0,
+                player: White,
                 ty: Rook,
             },
         );
@@ -615,7 +616,7 @@ fn test_pawn() {
         board.add_piece(
             Coord::new(2, 4),
             Piece {
-                player: 1,
+                player: Black,
                 ty: Rook,
             },
         );
@@ -634,7 +635,7 @@ fn test_pawn() {
         board.add_piece(
             Coord::new(2, 3),
             Piece {
-                player: 0,
+                player: White,
                 ty: Rook,
             },
         );
@@ -647,7 +648,7 @@ fn test_pawn() {
         board.add_piece(
             Coord::new(2, 2),
             Piece {
-                player: 1,
+                player: Black,
                 ty: Rook,
             },
         );
@@ -660,21 +661,21 @@ fn test_pawn() {
         board.add_piece(
             Coord::new(3, 3),
             Piece {
-                player: 0,
+                player: White,
                 ty: Knight,
             },
         );
         board.add_piece(
             Coord::new(2, 3),
             Piece {
-                player: 1,
+                player: Black,
                 ty: Knight,
             },
         );
         board.add_piece(
             Coord::new(1, 3),
             Piece {
-                player: 1,
+                player: Black,
                 ty: Knight,
             },
         );
@@ -684,14 +685,14 @@ fn test_pawn() {
     }
     {
         let mut board = Board::new(8, 8);
-        board.player_turn = 1;
+        board.player_turn = Black;
         let mut moves = Vec::new();
         add_pawn_moves(&mut moves, &board, Coord::new(2, 2));
         assert_moves_eq(&[Coord::new(2, 1)], moves);
     }
     {
         let mut board = Board::new(8, 8);
-        board.player_turn = 1;
+        board.player_turn = Black;
         let mut moves = Vec::new();
         add_pawn_moves(&mut moves, &board, Coord::new(2, 6));
         assert_moves_eq(&[Coord::new(2, 4), Coord::new(2, 5)], moves);
@@ -726,7 +727,7 @@ fn test_pawn() {
     }
     {
         let mut board = Board::new(8, 12);
-        board.player_turn = 1;
+        board.player_turn = Black;
         let mut moves = Vec::new();
         add_pawn_moves(&mut moves, &board, Coord::new(3, 10));
         assert_moves_eq(
@@ -741,11 +742,11 @@ fn test_pawn() {
     }
     {
         let mut board = Board::new(8, 12);
-        board.player_turn = 1;
+        board.player_turn = Black;
         board.add_piece(
             Coord::new(3, 7),
             Piece {
-                player: 0,
+                player: White,
                 ty: Knight,
             },
         );
@@ -793,7 +794,7 @@ pub fn all_moves(board: &Board) -> Vec<Move> {
     moves
 }
 
-fn enemy_piece_rider(board: &Board, coord: Coord, offset: Coord, player: u8) -> Option<Type> {
+fn enemy_piece_rider(board: &Board, coord: Coord, offset: Coord, player: Player) -> Option<Type> {
     let mut try_coord = coord + offset;
     while board.in_bounds(try_coord) {
         if let Some(p) = board[try_coord].as_ref() {
@@ -808,7 +809,7 @@ fn enemy_piece_rider(board: &Board, coord: Coord, offset: Coord, player: u8) -> 
     None
 }
 
-fn enemy_piece_leaper(board: &Board, coord: Coord, offset: Coord, player: u8) -> Option<Type> {
+fn enemy_piece_leaper(board: &Board, coord: Coord, offset: Coord, player: Player) -> Option<Type> {
     let try_coord = coord + offset;
     if board.in_bounds(try_coord) {
         if let Some(p) = board[try_coord].as_ref() {
@@ -822,7 +823,7 @@ fn enemy_piece_leaper(board: &Board, coord: Coord, offset: Coord, player: u8) ->
     None
 }
 
-pub fn is_under_attack(board: &Board, coord: Coord, player: u8) -> bool {
+pub fn is_under_attack(board: &Board, coord: Coord, player: Player) -> bool {
     if let Some(p) = board[coord].as_ref() {
         assert_eq!(p.player, player);
     }
@@ -856,7 +857,7 @@ pub fn is_under_attack(board: &Board, coord: Coord, player: u8) -> bool {
             _ => {}
         }
     }
-    fn has_enemy_pawn(board: &Board, coord: Coord, player: u8) -> bool {
+    fn has_enemy_pawn(board: &Board, coord: Coord, player: Player) -> bool {
         if board.in_bounds(coord) {
             if let Some(p) = board[coord].as_ref() {
                 return p.player != player && p.ty == Pawn;
@@ -864,7 +865,7 @@ pub fn is_under_attack(board: &Board, coord: Coord, player: u8) -> bool {
         }
         false
     }
-    if player == 0 {
+    if player == White {
         if has_enemy_pawn(board, coord + Coord::new(1, 1), player)
             || has_enemy_pawn(board, coord + Coord::new(-1, 1), player)
         {
@@ -890,47 +891,47 @@ fn test_under_attack() {
                 (
                     Coord::new(0, 0),
                     Piece {
-                        player: 0,
+                        player: White,
                         ty: Rook,
                     },
                 ),
                 (
                     Coord::new(3, 0),
                     Piece {
-                        player: 0,
+                        player: White,
                         ty: Pawn,
                     },
                 ),
                 (
                     Coord::new(0, 3),
                     Piece {
-                        player: 1,
+                        player: Black,
                         ty: Pawn,
                     },
                 ),
                 (
                     Coord::new(7, 7),
                     Piece {
-                        player: 1,
+                        player: Black,
                         ty: Rook,
                     },
                 ),
             ],
         );
-        assert!(is_under_attack(&board, Coord::new(6, 7), 0));
-        assert!(is_under_attack(&board, Coord::new(5, 7), 0));
-        assert!(!is_under_attack(&board, Coord::new(1, 0), 0));
-        assert!(!is_under_attack(&board, Coord::new(0, 0), 0));
+        assert!(is_under_attack(&board, Coord::new(6, 7), White));
+        assert!(is_under_attack(&board, Coord::new(5, 7), White));
+        assert!(!is_under_attack(&board, Coord::new(1, 0), White));
+        assert!(!is_under_attack(&board, Coord::new(0, 0), White));
 
-        assert!(is_under_attack(&board, Coord::new(1, 0), 1));
-        assert!(is_under_attack(&board, Coord::new(2, 0), 1));
-        assert!(!is_under_attack(&board, Coord::new(4, 0), 1));
-        assert!(is_under_attack(&board, Coord::new(0, 1), 1));
-        assert!(is_under_attack(&board, Coord::new(0, 2), 1));
-        assert!(is_under_attack(&board, Coord::new(0, 3), 1));
-        assert!(!is_under_attack(&board, Coord::new(0, 4), 1));
-        assert!(!is_under_attack(&board, Coord::new(6, 7), 1));
-        assert!(!is_under_attack(&board, Coord::new(7, 7), 1));
+        assert!(is_under_attack(&board, Coord::new(1, 0), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 0), Black));
+        assert!(!is_under_attack(&board, Coord::new(4, 0), Black));
+        assert!(is_under_attack(&board, Coord::new(0, 1), Black));
+        assert!(is_under_attack(&board, Coord::new(0, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(0, 3), Black));
+        assert!(!is_under_attack(&board, Coord::new(0, 4), Black));
+        assert!(!is_under_attack(&board, Coord::new(6, 7), Black));
+        assert!(!is_under_attack(&board, Coord::new(7, 7), Black));
     }
     {
         let board = Board::with_pieces(
@@ -939,20 +940,20 @@ fn test_under_attack() {
             &[(
                 Coord::new(1, 1),
                 Piece {
-                    player: 0,
+                    player: White,
                     ty: Bishop,
                 },
             )],
         );
-        assert!(is_under_attack(&board, Coord::new(0, 0), 1));
-        assert!(is_under_attack(&board, Coord::new(2, 2), 1));
-        assert!(is_under_attack(&board, Coord::new(3, 3), 1));
-        assert!(is_under_attack(&board, Coord::new(0, 2), 1));
-        assert!(is_under_attack(&board, Coord::new(2, 0), 1));
-        assert!(!is_under_attack(&board, Coord::new(1, 0), 1));
-        assert!(!is_under_attack(&board, Coord::new(0, 1), 1));
-        assert!(!is_under_attack(&board, Coord::new(1, 2), 1));
-        assert!(!is_under_attack(&board, Coord::new(2, 1), 1));
+        assert!(is_under_attack(&board, Coord::new(0, 0), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(3, 3), Black));
+        assert!(is_under_attack(&board, Coord::new(0, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 0), Black));
+        assert!(!is_under_attack(&board, Coord::new(1, 0), Black));
+        assert!(!is_under_attack(&board, Coord::new(0, 1), Black));
+        assert!(!is_under_attack(&board, Coord::new(1, 2), Black));
+        assert!(!is_under_attack(&board, Coord::new(2, 1), Black));
     }
     {
         let board = Board::with_pieces(
@@ -961,22 +962,22 @@ fn test_under_attack() {
             &[(
                 Coord::new(1, 1),
                 Piece {
-                    player: 0,
+                    player: White,
                     ty: Queen,
                 },
             )],
         );
-        assert!(is_under_attack(&board, Coord::new(0, 0), 1));
-        assert!(is_under_attack(&board, Coord::new(2, 2), 1));
-        assert!(is_under_attack(&board, Coord::new(3, 3), 1));
-        assert!(is_under_attack(&board, Coord::new(0, 2), 1));
-        assert!(is_under_attack(&board, Coord::new(2, 0), 1));
-        assert!(is_under_attack(&board, Coord::new(1, 0), 1));
-        assert!(is_under_attack(&board, Coord::new(0, 1), 1));
-        assert!(is_under_attack(&board, Coord::new(1, 2), 1));
-        assert!(is_under_attack(&board, Coord::new(1, 3), 1));
-        assert!(is_under_attack(&board, Coord::new(2, 1), 1));
-        assert!(!is_under_attack(&board, Coord::new(2, 3), 1));
+        assert!(is_under_attack(&board, Coord::new(0, 0), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(3, 3), Black));
+        assert!(is_under_attack(&board, Coord::new(0, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 0), Black));
+        assert!(is_under_attack(&board, Coord::new(1, 0), Black));
+        assert!(is_under_attack(&board, Coord::new(0, 1), Black));
+        assert!(is_under_attack(&board, Coord::new(1, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(1, 3), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 1), Black));
+        assert!(!is_under_attack(&board, Coord::new(2, 3), Black));
     }
     {
         let board = Board::with_pieces(
@@ -985,22 +986,22 @@ fn test_under_attack() {
             &[(
                 Coord::new(1, 1),
                 Piece {
-                    player: 0,
+                    player: White,
                     ty: King,
                 },
             )],
         );
-        assert!(is_under_attack(&board, Coord::new(0, 0), 1));
-        assert!(is_under_attack(&board, Coord::new(2, 2), 1));
-        assert!(!is_under_attack(&board, Coord::new(3, 3), 1));
-        assert!(is_under_attack(&board, Coord::new(0, 2), 1));
-        assert!(is_under_attack(&board, Coord::new(2, 0), 1));
-        assert!(is_under_attack(&board, Coord::new(1, 0), 1));
-        assert!(is_under_attack(&board, Coord::new(0, 1), 1));
-        assert!(is_under_attack(&board, Coord::new(1, 2), 1));
-        assert!(!is_under_attack(&board, Coord::new(1, 3), 1));
-        assert!(is_under_attack(&board, Coord::new(2, 1), 1));
-        assert!(!is_under_attack(&board, Coord::new(2, 3), 1));
+        assert!(is_under_attack(&board, Coord::new(0, 0), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 2), Black));
+        assert!(!is_under_attack(&board, Coord::new(3, 3), Black));
+        assert!(is_under_attack(&board, Coord::new(0, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 0), Black));
+        assert!(is_under_attack(&board, Coord::new(1, 0), Black));
+        assert!(is_under_attack(&board, Coord::new(0, 1), Black));
+        assert!(is_under_attack(&board, Coord::new(1, 2), Black));
+        assert!(!is_under_attack(&board, Coord::new(1, 3), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 1), Black));
+        assert!(!is_under_attack(&board, Coord::new(2, 3), Black));
     }
     {
         let board = Board::with_pieces(
@@ -1009,14 +1010,14 @@ fn test_under_attack() {
             &[(
                 Coord::new(1, 1),
                 Piece {
-                    player: 0,
+                    player: White,
                     ty: Knight,
                 },
             )],
         );
-        assert!(is_under_attack(&board, Coord::new(0, 3), 1));
-        assert!(is_under_attack(&board, Coord::new(2, 3), 1));
-        assert!(!is_under_attack(&board, Coord::new(3, 5), 1));
+        assert!(is_under_attack(&board, Coord::new(0, 3), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 3), Black));
+        assert!(!is_under_attack(&board, Coord::new(3, 5), Black));
     }
     {
         let board = Board::with_pieces(
@@ -1026,33 +1027,33 @@ fn test_under_attack() {
                 (
                     Coord::new(1, 1),
                     Piece {
-                        player: 0,
+                        player: White,
                         ty: Pawn,
                     },
                 ),
                 (
                     Coord::new(6, 6),
                     Piece {
-                        player: 1,
+                        player: Black,
                         ty: Pawn,
                     },
                 ),
             ],
         );
-        assert!(is_under_attack(&board, Coord::new(5, 5), 0));
-        assert!(is_under_attack(&board, Coord::new(7, 5), 0));
-        assert!(!is_under_attack(&board, Coord::new(6, 5), 0));
-        assert!(!is_under_attack(&board, Coord::new(6, 4), 0));
-        assert!(!is_under_attack(&board, Coord::new(5, 7), 0));
-        assert!(!is_under_attack(&board, Coord::new(6, 7), 0));
-        assert!(!is_under_attack(&board, Coord::new(7, 7), 0));
+        assert!(is_under_attack(&board, Coord::new(5, 5), White));
+        assert!(is_under_attack(&board, Coord::new(7, 5), White));
+        assert!(!is_under_attack(&board, Coord::new(6, 5), White));
+        assert!(!is_under_attack(&board, Coord::new(6, 4), White));
+        assert!(!is_under_attack(&board, Coord::new(5, 7), White));
+        assert!(!is_under_attack(&board, Coord::new(6, 7), White));
+        assert!(!is_under_attack(&board, Coord::new(7, 7), White));
 
-        assert!(is_under_attack(&board, Coord::new(0, 2), 1));
-        assert!(is_under_attack(&board, Coord::new(2, 2), 1));
-        assert!(!is_under_attack(&board, Coord::new(1, 2), 1));
-        assert!(!is_under_attack(&board, Coord::new(1, 3), 1));
-        assert!(!is_under_attack(&board, Coord::new(0, 0), 1));
-        assert!(!is_under_attack(&board, Coord::new(1, 0), 1));
-        assert!(!is_under_attack(&board, Coord::new(2, 0), 1));
+        assert!(is_under_attack(&board, Coord::new(0, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 2), Black));
+        assert!(!is_under_attack(&board, Coord::new(1, 2), Black));
+        assert!(!is_under_attack(&board, Coord::new(1, 3), Black));
+        assert!(!is_under_attack(&board, Coord::new(0, 0), Black));
+        assert!(!is_under_attack(&board, Coord::new(1, 0), Black));
+        assert!(!is_under_attack(&board, Coord::new(2, 0), Black));
     }
 }

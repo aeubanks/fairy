@@ -1,3 +1,5 @@
+use crate::player::Player;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Type {
     Pawn,
@@ -10,6 +12,6 @@ pub enum Type {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Piece {
-    pub player: u8,
+    pub player: Player,
     pub ty: Type,
 }
