@@ -553,13 +553,15 @@ fn test_king() {
 
 fn add_pawn_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
     let dy = if board.player_turn == 0 { 1 } else { -1 };
-    let front = coord + Coord { x: 0, y: dy };
-    assert!(board.in_bounds(front));
-    let front_empty = add_move_if_result(moves, board, front, ExistingPieceResult::Empty);
+
     let left = coord + Coord { x: -1, y: dy };
     add_move_if_in_bounds_and_result(moves, board, left, ExistingPieceResult::Opponent);
     let right = coord + Coord { x: 1, y: dy };
     add_move_if_in_bounds_and_result(moves, board, right, ExistingPieceResult::Opponent);
+
+    let front = coord + Coord { x: 0, y: dy };
+    assert!(board.in_bounds(front));
+    let front_empty = add_move_if_result(moves, board, front, ExistingPieceResult::Empty);
 
     if front_empty {
         let initial_y = if board.player_turn == 0 {
@@ -568,8 +570,15 @@ fn add_pawn_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
             board.height - 2
         };
         if coord.y == initial_y {
-            let two_spaces = front + Coord { x: 0, y: dy };
-            add_move_if_result(moves, board, two_spaces, ExistingPieceResult::Empty);
+            let max_forward = (board.height / 2 - 2).max(1);
+            let mut front2 = front;
+            for _ in 1..max_forward {
+                front2 = front2 + Coord { x: 0, y: dy };
+                let empty = add_move_if_result(moves, board, front2, ExistingPieceResult::Empty);
+                if !empty {
+                    break;
+                }
+            }
         }
     }
 
@@ -686,6 +695,63 @@ fn test_pawn() {
         let mut moves = Vec::new();
         add_pawn_moves(&mut moves, &board, Coord::new(2, 6));
         assert_moves_eq(&[Coord::new(2, 4), Coord::new(2, 5)], moves);
+    }
+    {
+        let board = Board::new(8, 12);
+        let mut moves = Vec::new();
+        add_pawn_moves(&mut moves, &board, Coord::new(2, 1));
+        assert_moves_eq(
+            &[
+                Coord::new(2, 2),
+                Coord::new(2, 3),
+                Coord::new(2, 4),
+                Coord::new(2, 5),
+            ],
+            moves,
+        );
+    }
+    {
+        let board = Board::new(8, 13);
+        let mut moves = Vec::new();
+        add_pawn_moves(&mut moves, &board, Coord::new(2, 1));
+        assert_moves_eq(
+            &[
+                Coord::new(2, 2),
+                Coord::new(2, 3),
+                Coord::new(2, 4),
+                Coord::new(2, 5),
+            ],
+            moves,
+        );
+    }
+    {
+        let mut board = Board::new(8, 12);
+        board.player_turn = 1;
+        let mut moves = Vec::new();
+        add_pawn_moves(&mut moves, &board, Coord::new(3, 10));
+        assert_moves_eq(
+            &[
+                Coord::new(3, 9),
+                Coord::new(3, 8),
+                Coord::new(3, 7),
+                Coord::new(3, 6),
+            ],
+            moves,
+        );
+    }
+    {
+        let mut board = Board::new(8, 12);
+        board.player_turn = 1;
+        board.add_piece(
+            Coord::new(3, 7),
+            Piece {
+                player: 0,
+                ty: Knight,
+            },
+        );
+        let mut moves = Vec::new();
+        add_pawn_moves(&mut moves, &board, Coord::new(3, 10));
+        assert_moves_eq(&[Coord::new(3, 9), Coord::new(3, 8)], moves);
     }
 }
 
