@@ -8,6 +8,8 @@ pub enum Type {
     Rook,
     Queen,
     King,
+    Chancellor,
+    Archbishop,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

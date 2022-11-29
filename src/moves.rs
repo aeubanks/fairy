@@ -224,6 +224,16 @@ fn add_queen_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
     add_bishop_moves(moves, board, coord);
 }
 
+fn add_chancellor_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
+    add_rook_moves(moves, board, coord);
+    add_knight_moves(moves, board, coord);
+}
+
+fn add_archbishop_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
+    add_bishop_moves(moves, board, coord);
+    add_knight_moves(moves, board, coord);
+}
+
 fn add_knight_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
     add_moves_for_leaper(moves, board, coord, &offsets((2, 1).into()))
 }
@@ -764,6 +774,8 @@ fn add_moves_for_piece(moves: &mut Vec<Coord>, board: &Board, piece: &Piece, coo
         Queen => add_queen_moves(moves, board, coord),
         Knight => add_knight_moves(moves, board, coord),
         King => add_king_moves(moves, board, coord),
+        Chancellor => add_chancellor_moves(moves, board, coord),
+        Archbishop => add_archbishop_moves(moves, board, coord),
     }
 }
 
@@ -829,19 +841,19 @@ pub fn is_under_attack(board: &Board, coord: Coord, player: Player) -> bool {
     }
     for o in offsets(Coord::new(1, 0)) {
         match enemy_piece_rider(board, coord, o, player) {
-            Some(Queen) | Some(Rook) => return true,
+            Some(Queen) | Some(Rook) | Some(Chancellor) => return true,
             _ => {}
         }
     }
     for o in offsets(Coord::new(1, 1)) {
         match enemy_piece_rider(board, coord, o, player) {
-            Some(Queen) | Some(Bishop) => return true,
+            Some(Queen) | Some(Bishop) | Some(Archbishop) => return true,
             _ => {}
         }
     }
     for o in offsets(Coord::new(1, 2)) {
         match enemy_piece_leaper(board, coord, o, player) {
-            Some(Knight) => return true,
+            Some(Knight) | Some(Archbishop) | Some(Chancellor) => return true,
             _ => {}
         }
     }
@@ -954,6 +966,60 @@ fn test_under_attack() {
         assert!(!is_under_attack(&board, Coord::new(0, 1), Black));
         assert!(!is_under_attack(&board, Coord::new(1, 2), Black));
         assert!(!is_under_attack(&board, Coord::new(2, 1), Black));
+    }
+    {
+        let board = Board::with_pieces(
+            8,
+            8,
+            &[(
+                Coord::new(3, 3),
+                Piece {
+                    player: White,
+                    ty: Archbishop,
+                },
+            )],
+        );
+        assert!(is_under_attack(&board, Coord::new(1, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(1, 4), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 1), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 5), Black));
+        assert!(is_under_attack(&board, Coord::new(4, 1), Black));
+        assert!(is_under_attack(&board, Coord::new(4, 5), Black));
+        assert!(is_under_attack(&board, Coord::new(5, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(5, 4), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(1, 1), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 4), Black));
+        assert!(is_under_attack(&board, Coord::new(4, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(4, 4), Black));
+        assert!(!is_under_attack(&board, Coord::new(2, 3), Black));
+    }
+    {
+        let board = Board::with_pieces(
+            8,
+            8,
+            &[(
+                Coord::new(3, 3),
+                Piece {
+                    player: White,
+                    ty: Chancellor,
+                },
+            )],
+        );
+        assert!(is_under_attack(&board, Coord::new(1, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(1, 4), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 1), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 5), Black));
+        assert!(is_under_attack(&board, Coord::new(4, 1), Black));
+        assert!(is_under_attack(&board, Coord::new(4, 5), Black));
+        assert!(is_under_attack(&board, Coord::new(5, 2), Black));
+        assert!(is_under_attack(&board, Coord::new(5, 4), Black));
+        assert!(is_under_attack(&board, Coord::new(3, 4), Black));
+        assert!(is_under_attack(&board, Coord::new(3, 5), Black));
+        assert!(is_under_attack(&board, Coord::new(2, 3), Black));
+        assert!(is_under_attack(&board, Coord::new(4, 3), Black));
+        assert!(is_under_attack(&board, Coord::new(3, 2), Black));
+        assert!(!is_under_attack(&board, Coord::new(2, 2), Black));
     }
     {
         let board = Board::with_pieces(
