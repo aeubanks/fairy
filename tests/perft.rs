@@ -17,6 +17,15 @@ fn king_coord(board: &Board, player: u8) -> Coord {
     panic!()
 }
 
+fn is_in_check(board: &Board, player: u8) -> bool {
+    let king_coord = king_coord(board, player);
+    let is_check_1 = is_under_attack(board, king_coord, player);
+    let is_check_2 = all_moves(board).into_iter().any(|om| om.to == king_coord);
+    // TODO: do more fuzz testing of checks?
+    assert_eq!(is_check_1, is_check_2);
+    is_check_1
+}
+
 fn perft(board: &Board, depth: u64) -> u64 {
     assert_ne!(depth, 0);
     let moves = all_moves(board);
@@ -25,12 +34,7 @@ fn perft(board: &Board, depth: u64) -> u64 {
     for m in moves {
         let mut copy = board.clone();
         copy.make_move(m);
-        let king_coord = king_coord(&copy, player);
-        let is_check_1 = is_under_attack(&copy, king_coord, player);
-        let is_check_2 = all_moves(&copy).into_iter().any(|om| om.to == king_coord);
-        // TODO: do more fuzz testing of checks?
-        assert_eq!(is_check_1, is_check_2);
-        if is_check_1 {
+        if is_in_check(&copy, player) {
             continue;
         }
         if depth == 1 {
