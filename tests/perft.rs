@@ -21,11 +21,11 @@ fn perft(board: &Board, depth: u64) -> u64 {
     assert_ne!(depth, 0);
     let moves = all_moves(board);
     let player = board.player_turn;
-    let king_coord = king_coord(board, player);
     let mut sum = 0;
     for m in moves {
         let mut copy = board.clone();
         copy.make_move(m);
+        let king_coord = king_coord(&copy, player);
         let is_check_1 = is_under_attack(&copy, king_coord, player);
         let is_check_2 = all_moves(&copy).into_iter().any(|om| om.to == king_coord);
         // TODO: do more fuzz testing of checks?
@@ -179,7 +179,22 @@ fn classical() {
     assert_eq!(perft(&board, 1), 20);
     assert_eq!(perft(&board, 2), 400);
     assert_eq!(perft(&board, 3), 8902);
-    // assert_eq!(perft(&board, 4), 197281);
-    // assert_eq!(perft(&board, 5), 4865609);
-    // assert_eq!(perft(&board, 6), 119060324);
+    assert_eq!(perft(&board, 4), 197281);
+}
+
+#[test]
+fn classical_2() {
+    let board = fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
+    assert_eq!(perft(&board, 1), 48);
+    assert_eq!(perft(&board, 2), 2039);
+    assert_eq!(perft(&board, 3), 97862);
+}
+
+#[test]
+fn classical_3() {
+    let board = fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -");
+    assert_eq!(perft(&board, 1), 14);
+    assert_eq!(perft(&board, 2), 191);
+    assert_eq!(perft(&board, 3), 2812);
+    assert_eq!(perft(&board, 4), 43238);
 }
