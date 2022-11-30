@@ -450,6 +450,17 @@ impl Board {
         )
     }
 
+    pub fn embassy() -> Self {
+        Self::setup_with_pawns(
+            10,
+            8,
+            true,
+            &[
+                Rook, Knight, Bishop, Queen, King, Chancellor, Archbishop, Bishop, Knight, Rook,
+            ],
+        )
+    }
+
     fn setup_with_pawns(width: i8, height: i8, castling: bool, pieces: &[Type]) -> Self {
         let mut board = Self::new(width, height);
         board.can_castle = castling;
@@ -494,4 +505,5 @@ impl Board {
 fn test_premade_boards() {
     Board::classical();
     Board::los_alamos();
+    Board::embassy();
 }
