@@ -2,6 +2,7 @@ use crate::coord::Coord;
 use crate::piece::{Piece, Type, Type::*};
 use crate::player::{Player, Player::*};
 use bitvec::prelude::*;
+use rand::Rng;
 use std::ops::{Index, IndexMut};
 
 #[derive(Clone)]
@@ -461,6 +462,66 @@ impl Board {
         )
     }
 
+    fn set_nth_empty(mut n: usize, pieces: &mut [Option<Type>], ty: Type) {
+        let mut i = 0;
+        loop {
+            while pieces[i].is_some() {
+                i += 1;
+            }
+            if n == 0 {
+                break;
+            } else {
+                n -= 1;
+            }
+        }
+        pieces[i] = Some(ty);
+    }
+
+    pub fn chess960<R: Rng + ?Sized>(rng: &mut R) -> Self {
+        let mut pieces: [Option<Type>; 8] = [None; 8];
+        Self::set_nth_empty(rng.gen_range(0..4) * 2, &mut pieces, Bishop);
+        Self::set_nth_empty(rng.gen_range(0..4) * 2 + 1, &mut pieces, Bishop);
+        Self::set_nth_empty(rng.gen_range(0..6), &mut pieces, Queen);
+        Self::set_nth_empty(rng.gen_range(0..5), &mut pieces, Knight);
+        Self::set_nth_empty(rng.gen_range(0..4), &mut pieces, Knight);
+        Self::set_nth_empty(0, &mut pieces, Rook);
+        Self::set_nth_empty(0, &mut pieces, King);
+        Self::set_nth_empty(0, &mut pieces, Rook);
+
+        Self::setup_with_pawns(8, 8, true, &pieces.map(|p| p.unwrap()))
+    }
+
+    pub fn capablanca_random<R: Rng + ?Sized>(rng: &mut R) -> Self {
+        let mut evens: [Option<Type>; 5] = [None; 5];
+        let mut odds: [Option<Type>; 5] = [None; 5];
+        evens[rng.gen_range(0..5)] = Some(Bishop);
+        odds[rng.gen_range(0..5)] = Some(Bishop);
+        let (qa1, qa2) = if rng.gen() {
+            (Queen, Archbishop)
+        } else {
+            (Archbishop, Queen)
+        };
+        Self::set_nth_empty(rng.gen_range(0..4), &mut evens, qa1);
+        Self::set_nth_empty(rng.gen_range(0..4), &mut odds, qa2);
+
+        let mut pieces: [Option<Type>; 10] = [None; 10];
+        for (i, t) in evens.into_iter().enumerate() {
+            pieces[i * 2] = t;
+        }
+        for (i, t) in odds.into_iter().enumerate() {
+            pieces[i * 2 + 1] = t;
+        }
+
+        Self::set_nth_empty(rng.gen_range(0..6), &mut pieces, Chancellor);
+        Self::set_nth_empty(rng.gen_range(0..5), &mut pieces, Knight);
+        Self::set_nth_empty(rng.gen_range(0..4), &mut pieces, Knight);
+        Self::set_nth_empty(0, &mut pieces, Rook);
+        Self::set_nth_empty(0, &mut pieces, King);
+        Self::set_nth_empty(0, &mut pieces, Rook);
+
+        Self::setup_with_pawns(10, 8, true, &pieces.map(|p| p.unwrap()))
+    }
+
     fn setup_with_pawns(width: i8, height: i8, castling: bool, pieces: &[Type]) -> Self {
         let mut board = Self::new(width, height);
         board.can_castle = castling;
@@ -506,4 +567,10 @@ fn test_premade_boards() {
     Board::classical();
     Board::los_alamos();
     Board::embassy();
+
+    let mut rng = rand::thread_rng();
+    for _ in 0..10 {
+        Board::chess960(&mut rng);
+        Board::capablanca_random(&mut rng);
+    }
 }
