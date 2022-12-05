@@ -1,31 +1,11 @@
+mod common;
+
+use common::*;
 use fairy::board::Board;
 use fairy::coord::Coord;
 use fairy::moves::*;
-use fairy::piece::{Piece, Type, Type::*};
-use fairy::player::{Player, Player::*};
-
-fn king_coord(board: &Board, player: Player) -> Coord {
-    for y in 0..board.height {
-        for x in 0..board.width {
-            let coord = Coord::new(x, y);
-            if let Some(piece) = board[coord].as_ref() {
-                if piece.player == player && piece.ty == Type::King {
-                    return coord;
-                }
-            }
-        }
-    }
-    panic!()
-}
-
-fn is_in_check(board: &Board, player: Player) -> bool {
-    let king_coord = king_coord(board, player);
-    let is_check_1 = is_under_attack(board, king_coord, player);
-    let is_check_2 = all_moves(board).into_iter().any(|om| om.to == king_coord);
-    // TODO: do more fuzz testing of checks?
-    assert_eq!(is_check_1, is_check_2);
-    is_check_1
-}
+use fairy::piece::{Piece, Type::*};
+use fairy::player::Player::*;
 
 fn perft(board: &Board, depth: u64) -> u64 {
     assert_ne!(depth, 0);

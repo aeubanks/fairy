@@ -779,6 +779,7 @@ fn add_moves_for_piece(moves: &mut Vec<Coord>, board: &Board, piece: &Piece, coo
     }
 }
 
+// FIXME: take player as param and rely less on board.player_turn
 pub fn all_moves(board: &Board) -> Vec<Move> {
     let mut moves = Vec::new();
 
