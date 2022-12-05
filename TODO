@@ -1,3 +1,4 @@
 fuzz testing of is_under_attack
 promotion to pieces other than queen
 AI
+add tests for derive_rand (https://ferrous-systems.com/blog/testing-proc-macros/)

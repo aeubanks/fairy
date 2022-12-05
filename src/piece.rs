@@ -1,6 +1,7 @@
 use crate::player::Player;
+use derive_rand::Rand;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Rand)]
 pub enum Type {
     Pawn,
     Knight,
