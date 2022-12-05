@@ -3,6 +3,7 @@ mod common;
 use common::*;
 use fairy::board::Board;
 use fairy::coord::Coord;
+use fairy::moves::all_moves;
 use fairy::piece::{Piece, Type, Type::*};
 use fairy::player::{Player, Player::*};
 use rand::{thread_rng, Rng};
@@ -89,13 +90,19 @@ fn rand_board<R: Rng + ?Sized>(rng: &mut R) -> Board {
     board
 }
 
+fn check_is_in_check(board: &Board, player: Player) {
+    let king_coord = king_coord(board, player);
+    let is_check = all_moves(board).into_iter().any(|om| om.to == king_coord);
+    assert_eq!(is_in_check(board, player), is_check);
+}
+
 #[test]
 fn fuzz_is_in_check() {
     let mut rng = thread_rng();
     for _ in 0..1000 {
         let mut board = rand_board(&mut rng);
-        is_in_check(&board, Player::Black);
+        check_is_in_check(&board, Black);
         board.advance_player();
-        is_in_check(&board, Player::White);
+        check_is_in_check(&board, White);
     }
 }

@@ -20,8 +20,5 @@ pub fn king_coord(board: &Board, player: Player) -> Coord {
 
 pub fn is_in_check(board: &Board, player: Player) -> bool {
     let king_coord = king_coord(board, player);
-    let is_check_1 = is_under_attack(board, king_coord, player);
-    let is_check_2 = all_moves(board).into_iter().any(|om| om.to == king_coord);
-    assert_eq!(is_check_1, is_check_2);
-    is_check_1
+    is_under_attack(board, king_coord, player)
 }
