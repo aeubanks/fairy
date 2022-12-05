@@ -93,7 +93,10 @@ fn rand_board<R: Rng + ?Sized>(rng: &mut R) -> Board {
 fn check_is_in_check(board: &Board, player: Player) {
     let king_coord = king_coord(board, player);
     let is_check = all_moves(board).into_iter().any(|om| om.to == king_coord);
-    assert_eq!(is_in_check(board, player), is_check);
+    if is_in_check(board, player) != is_check {
+        println!("{:?}", board);
+        panic!("is_in_check mismatch");
+    }
 }
 
 #[test]
