@@ -87,6 +87,77 @@ impl Board {
     }
 }
 
+impl std::fmt::Debug for Board {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for y in (0..self.height).rev() {
+            for x in 0..self.width {
+                let c = match self[(x, y)].as_ref() {
+                    None => '.',
+                    Some(p) => {
+                        let c = match p.ty {
+                            Pawn => 'P',
+                            Knight => 'N',
+                            Bishop => 'B',
+                            Rook => 'R',
+                            Queen => 'Q',
+                            King => 'K',
+                            Chancellor => 'C',
+                            Archbishop => 'A',
+                        };
+                        if p.player == White {
+                            c
+                        } else {
+                            c.to_lowercase().next().unwrap()
+                        }
+                    }
+                };
+                write!(f, "{}", c)?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn test_dump() {
+    let board = Board::with_pieces(
+        4,
+        4,
+        &[
+            (
+                Coord::new(0, 0),
+                Piece {
+                    player: White,
+                    ty: King,
+                },
+            ),
+            (
+                Coord::new(2, 0),
+                Piece {
+                    player: Black,
+                    ty: King,
+                },
+            ),
+            (
+                Coord::new(2, 2),
+                Piece {
+                    player: White,
+                    ty: Chancellor,
+                },
+            ),
+            (
+                Coord::new(3, 3),
+                Piece {
+                    player: Black,
+                    ty: Bishop,
+                },
+            ),
+        ],
+    );
+    assert_eq!(format!("{:?}", board), "...b\n..C.\n....\nK.k.\n");
+}
+
 #[derive(Clone, Copy)]
 pub struct Move {
     pub from: Coord,
