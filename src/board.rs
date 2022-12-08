@@ -1,7 +1,6 @@
 use crate::coord::Coord;
 use crate::piece::{Piece, Type, Type::*};
 use crate::player::{Player, Player::*};
-use bitvec::prelude::*;
 use rand::Rng;
 use std::ops::{Index, IndexMut};
 
@@ -12,8 +11,7 @@ pub struct Board {
     pub height: i8,
     pub player_turn: Player,
     pub last_pawn_double_move: Option<Coord>,
-    moved: BitVec,
-    pub can_castle: bool,
+    pub castling_rights: [Option<Coord>; 4],
 }
 
 #[derive(PartialEq, Eq)]
@@ -31,15 +29,8 @@ impl Board {
             height,
             player_turn: White,
             last_pawn_double_move: None,
-            moved: bitvec![0; (width * height) as usize],
-            can_castle: false,
+            castling_rights: [None; 4],
         }
-    }
-
-    pub fn new_with_castling(width: i8, height: i8) -> Self {
-        let mut ret = Self::new(width, height);
-        ret.can_castle = true;
-        ret
     }
 
     #[cfg(test)]
@@ -72,18 +63,6 @@ impl Board {
                 }
             }
         }
-    }
-
-    pub fn set_moved(&mut self, coord: Coord) {
-        self.moved
-            .set((coord.y * self.width + coord.x) as usize, true);
-    }
-
-    pub fn get_moved(&self, coord: Coord) -> bool {
-        *self
-            .moved
-            .get((coord.y * self.width + coord.x) as usize)
-            .unwrap()
     }
 }
 
@@ -173,16 +152,18 @@ impl Board {
     }
 
     pub fn make_move(&mut self, m: Move) {
+        assert_ne!(m.from, m.to);
         assert!(self.existing_piece_result(m.from) == ExistingPieceResult::Friend);
-        assert!(self.existing_piece_result(m.to) != ExistingPieceResult::Friend);
+        let to_res = self.existing_piece_result(m.to);
         let mut piece = self[m.from].take().unwrap();
+        // pawn double moves
         if piece.ty == Pawn && (m.from.y - m.to.y).abs() == 2 {
             self.last_pawn_double_move = Some(m.to);
         } else {
             self.last_pawn_double_move = None;
         }
+        // en passant
         if piece.ty == Pawn && m.from.x != m.to.x && self[m.to].is_none() {
-            // en passant
             let opponent_pawn_coord = Coord::new(m.to.x, m.from.y);
             assert!(
                 self.existing_piece_result(opponent_pawn_coord) == ExistingPieceResult::Opponent
@@ -190,24 +171,48 @@ impl Board {
             assert!(self[opponent_pawn_coord].as_ref().unwrap().ty == Pawn);
             self[opponent_pawn_coord] = None;
         }
+        // promotion
         if piece.ty == Pawn && (m.to.y == 0 || m.to.y == self.height - 1) {
-            // promotion
             // TODO: support more than promoting to queen
             piece.ty = Queen;
         }
-        if piece.ty == King {
-            if m.from.x - m.to.x < -1 {
-                let w = self.width;
-                let rook = self[(w - 1, m.to.y)].take();
-                self[(m.to.x - 1, m.to.y)] = rook;
-            } else if m.from.x - m.to.x > 1 {
-                let rook = self[(0, m.to.y)].take();
-                self[(m.to.x + 1, m.to.y)] = rook;
+        // keep track of castling rights
+        for cr in self.castling_rights.as_mut() {
+            if let Some(c) = cr {
+                if *c == m.to || *c == m.from {
+                    *cr = None;
+                }
             }
         }
-        self[m.to] = Some(piece);
-        self.set_moved(m.from);
-        self.set_moved(m.to);
+        if piece.ty == King {
+            match piece.player {
+                White => {
+                    self.castling_rights[0] = None;
+                    self.castling_rights[1] = None;
+                }
+                Black => {
+                    self.castling_rights[2] = None;
+                    self.castling_rights[3] = None;
+                }
+            }
+        }
+        if piece.ty == King && to_res == ExistingPieceResult::Friend {
+            let rook = self[m.to].take();
+            assert_eq!(rook.as_ref().unwrap().ty, Rook);
+            let (dest, rook_dest) = if m.from.x > m.to.x {
+                (Coord::new(2, m.from.y), Coord::new(3, m.from.y))
+            } else {
+                (
+                    Coord::new(self.width - 2, m.from.y),
+                    Coord::new(self.width - 3, m.from.y),
+                )
+            };
+            self[rook_dest] = rook;
+            self[dest] = Some(piece);
+        } else {
+            assert!(to_res != ExistingPieceResult::Friend);
+            self[m.to] = Some(piece);
+        }
         self.advance_player();
     }
 }
@@ -231,7 +236,6 @@ fn test_make_move() {
     );
     assert_eq!(board.last_pawn_double_move, None);
     assert!(board[(2, 1)].is_some());
-    assert!(!board.get_moved((2, 1).into()));
     assert_eq!(board.player_turn, White);
 
     board.make_move(Move {
@@ -240,18 +244,13 @@ fn test_make_move() {
     });
     assert!(board[(2, 1)].is_none());
     assert!(board[(2, 3)].is_some());
-    assert!(board.get_moved((2, 1).into()));
-    assert!(board.get_moved((2, 3).into()));
     assert_eq!(board.player_turn, Black);
     assert_eq!(board.last_pawn_double_move, Some(Coord::new(2, 3)));
-    assert!(!board.get_moved((3, 6).into()));
-
     board.make_move(Move {
         from: Coord::new(3, 6),
         to: Coord::new(3, 4),
     });
     assert_eq!(board.player_turn, White);
-    assert!(board.get_moved((3, 6).into()));
     assert_eq!(board.last_pawn_double_move, Some(Coord::new(3, 4)));
 
     board.make_move(Move {
@@ -333,73 +332,207 @@ fn test_en_promotion() {
 }
 
 #[test]
-fn test_castle() {
+fn test_castling_rights() {
+    let mut board = Board::with_pieces(
+        8,
+        8,
+        &[
+            (
+                Coord::new(0, 0),
+                Piece {
+                    player: White,
+                    ty: Rook,
+                },
+            ),
+            (
+                Coord::new(7, 0),
+                Piece {
+                    player: White,
+                    ty: Rook,
+                },
+            ),
+            (
+                Coord::new(4, 0),
+                Piece {
+                    player: White,
+                    ty: King,
+                },
+            ),
+            (
+                Coord::new(0, 7),
+                Piece {
+                    player: Black,
+                    ty: Rook,
+                },
+            ),
+            (
+                Coord::new(7, 7),
+                Piece {
+                    player: Black,
+                    ty: Rook,
+                },
+            ),
+            (
+                Coord::new(4, 7),
+                Piece {
+                    player: Black,
+                    ty: King,
+                },
+            ),
+        ],
+    );
+    board.castling_rights = [
+        Some(Coord::new(0, 0)),
+        Some(Coord::new(7, 0)),
+        Some(Coord::new(0, 7)),
+        Some(Coord::new(7, 7)),
+    ];
     {
-        let mut board = Board::new(8, 8);
-        board.add_piece(
-            Coord::new(0, 0),
-            Piece {
-                player: White,
-                ty: Rook,
-            },
-        );
-        board.add_piece(
-            Coord::new(7, 0),
-            Piece {
-                player: White,
-                ty: Rook,
-            },
-        );
-        board.add_piece(
-            Coord::new(4, 0),
-            Piece {
-                player: White,
-                ty: King,
-            },
-        );
-        board.make_move(Move {
+        let mut board2 = board.clone();
+        board2.make_move(Move {
             from: Coord::new(4, 0),
-            to: Coord::new(2, 0),
+            to: Coord::new(4, 1),
         });
-        assert!(board[(2, 0)].as_ref().unwrap().ty == King);
-        assert!(board[(3, 0)].as_ref().unwrap().ty == Rook);
-        assert!(board[(7, 0)].as_ref().unwrap().ty == Rook);
-        assert!(board[(0, 0)].is_none());
-        assert!(board[(4, 0)].is_none());
+        assert_eq!(
+            board2.castling_rights,
+            [None, None, Some(Coord::new(0, 7)), Some(Coord::new(7, 7))]
+        );
+        board2.make_move(Move {
+            from: Coord::new(4, 7),
+            to: Coord::new(4, 6),
+        });
+        assert_eq!(board2.castling_rights, [None, None, None, None]);
     }
     {
-        let mut board = Board::new(8, 8);
-        board.advance_player();
-        board.add_piece(
-            Coord::new(0, 7),
-            Piece {
-                player: Black,
-                ty: Rook,
-            },
-        );
-        board.add_piece(
-            Coord::new(7, 7),
-            Piece {
-                player: Black,
-                ty: Rook,
-            },
-        );
-        board.add_piece(
-            Coord::new(4, 7),
-            Piece {
-                player: Black,
-                ty: King,
-            },
-        );
-        board.make_move(Move {
-            from: Coord::new(4, 7),
-            to: Coord::new(6, 7),
+        let mut board2 = board.clone();
+        board2.make_move(Move {
+            from: Coord::new(0, 0),
+            to: Coord::new(1, 0),
         });
-        assert!(board[(6, 7)].as_ref().unwrap().ty == King);
-        assert!(board[(0, 7)].as_ref().unwrap().ty == Rook);
-        assert!(board[(5, 7)].as_ref().unwrap().ty == Rook);
-        assert!(board[(4, 7)].is_none());
-        assert!(board[(7, 7)].is_none());
+        assert_eq!(
+            board2.castling_rights,
+            [
+                None,
+                Some(Coord::new(7, 0)),
+                Some(Coord::new(0, 7)),
+                Some(Coord::new(7, 7)),
+            ]
+        );
+        board2.make_move(Move {
+            from: Coord::new(0, 7),
+            to: Coord::new(0, 6),
+        });
+        assert_eq!(
+            board2.castling_rights,
+            [None, Some(Coord::new(7, 0)), None, Some(Coord::new(7, 7))]
+        );
+        board2.make_move(Move {
+            from: Coord::new(7, 0),
+            to: Coord::new(7, 7),
+        });
+        assert_eq!(board2.castling_rights, [None, None, None, None]);
+    }
+}
+
+#[test]
+fn test_castle() {
+    let board = Board::with_pieces(
+        8,
+        8,
+        &[
+            (
+                Coord::new(0, 0),
+                Piece {
+                    player: White,
+                    ty: Rook,
+                },
+            ),
+            (
+                Coord::new(7, 0),
+                Piece {
+                    player: White,
+                    ty: Rook,
+                },
+            ),
+            (
+                Coord::new(4, 0),
+                Piece {
+                    player: White,
+                    ty: King,
+                },
+            ),
+            (
+                Coord::new(0, 7),
+                Piece {
+                    player: Black,
+                    ty: Rook,
+                },
+            ),
+            (
+                Coord::new(7, 7),
+                Piece {
+                    player: Black,
+                    ty: Rook,
+                },
+            ),
+            (
+                Coord::new(4, 7),
+                Piece {
+                    player: Black,
+                    ty: King,
+                },
+            ),
+        ],
+    );
+    {
+        let mut board2 = board.clone();
+        board2.make_move(Move {
+            from: Coord::new(4, 0),
+            to: Coord::new(0, 0),
+        });
+        assert_eq!(board2[(2, 0)].as_ref().unwrap().ty, King);
+        assert_eq!(board2[(3, 0)].as_ref().unwrap().ty, Rook);
+        assert_eq!(board2[(7, 0)].as_ref().unwrap().ty, Rook);
+        assert!(board2[(0, 0)].is_none());
+        assert!(board2[(4, 0)].is_none());
+    }
+    {
+        let mut board2 = board.clone();
+        board2.make_move(Move {
+            from: Coord::new(4, 0),
+            to: Coord::new(7, 0),
+        });
+        assert_eq!(board2[(0, 0)].as_ref().unwrap().ty, Rook);
+        assert_eq!(board2[(5, 0)].as_ref().unwrap().ty, Rook);
+        assert_eq!(board2[(6, 0)].as_ref().unwrap().ty, King);
+        assert!(board2[(4, 0)].is_none());
+        assert!(board2[(7, 0)].is_none());
+    }
+    {
+        let mut board2 = board.clone();
+        board2.advance_player();
+        board2.make_move(Move {
+            from: Coord::new(4, 7),
+            to: Coord::new(0, 7),
+        });
+        assert_eq!(board2[(2, 7)].as_ref().unwrap().ty, King);
+        assert_eq!(board2[(3, 7)].as_ref().unwrap().ty, Rook);
+        assert_eq!(board2[(7, 7)].as_ref().unwrap().ty, Rook);
+        assert!(board2[(0, 7)].is_none());
+        assert!(board2[(4, 7)].is_none());
+    }
+    {
+        let mut board2 = board.clone();
+        board2.advance_player();
+        board2.make_move(Move {
+            from: Coord::new(4, 7),
+            to: Coord::new(7, 7),
+        });
+        assert_eq!(board2[(0, 7)].as_ref().unwrap().ty, Rook);
+        assert_eq!(board2[(5, 7)].as_ref().unwrap().ty, Rook);
+        assert_eq!(board2[(6, 7)].as_ref().unwrap().ty, King);
+        assert!(board2[(4, 7)].is_none());
+        assert!(board2[(7, 7)].is_none());
     }
 }
 
@@ -595,7 +728,6 @@ impl Board {
 
     fn setup_with_pawns(width: i8, height: i8, castling: bool, pieces: &[Type]) -> Self {
         let mut board = Self::new(width, height);
-        board.can_castle = castling;
         for i in 0..board.width {
             board.add_piece(
                 Coord::new(i, 1),
@@ -614,20 +746,34 @@ impl Board {
         }
         assert!(pieces.len() == board.width as usize);
         for (i, ty) in pieces.into_iter().enumerate() {
+            let white_coord = Coord::new(i as i8, 0);
             board.add_piece(
-                Coord::new(i as i8, 0),
+                white_coord,
                 Piece {
                     player: White,
                     ty: *ty,
                 },
             );
+            let black_coord = Coord::new(i as i8, board.height - 1);
             board.add_piece(
-                Coord::new(i as i8, board.height - 1),
+                black_coord,
                 Piece {
                     player: Black,
                     ty: *ty,
                 },
             );
+            if castling {
+                if board.castling_rights[0].is_none() {
+                    board.castling_rights[0] = Some(white_coord);
+                    board.castling_rights[2] = Some(black_coord);
+                } else {
+                    board.castling_rights[1] = Some(white_coord);
+                    board.castling_rights[3] = Some(black_coord);
+                }
+            }
+        }
+        if castling {
+            assert!(board.castling_rights.iter().all(|cr| cr.is_some()));
         }
         board
     }

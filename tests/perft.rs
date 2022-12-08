@@ -40,7 +40,7 @@ fn perft(board: &Board, depth: u64) -> u64 {
 }
 
 fn fen(fen: &str) -> Board {
-    let mut board = Board::new_with_castling(8, 8);
+    let mut board = Board::new(8, 8);
     let space_split: Vec<&str> = fen.split(' ').collect();
     assert!(space_split.len() == 6 || space_split.len() == 4);
 
@@ -85,26 +85,16 @@ fn fen(fen: &str) -> Board {
 
     {
         let castling = space_split[2];
-        let white_king = king_coord(&board, White);
-        let black_king = king_coord(&board, Black);
-        if castling == "-" {
-            board.set_moved(white_king);
-            board.set_moved(black_king);
-        } else {
+        if castling != "-" {
             assert!(castling.len() > 0);
             assert!(castling.len() <= 4);
-            assert!(castling
-                .chars()
-                .into_iter()
-                .all(|c| c == 'K' || c == 'Q' || c == 'k' || c == 'q'));
-            for (c, rook_coord) in [
-                ('K', Coord::new(7, white_king.y)),
-                ('Q', Coord::new(0, white_king.y)),
-                ('k', Coord::new(7, black_king.y)),
-                ('q', Coord::new(0, black_king.y)),
-            ] {
-                if !castling.chars().into_iter().any(|cc| cc == c) {
-                    board.set_moved(rook_coord);
+            for c in castling.chars() {
+                match c {
+                    'Q' => board.castling_rights[0] = Some(Coord::new(0, 0)),
+                    'K' => board.castling_rights[1] = Some(Coord::new(7, 0)),
+                    'q' => board.castling_rights[2] = Some(Coord::new(0, 7)),
+                    'k' => board.castling_rights[3] = Some(Coord::new(7, 7)),
+                    _ => panic!(),
                 }
             }
         }
@@ -141,7 +131,15 @@ fn test_fen() {
                 let coord = Coord::new(x, y);
                 assert_eq!(board[coord], classical[coord]);
 
-                assert!(!board.get_moved(coord));
+                assert_eq!(
+                    board.castling_rights,
+                    [
+                        Some(Coord::new(0, 0)),
+                        Some(Coord::new(7, 0)),
+                        Some(Coord::new(0, 7)),
+                        Some(Coord::new(7, 7))
+                    ]
+                );
             }
         }
         assert_eq!(board.player_turn, White);
@@ -157,10 +155,10 @@ fn test_fen() {
             })
         );
         assert_eq!(board[(1, 2)], None);
-        assert!(board.get_moved(Coord::new(0, 0)));
-        assert!(board.get_moved(Coord::new(7, 0)));
-        assert!(!board.get_moved(Coord::new(0, 7)));
-        assert!(!board.get_moved(Coord::new(7, 7)));
+        assert_eq!(
+            board.castling_rights,
+            [None, None, Some(Coord::new(0, 7)), Some(Coord::new(7, 7))]
+        );
         assert_eq!(board.player_turn, Black);
         assert!(board.last_pawn_double_move.is_none());
     }
@@ -171,7 +169,7 @@ fn test_fen() {
 }
 
 #[test]
-fn classical() {
+fn classical_1() {
     let board = Board::classical();
     assert_eq!(perft(&board, 1), 20);
     assert_eq!(perft(&board, 2), 400);
