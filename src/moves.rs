@@ -300,32 +300,34 @@ fn add_king_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
     add_moves_for_leaper(moves, board, coord, &offsets((1, 0).into()));
 
     // castling
-    fn assert_is_friendly_unmoved_rook(board: &Board, king_coord: Coord, rook_coord: Coord) {
-        assert_eq!(king_coord.y, rook_coord.y);
-        let piece = board[rook_coord].as_ref().unwrap();
-        assert!(piece.ty == Rook);
-        assert!(piece.player == board.player_turn);
-    }
 
-    fn no_pieces_between_exc(board: &Board, c1: Coord, c2: Coord) -> bool {
-        assert!(c1.y == c2.y);
-        assert!(c1.x < c2.x);
-        let mut x = c1.x + 1;
-        while x != c2.x {
-            if board.existing_piece_result(Coord::new(x, c1.y)) != ExistingPieceResult::Empty {
+    fn no_pieces_between_inc(
+        board: &Board,
+        y: i8,
+        x1: i8,
+        x2: i8,
+        ignore_x_1: i8,
+        ignore_x_2: i8,
+    ) -> bool {
+        let min_x = x1.min(x2);
+        let max_x = x1.max(x2);
+        for x in min_x..=max_x {
+            if board.existing_piece_result(Coord::new(x, y)) != ExistingPieceResult::Empty
+                && ignore_x_1 != x
+                && ignore_x_2 != x
+            {
                 return false;
             }
-            x += 1;
         }
         true
     }
 
-    fn no_checks_between_inc(board: &Board, c1: Coord, c2: Coord) -> bool {
-        assert!(c1.y == c2.y);
-        assert!(c1.x < c2.x);
-        for x in c1.x..=c2.x {
+    fn no_checks_between_inc(board: &Board, y: i8, x1: i8, x2: i8) -> bool {
+        let min_x = x1.min(x2);
+        let max_x = x1.max(x2);
+        for x in min_x..=max_x {
             // TODO: optimize
-            if is_under_attack(board, Coord::new(x, c1.y), board.player_turn) {
+            if is_under_attack(board, Coord::new(x, y), board.player_turn) {
                 return false;
             }
         }
@@ -336,24 +338,41 @@ fn add_king_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord) {
         White => 0,
         Black => 2,
     };
-    if let Some(left_rook_coord) = board.castling_rights[idx] {
-        assert_is_friendly_unmoved_rook(board, coord, left_rook_coord);
-
-        let dest = Coord::new(2, coord.y);
-        if no_pieces_between_exc(board, left_rook_coord, coord)
-            && no_checks_between_inc(board, dest, coord)
-        {
-            moves.push(left_rook_coord);
+    // make sure the first value is the left rook and the second value is the right rook
+    if let Some(a) = board.castling_rights[idx] {
+        if let Some(b) = board.castling_rights[idx + 1] {
+            assert!(a.x < b.x);
         }
     }
-    if let Some(right_rook_coord) = board.castling_rights[idx + 1] {
-        assert_is_friendly_unmoved_rook(board, coord, right_rook_coord);
+    for (rook_coord, king_dest_x, rook_dest_x) in [
+        (board.castling_rights[idx], 2, 3),
+        (
+            board.castling_rights[idx + 1],
+            board.width - 2,
+            board.width - 3,
+        ),
+    ] {
+        if let Some(rook_coord) = rook_coord {
+            {
+                assert_eq!(coord.y, rook_coord.y);
+                let piece = board[rook_coord].as_ref().unwrap();
+                assert_eq!(piece.ty, Rook);
+                assert_eq!(piece.player, board.player_turn);
+            }
 
-        let dest = Coord::new(board.width - 2, coord.y);
-        if no_pieces_between_exc(board, coord, right_rook_coord)
-            && no_checks_between_inc(board, coord, dest)
-        {
-            moves.push(right_rook_coord);
+            if no_pieces_between_inc(board, coord.y, coord.x, king_dest_x, coord.x, rook_coord.x)
+                && no_pieces_between_inc(
+                    board,
+                    coord.y,
+                    rook_coord.x,
+                    rook_dest_x,
+                    coord.x,
+                    rook_coord.x,
+                )
+                && no_checks_between_inc(board, coord.y, king_dest_x, coord.x)
+            {
+                moves.push(rook_coord);
+            }
         }
     }
 }
@@ -545,6 +564,330 @@ fn test_king() {
             add_king_moves(&mut moves, &board, Coord::new(4, 0));
             assert!(!moves.contains(&Coord::new(0, 0)));
             assert!(!moves.contains(&Coord::new(7, 0)));
+        }
+    }
+    {
+        let mut board = Board::with_pieces(
+            8,
+            8,
+            &[
+                (
+                    Coord::new(0, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+                (
+                    Coord::new(1, 0),
+                    Piece {
+                        player: White,
+                        ty: King,
+                    },
+                ),
+                (
+                    Coord::new(7, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+            ],
+        );
+        board.castling_rights = [Some(Coord::new(0, 0)), Some(Coord::new(7, 0)), None, None];
+        {
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board, Coord::new(1, 0));
+            assert!(moves.contains(&Coord::new(0, 0)));
+            assert!(moves.contains(&Coord::new(7, 0)));
+        }
+    }
+    {
+        let mut board = Board::with_pieces(
+            8,
+            8,
+            &[
+                (
+                    Coord::new(0, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+                (
+                    Coord::new(6, 0),
+                    Piece {
+                        player: White,
+                        ty: King,
+                    },
+                ),
+                (
+                    Coord::new(7, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+            ],
+        );
+        board.castling_rights = [Some(Coord::new(0, 0)), Some(Coord::new(7, 0)), None, None];
+        {
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board, Coord::new(6, 0));
+            assert!(moves.contains(&Coord::new(0, 0)));
+            assert!(moves.contains(&Coord::new(7, 0)));
+        }
+    }
+    {
+        let mut board = Board::with_pieces(
+            8,
+            8,
+            &[
+                (
+                    Coord::new(1, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+                (
+                    Coord::new(3, 0),
+                    Piece {
+                        player: White,
+                        ty: King,
+                    },
+                ),
+                (
+                    Coord::new(5, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+            ],
+        );
+        board.castling_rights = [Some(Coord::new(1, 0)), Some(Coord::new(5, 0)), None, None];
+        {
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board, Coord::new(3, 0));
+            assert!(moves.contains(&Coord::new(1, 0)));
+            assert!(moves.contains(&Coord::new(5, 0)));
+        }
+    }
+    {
+        let mut board = Board::with_pieces(
+            8,
+            8,
+            &[
+                (
+                    Coord::new(1, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+                (
+                    Coord::new(5, 0),
+                    Piece {
+                        player: White,
+                        ty: King,
+                    },
+                ),
+                (
+                    Coord::new(6, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+            ],
+        );
+        board.castling_rights = [Some(Coord::new(1, 0)), Some(Coord::new(6, 0)), None, None];
+        {
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board, Coord::new(5, 0));
+            assert!(moves.contains(&Coord::new(1, 0)));
+            assert!(moves.contains(&Coord::new(6, 0)));
+        }
+    }
+    {
+        let mut board = Board::with_pieces(
+            8,
+            8,
+            &[
+                (
+                    Coord::new(0, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+                (
+                    Coord::new(1, 0),
+                    Piece {
+                        player: White,
+                        ty: King,
+                    },
+                ),
+                (
+                    Coord::new(2, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+            ],
+        );
+        board.castling_rights = [Some(Coord::new(0, 0)), Some(Coord::new(2, 0)), None, None];
+        {
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board, Coord::new(1, 0));
+            assert!(!moves.contains(&Coord::new(0, 0)));
+            assert!(moves.contains(&Coord::new(2, 0)));
+        }
+    }
+    {
+        let mut board = Board::with_pieces(
+            8,
+            8,
+            &[
+                (
+                    Coord::new(5, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+                (
+                    Coord::new(6, 0),
+                    Piece {
+                        player: White,
+                        ty: King,
+                    },
+                ),
+                (
+                    Coord::new(7, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+            ],
+        );
+        board.castling_rights = [Some(Coord::new(5, 0)), Some(Coord::new(7, 0)), None, None];
+        {
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board, Coord::new(6, 0));
+            assert!(moves.contains(&Coord::new(5, 0)));
+            assert!(!moves.contains(&Coord::new(7, 0)));
+        }
+    }
+    {
+        let mut board = Board::with_pieces(
+            8,
+            8,
+            &[
+                (
+                    Coord::new(3, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+                (
+                    Coord::new(4, 0),
+                    Piece {
+                        player: White,
+                        ty: King,
+                    },
+                ),
+                (
+                    Coord::new(5, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+            ],
+        );
+        board.castling_rights = [Some(Coord::new(3, 0)), Some(Coord::new(5, 0)), None, None];
+        {
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board, Coord::new(4, 0));
+            assert!(moves.contains(&Coord::new(3, 0)));
+            assert!(moves.contains(&Coord::new(5, 0)));
+        }
+    }
+    {
+        let mut board = Board::with_pieces(
+            8,
+            8,
+            &[
+                (
+                    Coord::new(0, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+                (
+                    Coord::new(6, 0),
+                    Piece {
+                        player: White,
+                        ty: King,
+                    },
+                ),
+                (
+                    Coord::new(7, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+            ],
+        );
+        board.castling_rights = [Some(Coord::new(0, 0)), Some(Coord::new(7, 0)), None, None];
+        {
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board, Coord::new(6, 0));
+            assert!(moves.contains(&Coord::new(0, 0)));
+            assert!(moves.contains(&Coord::new(7, 0)));
+        }
+    }
+    {
+        let mut board = Board::with_pieces(
+            8,
+            8,
+            &[
+                (
+                    Coord::new(0, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+                (
+                    Coord::new(2, 0),
+                    Piece {
+                        player: White,
+                        ty: King,
+                    },
+                ),
+                (
+                    Coord::new(7, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+            ],
+        );
+        board.castling_rights = [Some(Coord::new(0, 0)), Some(Coord::new(7, 0)), None, None];
+        {
+            let mut moves = Vec::new();
+            add_king_moves(&mut moves, &board, Coord::new(2, 0));
+            assert!(moves.contains(&Coord::new(0, 0)));
+            assert!(moves.contains(&Coord::new(7, 0)));
         }
     }
 }
