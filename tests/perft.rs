@@ -89,13 +89,23 @@ fn fen(fen: &str) -> Board {
             assert!(castling.len() > 0);
             assert!(castling.len() <= 4);
             for c in castling.chars() {
-                match c {
-                    'Q' => board.castling_rights[0] = Some(Coord::new(0, 0)),
-                    'K' => board.castling_rights[1] = Some(Coord::new(7, 0)),
-                    'q' => board.castling_rights[2] = Some(Coord::new(0, 7)),
-                    'k' => board.castling_rights[3] = Some(Coord::new(7, 7)),
+                let x = match c.to_lowercase().next().unwrap() {
+                    'a' | 'q' => 0,
+                    'b' => 1,
+                    'c' => 2,
+                    'd' => 3,
+                    'e' => 4,
+                    'f' => 5,
+                    'g' => 6,
+                    'h' | 'k' => 7,
                     _ => panic!(),
-                }
+                };
+                let player = if c.is_uppercase() { White } else { Black };
+                let king_coord = king_coord(&board, player);
+                let y = if player == White { 0 } else { 7 };
+                let color_idx = if player == White { 0 } else { 2 };
+                let idx = color_idx + if x < king_coord.x { 0 } else { 1 };
+                board.castling_rights[idx] = Some(Coord::new(x, y));
             }
         }
     }
@@ -163,6 +173,27 @@ fn test_fen() {
         assert!(board.last_pawn_double_move.is_none());
     }
     {
+        let board = fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 b qk - 0 1");
+        assert_eq!(
+            board.castling_rights,
+            [None, None, Some(Coord::new(0, 7)), Some(Coord::new(7, 7))]
+        );
+    }
+    {
+        let board = fen("1r2k1r1/8/8/8/8/8/8/1R2K1R1 b Bg - 0 1");
+        assert_eq!(
+            board.castling_rights,
+            [Some(Coord::new(1, 0)), None, None, Some(Coord::new(6, 7))]
+        );
+    }
+    {
+        let board = fen("1r2k1r1/8/8/8/8/8/8/1R2K1R1 b bG - 0 1");
+        assert_eq!(
+            board.castling_rights,
+            [None, Some(Coord::new(6, 0)), Some(Coord::new(1, 7)), None]
+        );
+    }
+    {
         let board = fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2");
         assert_eq!(board.last_pawn_double_move, Some(Coord::new(2, 4)));
     }
@@ -200,4 +231,36 @@ fn classical_4() {
     assert_eq!(perft(&board, 1), 44);
     assert_eq!(perft(&board, 2), 1486);
     assert_eq!(perft(&board, 3), 62379);
+}
+
+#[test]
+fn chess960_1() {
+    let board = fen("bqnb1rkr/pp3ppp/3ppn2/2p5/5P2/P2P4/NPP1P1PP/BQ1BNRKR w HFhf - 2 9");
+    assert_eq!(perft(&board, 1), 21);
+    assert_eq!(perft(&board, 2), 528);
+    assert_eq!(perft(&board, 3), 12189);
+}
+
+#[test]
+fn chess960_2() {
+    let board = fen("2nnrbkr/p1qppppp/8/1ppb4/6PP/3PP3/PPP2P2/BQNNRBKR w HEhe - 1 9");
+    assert_eq!(perft(&board, 1), 21);
+    assert_eq!(perft(&board, 2), 807);
+    assert_eq!(perft(&board, 3), 18002);
+}
+
+#[test]
+fn chess960_3() {
+    let board = fen("b1q1rrkb/pppppppp/3nn3/8/P7/1PPP4/4PPPP/BQNNRKRB w GE - 1 9");
+    assert_eq!(perft(&board, 1), 20);
+    assert_eq!(perft(&board, 2), 479);
+    assert_eq!(perft(&board, 3), 10471);
+}
+
+#[test]
+fn chess960_4() {
+    let board = fen("qbbnnrkr/2pp2pp/p7/1p2pp2/8/P3PP2/1PPP1KPP/QBBNNR1R w hf - 0 9");
+    assert_eq!(perft(&board, 1), 22);
+    assert_eq!(perft(&board, 2), 593);
+    assert_eq!(perft(&board, 3), 13440);
 }
