@@ -196,9 +196,12 @@ impl Board {
                 }
             }
         }
+        // castling
         if piece.ty == King && to_res == ExistingPieceResult::Friend {
             let rook = self[m.to].take();
             assert_eq!(rook.as_ref().unwrap().ty, Rook);
+            // king moves to rook to castle with
+            // king should always be between two rooks to castle with
             let (dest, rook_dest) = if m.from.x > m.to.x {
                 (Coord::new(2, m.from.y), Coord::new(3, m.from.y))
             } else {
@@ -207,6 +210,7 @@ impl Board {
                     Coord::new(self.width - 3, m.from.y),
                 )
             };
+            assert!(self[rook_dest].as_ref().is_none());
             self[rook_dest] = rook;
             self[dest] = Some(piece);
         } else {
@@ -533,6 +537,45 @@ fn test_castle() {
         assert_eq!(board2[(6, 7)].as_ref().unwrap().ty, King);
         assert!(board2[(4, 7)].is_none());
         assert!(board2[(7, 7)].is_none());
+    }
+    {
+        let mut board = Board::with_pieces(
+            8,
+            8,
+            &[
+                (
+                    Coord::new(0, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+                (
+                    Coord::new(7, 0),
+                    Piece {
+                        player: White,
+                        ty: Rook,
+                    },
+                ),
+                (
+                    Coord::new(1, 0),
+                    Piece {
+                        player: White,
+                        ty: King,
+                    },
+                ),
+            ],
+        );
+        board.make_move(Move {
+            from: Coord::new(1, 0),
+            to: Coord::new(0, 0),
+        });
+        dbg!(&board);
+        assert_eq!(board[(2, 0)].as_ref().unwrap().ty, King);
+        assert_eq!(board[(3, 0)].as_ref().unwrap().ty, Rook);
+        assert_eq!(board[(7, 0)].as_ref().unwrap().ty, Rook);
+        assert!(board[(0, 0)].is_none());
+        assert!(board[(1, 0)].is_none());
     }
 }
 
