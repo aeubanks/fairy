@@ -5,3 +5,11 @@ pub enum Player {
     White,
     Black,
 }
+
+pub fn next_player(player: Player) -> Player {
+    use Player::*;
+    match player {
+        White => Black,
+        Black => White,
+    }
+}
