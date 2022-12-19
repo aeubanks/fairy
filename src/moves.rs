@@ -1209,15 +1209,13 @@ pub fn is_under_attack(board: &Board, coord: Coord, player: Player) -> bool {
         }
     }
     for o in offsets(Coord::new(1, 1)) {
-        match enemy_piece_leaper(board, coord, o, player) {
-            Some(King) => return true,
-            _ => {}
+        if let Some(King) = enemy_piece_leaper(board, coord, o, player) {
+            return true;
         }
     }
     for o in offsets(Coord::new(1, 0)) {
-        match enemy_piece_leaper(board, coord, o, player) {
-            Some(King) => return true,
-            _ => {}
+        if let Some(King) = enemy_piece_leaper(board, coord, o, player) {
+            return true;
         }
     }
     fn has_enemy_pawn(board: &Board, coord: Coord, player: Player) -> bool {
