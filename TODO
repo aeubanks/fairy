@@ -5,3 +5,4 @@ tablebase
   pack board pieces
   use single int for coord
   symmetry
+  make stalemate a win

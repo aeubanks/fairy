@@ -37,6 +37,30 @@ fn verify_board_tablebase(board: &Board, tablebase: &Tablebase) {
     assert!(!black_king_exists(&board));
 }
 
+fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
+    assert_eq!(pieces.len(), 3);
+    let kk = [
+        Piece {
+            player: White,
+            ty: King,
+        },
+        Piece {
+            player: Black,
+            ty: King,
+        },
+    ];
+    let tablebase = generate_tablebase(4, 4, &[&kk, &pieces]);
+    let all = generate_all_boards(4, 4, pieces);
+
+    for b in all {
+        let wd = tablebase.white_depth(&b);
+        let bd = tablebase.black_depth(&b);
+        assert!(wd.unwrap() % 2 == 1);
+        assert!(bd.is_none() || bd.unwrap() % 2 == 0);
+        verify_board_tablebase(&b, &tablebase);
+    }
+}
+
 #[test]
 fn test_kqk_tablebase() {
     let pieces = [
@@ -53,14 +77,62 @@ fn test_kqk_tablebase() {
             ty: King,
         },
     ];
-    let tablebase = generate_tablebase(4, 4, &pieces);
-    let all = generate_all_boards(4, 4, &pieces);
+    verify_all_three_piece_positions_forced_win(&pieces);
+}
 
-    for b in all {
-        let wd = tablebase.white_depth(&b);
-        let bd = tablebase.black_depth(&b);
-        assert!(wd.unwrap() % 2 == 1);
-        assert!(bd.is_none() || bd.unwrap() % 2 == 0);
-        verify_board_tablebase(&b, &tablebase);
-    }
+#[test]
+fn test_krk_tablebase() {
+    let pieces = [
+        Piece {
+            player: White,
+            ty: King,
+        },
+        Piece {
+            player: White,
+            ty: Rook,
+        },
+        Piece {
+            player: Black,
+            ty: King,
+        },
+    ];
+    verify_all_three_piece_positions_forced_win(&pieces);
+}
+
+#[test]
+fn test_kck_tablebase() {
+    let pieces = [
+        Piece {
+            player: White,
+            ty: King,
+        },
+        Piece {
+            player: White,
+            ty: Chancellor,
+        },
+        Piece {
+            player: Black,
+            ty: King,
+        },
+    ];
+    verify_all_three_piece_positions_forced_win(&pieces);
+}
+
+#[test]
+fn test_kak_tablebase() {
+    let pieces = [
+        Piece {
+            player: White,
+            ty: King,
+        },
+        Piece {
+            player: White,
+            ty: Archbishop,
+        },
+        Piece {
+            player: Black,
+            ty: King,
+        },
+    ];
+    verify_all_three_piece_positions_forced_win(&pieces);
 }

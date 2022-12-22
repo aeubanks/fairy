@@ -454,17 +454,19 @@ fn test_iterate_white() {
     );
 }
 
-pub fn generate_tablebase(width: i8, height: i8, pieces: &[Piece]) -> Tablebase {
+pub fn generate_tablebase(width: i8, height: i8, piece_sets: &[&[Piece]]) -> Tablebase {
     let mut tablebase = Tablebase::new();
 
-    let all = generate_all_boards(width, height, &pieces);
-    populate_initial_tablebases(&mut tablebase, &all);
-    loop {
-        if !iterate_black(&mut tablebase, &all) {
-            break;
-        }
-        if !iterate_white(&mut tablebase, &all) {
-            break;
+    for set in piece_sets {
+        let all = generate_all_boards(width, height, set);
+        populate_initial_tablebases(&mut tablebase, &all);
+        loop {
+            if !iterate_black(&mut tablebase, &all) {
+                break;
+            }
+            if !iterate_white(&mut tablebase, &all) {
+                break;
+            }
         }
     }
     tablebase
@@ -482,7 +484,7 @@ fn test_generate_king_king_tablebase() {
             ty: King,
         },
     ];
-    let tablebase = generate_tablebase(8, 8, &pieces);
+    let tablebase = generate_tablebase(8, 8, &[&pieces]);
     assert!(tablebase.black_tablebase.is_empty());
     let all = generate_all_boards(8, 8, &pieces);
     for b in all {
