@@ -80,6 +80,7 @@ impl std::fmt::Debug for Board {
                             King => 'K',
                             Chancellor => 'C',
                             Archbishop => 'A',
+                            Amazon => 'Z',
                         };
                         if p.player == White {
                             c

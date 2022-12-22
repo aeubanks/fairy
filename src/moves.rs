@@ -248,6 +248,12 @@ fn add_archbishop_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord, pla
     add_knight_moves(moves, board, coord, player);
 }
 
+fn add_amazon_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord, player: Player) {
+    add_bishop_moves(moves, board, coord, player);
+    add_rook_moves(moves, board, coord, player);
+    add_knight_moves(moves, board, coord, player);
+}
+
 fn add_knight_moves(moves: &mut Vec<Coord>, board: &Board, coord: Coord, player: Player) {
     add_moves_for_leaper(moves, board, coord, player, &offsets((2, 1).into()))
 }
@@ -1127,6 +1133,7 @@ fn add_moves_for_piece(moves: &mut Vec<Coord>, board: &Board, piece: &Piece, coo
         King => add_king_moves(moves, board, coord, piece.player),
         Chancellor => add_chancellor_moves(moves, board, coord, piece.player),
         Archbishop => add_archbishop_moves(moves, board, coord, piece.player),
+        Amazon => add_amazon_moves(moves, board, coord, piece.player),
     }
 }
 
@@ -1192,19 +1199,19 @@ pub fn is_under_attack(board: &Board, coord: Coord, player: Player) -> bool {
     }
     for o in offsets(Coord::new(1, 0)) {
         match enemy_piece_rider(board, coord, o, player) {
-            Some(Queen) | Some(Rook) | Some(Chancellor) => return true,
+            Some(Queen) | Some(Rook) | Some(Chancellor) | Some(Amazon) => return true,
             _ => {}
         }
     }
     for o in offsets(Coord::new(1, 1)) {
         match enemy_piece_rider(board, coord, o, player) {
-            Some(Queen) | Some(Bishop) | Some(Archbishop) => return true,
+            Some(Queen) | Some(Bishop) | Some(Archbishop) | Some(Amazon) => return true,
             _ => {}
         }
     }
     for o in offsets(Coord::new(1, 2)) {
         match enemy_piece_leaper(board, coord, o, player) {
-            Some(Knight) | Some(Archbishop) | Some(Chancellor) => return true,
+            Some(Knight) | Some(Archbishop) | Some(Chancellor) | Some(Amazon) => return true,
             _ => {}
         }
     }

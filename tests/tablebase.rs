@@ -136,3 +136,22 @@ fn test_kak_tablebase() {
     ];
     verify_all_three_piece_positions_forced_win(&pieces);
 }
+
+#[test]
+fn test_kzk_tablebase() {
+    let pieces = [
+        Piece {
+            player: White,
+            ty: King,
+        },
+        Piece {
+            player: White,
+            ty: Archbishop,
+        },
+        Piece {
+            player: Black,
+            ty: King,
+        },
+    ];
+    verify_all_three_piece_positions_forced_win(&pieces);
+}

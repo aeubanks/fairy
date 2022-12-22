@@ -11,6 +11,7 @@ pub enum Type {
     King,
     Chancellor,
     Archbishop,
+    Amazon,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
