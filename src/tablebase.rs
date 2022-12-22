@@ -2,7 +2,6 @@ use crate::board::{king_coord, Board, Move};
 use crate::coord::Coord;
 use crate::moves::{all_moves, is_under_attack};
 use crate::piece::Piece;
-#[cfg(test)]
 use crate::piece::Type::*;
 use crate::player::Player::*;
 use std::collections::hash_map::DefaultHasher;
@@ -454,10 +453,26 @@ fn test_iterate_white() {
     );
 }
 
+fn verify_piece_set(pieces: &[Piece]) {
+    let mut wk_count = 0;
+    let mut bk_count = 0;
+    for p in pieces {
+        if p.ty == King {
+            match p.player {
+                White => wk_count += 1,
+                Black => bk_count += 1,
+            }
+        }
+    }
+    assert_eq!(wk_count, 1);
+    assert_eq!(bk_count, 1);
+}
+
 pub fn generate_tablebase(width: i8, height: i8, piece_sets: &[&[Piece]]) -> Tablebase {
     let mut tablebase = Tablebase::new();
 
     for set in piece_sets {
+        verify_piece_set(set);
         let all = generate_all_boards(width, height, set);
         populate_initial_tablebases(&mut tablebase, &all);
         loop {
