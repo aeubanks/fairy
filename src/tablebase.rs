@@ -106,16 +106,19 @@ fn test_hash() {
     assert_ne!(hash(&board1), hash(&board2));
 }
 
-fn gen_boards_impl(ret: &mut Vec<Board>, board: &Board, pieces: &[Piece]) {
+fn generate_all_boards_impl(ret: &mut Vec<Board>, board: &Board, pieces: &[Piece]) {
     match pieces {
         [p, rest @ ..] => {
             for y in 0..board.height {
                 for x in 0..board.width {
+                    if p.ty == Pawn && (y == 0 || y == board.height - 1) {
+                        continue;
+                    }
                     let coord = Coord::new(x, y);
                     if board[coord].is_none() {
                         let mut clone = board.clone();
                         clone.add_piece(coord, p.clone());
-                        gen_boards_impl(ret, &clone, rest);
+                        generate_all_boards_impl(ret, &clone, rest);
                     }
                 }
             }
@@ -127,7 +130,7 @@ fn gen_boards_impl(ret: &mut Vec<Board>, board: &Board, pieces: &[Piece]) {
 pub fn generate_all_boards(width: i8, height: i8, pieces: &[Piece]) -> Vec<Board> {
     let board = Board::new(width, height);
     let mut ret = Vec::new();
-    gen_boards_impl(&mut ret, &board, pieces);
+    generate_all_boards_impl(&mut ret, &board, pieces);
     ret
 }
 
@@ -194,9 +197,9 @@ fn test_generate_all_boards() {
     }
 }
 
-// all positions where white can capture black's king
-fn populate_initial_tablebases(tablebase: &mut Tablebase, boards: &[Board]) {
+fn populate_initial_wins(tablebase: &mut Tablebase, boards: &[Board]) {
     for b in boards {
+        // white can capture black's king
         let opponent_king_coord = king_coord(b, Black);
         if is_under_attack(b, opponent_king_coord, Black) {
             let all_moves = all_moves(b, White);
@@ -205,6 +208,18 @@ fn populate_initial_tablebases(tablebase: &mut Tablebase, boards: &[Board]) {
                 .find(|m| m.to == opponent_king_coord)
                 .unwrap();
             tablebase.white_add(b, m, 1);
+        }
+        // stalemate is a win
+        if all_moves(b, Black).is_empty() {
+            tablebase.black_add(
+                b,
+                // arbitrary move
+                Move {
+                    from: Coord::new(0, 0),
+                    to: Coord::new(0, 0),
+                },
+                0,
+            );
         }
     }
 }
@@ -254,7 +269,7 @@ fn test_populate_initial_tablebases() {
             ],
         ),
     ];
-    populate_initial_tablebases(&mut tablebase, &boards);
+    populate_initial_wins(&mut tablebase, &boards);
     assert_eq!(
         tablebase.white_move(&boards[0]),
         Some(Move {
@@ -262,9 +277,92 @@ fn test_populate_initial_tablebases() {
             to: Coord::new(0, 1)
         })
     );
-    assert!(tablebase.white_move(&boards[1]).is_none());
-    assert!(tablebase.black_move(&boards[0]).is_none());
-    assert!(tablebase.black_move(&boards[1]).is_none());
+    assert!(!tablebase.white_contains(&boards[1]));
+    assert!(!tablebase.black_contains(&boards[0]));
+    assert!(!tablebase.black_contains(&boards[1]));
+}
+
+#[test]
+fn test_populate_initial_tablebases_stalemate() {
+    let mut tablebase = Tablebase::new();
+    populate_initial_wins(
+        &mut tablebase,
+        &generate_all_boards(
+            1,
+            8,
+            &[
+                Piece {
+                    player: White,
+                    ty: King,
+                },
+                Piece {
+                    player: Black,
+                    ty: Pawn,
+                },
+                Piece {
+                    player: Black,
+                    ty: King,
+                },
+            ],
+        ),
+    );
+    assert_eq!(
+        tablebase.black_depth(&Board::with_pieces(
+            1,
+            8,
+            &[
+                (
+                    Coord::new(0, 7),
+                    Piece {
+                        player: White,
+                        ty: King,
+                    }
+                ),
+                (
+                    Coord::new(0, 1),
+                    Piece {
+                        player: Black,
+                        ty: Pawn,
+                    }
+                ),
+                (
+                    Coord::new(0, 0),
+                    Piece {
+                        player: Black,
+                        ty: King,
+                    }
+                ),
+            ]
+        )),
+        Some(0)
+    );
+    assert!(!tablebase.black_contains(&Board::with_pieces(
+        1,
+        8,
+        &[
+            (
+                Coord::new(0, 7),
+                Piece {
+                    player: White,
+                    ty: King,
+                }
+            ),
+            (
+                Coord::new(0, 2),
+                Piece {
+                    player: Black,
+                    ty: Pawn,
+                }
+            ),
+            (
+                Coord::new(0, 0),
+                Piece {
+                    player: Black,
+                    ty: King,
+                }
+            ),
+        ]
+    )));
 }
 
 fn iterate_black(tablebase: &mut Tablebase, boards: &[Board]) -> bool {
@@ -474,7 +572,7 @@ pub fn generate_tablebase(width: i8, height: i8, piece_sets: &[&[Piece]]) -> Tab
     for set in piece_sets {
         verify_piece_set(set);
         let all = generate_all_boards(width, height, set);
-        populate_initial_tablebases(&mut tablebase, &all);
+        populate_initial_wins(&mut tablebase, &all);
         loop {
             if !iterate_black(&mut tablebase, &all) {
                 break;
