@@ -1,3 +1,7 @@
 promotion to pieces other than queen
 AI
 add tests for derive_rand (https://ferrous-systems.com/blog/testing-proc-macros/)
+tablebase
+  pack board pieces
+  use single int for coord
+  symmetry

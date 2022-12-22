@@ -1,6 +1,6 @@
 use derive_rand::Rand;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Rand)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Rand, Hash)]
 pub enum Player {
     White,
     Black,

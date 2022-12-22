@@ -1,7 +1,7 @@
 use crate::player::Player;
 use derive_rand::Rand;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Rand)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Rand, Hash)]
 pub enum Type {
     Pawn,
     Knight,
@@ -13,7 +13,7 @@ pub enum Type {
     Archbishop,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Piece {
     pub player: Player,
     pub ty: Type,

@@ -135,7 +135,7 @@ fn test_dump() {
     assert_eq!(format!("{:?}", board), "...b\n..C.\n....\nK.k.\n");
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Move {
     pub from: Coord,
     pub to: Coord,
@@ -871,4 +871,18 @@ fn test_premade_boards() {
         Board::chess960(&mut rng);
         Board::capablanca_random(&mut rng);
     }
+}
+
+pub fn king_coord(board: &Board, player: Player) -> Coord {
+    for y in 0..board.height {
+        for x in 0..board.width {
+            let coord = Coord::new(x, y);
+            if let Some(piece) = board[coord].as_ref() {
+                if piece.player == player && piece.ty == King {
+                    return coord;
+                }
+            }
+        }
+    }
+    panic!()
 }
