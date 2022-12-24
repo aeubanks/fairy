@@ -306,9 +306,15 @@ impl Tablebase {
 
 fn hash_one_board(board: &Board) -> u64 {
     let mut hasher = DefaultHasher::new();
+    board.width.hash(&mut hasher);
+    board.height.hash(&mut hasher);
     for y in 0..board.height {
         for x in 0..board.width {
-            board[Coord::new(x, y)].hash(&mut hasher);
+            if let Some(p) = board[(x, y)] {
+                x.hash(&mut hasher);
+                y.hash(&mut hasher);
+                p.hash(&mut hasher);
+            }
         }
     }
     hasher.finish()
