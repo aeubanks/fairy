@@ -321,6 +321,9 @@ fn hash_one_board(board: &Board) -> u64 {
 }
 
 fn hash(board: &Board) -> (u64, Symmetry) {
+    // FIXME: this is faster right now...
+    // return (hash_one_board(board), Symmetry::default());
+
     // TODO: add fast path when no symmetry to avoid clone?
 
     let mut boards_to_check = ArrayVec::<(Board, Symmetry), 8>::new();
