@@ -4,9 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+derive_rand = { path = "derive_rand" }
 arrayvec = "*"
 rand = "0.8"
-derive_rand = { path = "derive_rand" }
+static_assertions = "1.1"
+num-traits = "0.2"
+num-derive = "0.3"
 
 [dev-dependencies]
 criterion = "0.4"

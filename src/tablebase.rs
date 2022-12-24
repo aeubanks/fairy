@@ -30,14 +30,8 @@ fn flip_x((board, sym): &mut (Board, Symmetry)) {
 
 #[test]
 fn test_flip_x() {
-    let n = Piece {
-        player: White,
-        ty: Knight,
-    };
-    let b = Piece {
-        player: White,
-        ty: Bishop,
-    };
+    let n = Piece::new(White, Knight);
+    let b = Piece::new(White, Bishop);
     let mut bs = (
         Board::with_pieces(3, 2, &[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
         Symmetry::default(),
@@ -73,14 +67,8 @@ fn flip_y((board, sym): &mut (Board, Symmetry)) {
 
 #[test]
 fn test_flip_y() {
-    let n = Piece {
-        player: White,
-        ty: Knight,
-    };
-    let b = Piece {
-        player: White,
-        ty: Bishop,
-    };
+    let n = Piece::new(White, Knight);
+    let b = Piece::new(White, Bishop);
     let mut bs = (
         Board::with_pieces(3, 2, &[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
         Symmetry::default(),
@@ -117,14 +105,8 @@ fn flip_diagonal((board, sym): &mut (Board, Symmetry)) {
 
 #[test]
 fn test_flip_diagonal() {
-    let n = Piece {
-        player: White,
-        ty: Knight,
-    };
-    let b = Piece {
-        player: White,
-        ty: Bishop,
-    };
+    let n = Piece::new(White, Knight);
+    let b = Piece::new(White, Bishop);
     let mut bs = (
         Board::with_pieces(3, 3, &[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
         Symmetry::default(),
@@ -333,27 +315,9 @@ fn test_generate_flip_unflip_move() {
         4,
         4,
         &[
-            (
-                Coord::new(0, 0),
-                Piece {
-                    player: White,
-                    ty: King,
-                },
-            ),
-            (
-                Coord::new(1, 0),
-                Piece {
-                    player: White,
-                    ty: Queen,
-                },
-            ),
-            (
-                Coord::new(2, 0),
-                Piece {
-                    player: Black,
-                    ty: King,
-                },
-            ),
+            (Coord::new(0, 0), Piece::new(White, King)),
+            (Coord::new(1, 0), Piece::new(White, Queen)),
+            (Coord::new(2, 0), Piece::new(Black, King)),
         ],
     );
     let m = Move {
@@ -464,14 +428,8 @@ fn hash(board: &Board) -> (u64, Symmetry) {
 
 #[test]
 fn test_hash() {
-    let wk = Piece {
-        player: White,
-        ty: King,
-    };
-    let bk = Piece {
-        player: Black,
-        ty: King,
-    };
+    let wk = Piece::new(White, King);
+    let bk = Piece::new(Black, King);
     let board1 = Board::with_pieces(8, 8, &[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
     let board2 = Board::with_pieces(8, 8, &[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
 
@@ -531,7 +489,7 @@ fn generate_all_boards_impl(ret: &mut Vec<Board>, board: &Board, pieces: &[Piece
         [p, rest @ ..] => {
             for y in 0..board.height {
                 for x in 0..board.width {
-                    if p.ty == Pawn && (y == 0 || y == board.height - 1) {
+                    if p.ty() == Pawn && (y == 0 || y == board.height - 1) {
                         continue;
                     }
                     let coord = Coord::new(x, y);
@@ -557,63 +515,20 @@ pub fn generate_all_boards(width: i8, height: i8, pieces: &[Piece]) -> Vec<Board
 #[test]
 fn test_generate_all_boards() {
     {
-        let boards = generate_all_boards(
-            8,
-            8,
-            &[Piece {
-                player: White,
-                ty: King,
-            }],
-        );
+        let boards = generate_all_boards(8, 8, &[Piece::new(White, King)]);
         assert_eq!(boards.len(), 64);
     }
     {
-        let boards = generate_all_boards(
-            8,
-            8,
-            &[
-                Piece {
-                    player: White,
-                    ty: King,
-                },
-                Piece {
-                    player: White,
-                    ty: Queen,
-                },
-            ],
-        );
+        let boards =
+            generate_all_boards(8, 8, &[Piece::new(White, King), Piece::new(White, Queen)]);
         assert_eq!(boards.len(), 64 * 63);
-        assert_eq!(
-            boards[0][(0, 0)],
-            Some(Piece {
-                player: White,
-                ty: King
-            })
-        );
-        assert_eq!(
-            boards[0][(1, 0)],
-            Some(Piece {
-                player: White,
-                ty: Queen
-            })
-        );
+        assert_eq!(boards[0][(0, 0)], Some(Piece::new(White, King)));
+        assert_eq!(boards[0][(1, 0)], Some(Piece::new(White, Queen)));
         assert_eq!(boards[0][(2, 0)], None);
 
-        assert_eq!(
-            boards[1][(0, 0)],
-            Some(Piece {
-                player: White,
-                ty: King
-            })
-        );
+        assert_eq!(boards[1][(0, 0)], Some(Piece::new(White, King)));
         assert_eq!(boards[1][(1, 0)], None);
-        assert_eq!(
-            boards[1][(2, 0)],
-            Some(Piece {
-                player: White,
-                ty: Queen
-            })
-        );
+        assert_eq!(boards[1][(2, 0)], Some(Piece::new(White, Queen)));
     }
 }
 
@@ -652,40 +567,16 @@ fn test_populate_initial_tablebases() {
             8,
             8,
             &[
-                (
-                    Coord::new(0, 0),
-                    Piece {
-                        player: White,
-                        ty: King,
-                    },
-                ),
-                (
-                    Coord::new(0, 1),
-                    Piece {
-                        player: Black,
-                        ty: King,
-                    },
-                ),
+                (Coord::new(0, 0), Piece::new(White, King)),
+                (Coord::new(0, 1), Piece::new(Black, King)),
             ],
         ),
         Board::with_pieces(
             8,
             8,
             &[
-                (
-                    Coord::new(0, 0),
-                    Piece {
-                        player: White,
-                        ty: King,
-                    },
-                ),
-                (
-                    Coord::new(0, 2),
-                    Piece {
-                        player: Black,
-                        ty: King,
-                    },
-                ),
+                (Coord::new(0, 0), Piece::new(White, King)),
+                (Coord::new(0, 2), Piece::new(Black, King)),
             ],
         ),
     ];
@@ -711,18 +602,9 @@ fn test_populate_initial_tablebases_stalemate() {
             1,
             8,
             &[
-                Piece {
-                    player: White,
-                    ty: King,
-                },
-                Piece {
-                    player: Black,
-                    ty: Pawn,
-                },
-                Piece {
-                    player: Black,
-                    ty: King,
-                },
+                Piece::new(White, King),
+                Piece::new(Black, Pawn),
+                Piece::new(Black, King),
             ],
         ),
     );
@@ -731,27 +613,9 @@ fn test_populate_initial_tablebases_stalemate() {
             1,
             8,
             &[
-                (
-                    Coord::new(0, 7),
-                    Piece {
-                        player: White,
-                        ty: King,
-                    }
-                ),
-                (
-                    Coord::new(0, 1),
-                    Piece {
-                        player: Black,
-                        ty: Pawn,
-                    }
-                ),
-                (
-                    Coord::new(0, 0),
-                    Piece {
-                        player: Black,
-                        ty: King,
-                    }
-                ),
+                (Coord::new(0, 7), Piece::new(White, King,)),
+                (Coord::new(0, 1), Piece::new(Black, Pawn,)),
+                (Coord::new(0, 0), Piece::new(Black, King,)),
             ]
         )),
         Some(0)
@@ -760,27 +624,9 @@ fn test_populate_initial_tablebases_stalemate() {
         1,
         8,
         &[
-            (
-                Coord::new(0, 7),
-                Piece {
-                    player: White,
-                    ty: King,
-                }
-            ),
-            (
-                Coord::new(0, 2),
-                Piece {
-                    player: Black,
-                    ty: Pawn,
-                }
-            ),
-            (
-                Coord::new(0, 0),
-                Piece {
-                    player: Black,
-                    ty: King,
-                }
-            ),
+            (Coord::new(0, 7), Piece::new(White, King,)),
+            (Coord::new(0, 2), Piece::new(Black, Pawn,)),
+            (Coord::new(0, 0), Piece::new(Black, King,)),
         ]
     )));
 }
@@ -835,14 +681,8 @@ fn iterate_black(tablebase: &mut Tablebase, boards: &[Board]) -> bool {
 
 #[test]
 fn test_iterate_black() {
-    let wk = Piece {
-        player: White,
-        ty: King,
-    };
-    let bk = Piece {
-        player: Black,
-        ty: King,
-    };
+    let wk = Piece::new(White, King);
+    let bk = Piece::new(Black, King);
     let board = Board::with_pieces(4, 1, &[(Coord::new(0, 0), wk), (Coord::new(2, 0), bk)]);
     let mut tablebase = Tablebase::new();
     tablebase.white_add(
@@ -921,14 +761,8 @@ fn iterate_white(tablebase: &mut Tablebase, boards: &[Board]) -> bool {
 
 #[test]
 fn test_iterate_white() {
-    let wk = Piece {
-        player: White,
-        ty: King,
-    };
-    let bk = Piece {
-        player: Black,
-        ty: King,
-    };
+    let wk = Piece::new(White, King);
+    let bk = Piece::new(Black, King);
     let board = Board::with_pieces(5, 1, &[(Coord::new(1, 0), wk), (Coord::new(4, 0), bk)]);
     let mut tablebase = Tablebase::new();
     assert!(!iterate_white(&mut tablebase, &[board.clone()]));
@@ -975,8 +809,8 @@ fn verify_piece_set(pieces: &[Piece]) {
     let mut wk_count = 0;
     let mut bk_count = 0;
     for p in pieces {
-        if p.ty == King {
-            match p.player {
+        if p.ty() == King {
+            match p.player() {
                 White => wk_count += 1,
                 Black => bk_count += 1,
             }
@@ -1007,16 +841,7 @@ pub fn generate_tablebase(width: i8, height: i8, piece_sets: &[&[Piece]]) -> Tab
 
 #[test]
 fn test_generate_king_king_tablebase() {
-    let pieces = [
-        Piece {
-            player: White,
-            ty: King,
-        },
-        Piece {
-            player: Black,
-            ty: King,
-        },
-    ];
+    let pieces = [Piece::new(White, King), Piece::new(Black, King)];
     for (width, height) in [(6, 6), (5, 5), (4, 5), (4, 6)] {
         let tablebase = generate_tablebase(width, height, &[&pieces]);
         // If white king couldn't capture on first move, no forced win.
@@ -1034,29 +859,11 @@ fn test_generate_king_king_tablebase() {
 
 #[test]
 fn test_tablebase_size() {
-    let pieces1 = [
-        Piece {
-            player: White,
-            ty: King,
-        },
-        Piece {
-            player: Black,
-            ty: King,
-        },
-    ];
+    let pieces1 = [Piece::new(White, King), Piece::new(Black, King)];
     let pieces2 = [
-        Piece {
-            player: White,
-            ty: King,
-        },
-        Piece {
-            player: White,
-            ty: Queen,
-        },
-        Piece {
-            player: Black,
-            ty: King,
-        },
+        Piece::new(White, King),
+        Piece::new(White, Queen),
+        Piece::new(Black, King),
     ];
     let tablebase = generate_tablebase(4, 4, &[&pieces1, &pieces2]);
     let all1 = generate_all_boards(4, 4, &pieces1);

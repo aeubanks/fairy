@@ -18,11 +18,12 @@ fn perft_impl(board: &Board, player: Player, depth: u64) -> u64 {
             continue;
         }
         let next_player = next_player(player);
-        if board[m.from].as_ref().unwrap().ty == Pawn && (m.to.y == 0 || m.to.y == board.height - 1)
+        if board[m.from].as_ref().unwrap().ty() == Pawn
+            && (m.to.y == 0 || m.to.y == board.height - 1)
         {
             for ty in [Knight, Bishop, Rook] {
                 let mut promotion_copy = copy.clone();
-                promotion_copy[m.to].as_mut().unwrap().ty = ty;
+                promotion_copy[m.to] = Some(Piece::new(player, ty));
                 if depth == 1 {
                     sum += 1
                 } else {
@@ -78,7 +79,7 @@ fn fen(fen: &str) -> Position {
                         'k' => (Black, King),
                         _ => panic!(),
                     };
-                    board.add_piece(Coord::new(x, y), Piece { player, ty });
+                    board.add_piece(Coord::new(x, y), Piece::new(player, ty));
                     x += 1;
                 }
             }
@@ -172,13 +173,7 @@ fn test_fen() {
     {
         let Position { board, player } =
             fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 b kq - 0 1");
-        assert_eq!(
-            board[(0, 2)],
-            Some(Piece {
-                player: Black,
-                ty: Queen
-            })
-        );
+        assert_eq!(board[(0, 2)], Some(Piece::new(Black, Queen)));
         assert_eq!(board[(1, 2)], None);
         assert_eq!(
             board.castling_rights,

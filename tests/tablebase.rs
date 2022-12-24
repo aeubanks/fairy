@@ -9,7 +9,7 @@ fn black_king_exists(board: &Board) -> bool {
         for x in 0..board.width {
             let coord = Coord::new(x, y);
             if let Some(piece) = board[coord].as_ref() {
-                if piece.player == Black && piece.ty == King {
+                if piece.player() == Black && piece.ty() == King {
                     return true;
                 }
             }
@@ -39,16 +39,7 @@ fn verify_board_tablebase(board: &Board, tablebase: &Tablebase) {
 
 fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
     assert_eq!(pieces.len(), 3);
-    let kk = [
-        Piece {
-            player: White,
-            ty: King,
-        },
-        Piece {
-            player: Black,
-            ty: King,
-        },
-    ];
+    let kk = [Piece::new(White, King), Piece::new(Black, King)];
     let tablebase = generate_tablebase(4, 4, &[&kk, &pieces]);
     let all = generate_all_boards(4, 4, pieces);
 
@@ -64,18 +55,9 @@ fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
 #[test]
 fn test_kqk_tablebase() {
     let pieces = [
-        Piece {
-            player: White,
-            ty: King,
-        },
-        Piece {
-            player: White,
-            ty: Queen,
-        },
-        Piece {
-            player: Black,
-            ty: King,
-        },
+        Piece::new(White, King),
+        Piece::new(White, Queen),
+        Piece::new(Black, King),
     ];
     verify_all_three_piece_positions_forced_win(&pieces);
 }
@@ -83,18 +65,9 @@ fn test_kqk_tablebase() {
 #[test]
 fn test_krk_tablebase() {
     let pieces = [
-        Piece {
-            player: White,
-            ty: King,
-        },
-        Piece {
-            player: White,
-            ty: Rook,
-        },
-        Piece {
-            player: Black,
-            ty: King,
-        },
+        Piece::new(White, King),
+        Piece::new(White, Rook),
+        Piece::new(Black, King),
     ];
     verify_all_three_piece_positions_forced_win(&pieces);
 }
@@ -102,18 +75,9 @@ fn test_krk_tablebase() {
 #[test]
 fn test_kck_tablebase() {
     let pieces = [
-        Piece {
-            player: White,
-            ty: King,
-        },
-        Piece {
-            player: White,
-            ty: Chancellor,
-        },
-        Piece {
-            player: Black,
-            ty: King,
-        },
+        Piece::new(White, King),
+        Piece::new(White, Chancellor),
+        Piece::new(Black, King),
     ];
     verify_all_three_piece_positions_forced_win(&pieces);
 }
@@ -121,18 +85,9 @@ fn test_kck_tablebase() {
 #[test]
 fn test_kak_tablebase() {
     let pieces = [
-        Piece {
-            player: White,
-            ty: King,
-        },
-        Piece {
-            player: White,
-            ty: Archbishop,
-        },
-        Piece {
-            player: Black,
-            ty: King,
-        },
+        Piece::new(White, King),
+        Piece::new(White, Archbishop),
+        Piece::new(Black, King),
     ];
     verify_all_three_piece_positions_forced_win(&pieces);
 }
@@ -140,18 +95,9 @@ fn test_kak_tablebase() {
 #[test]
 fn test_kzk_tablebase() {
     let pieces = [
-        Piece {
-            player: White,
-            ty: King,
-        },
-        Piece {
-            player: White,
-            ty: Archbishop,
-        },
-        Piece {
-            player: Black,
-            ty: King,
-        },
+        Piece::new(White, King),
+        Piece::new(White, Archbishop),
+        Piece::new(Black, King),
     ];
     verify_all_three_piece_positions_forced_win(&pieces);
 }

@@ -9,7 +9,7 @@ use fairy::player::{next_player, Player, Player::*};
 use rand::{thread_rng, Rng};
 
 fn valid_piece_for_coord(board: &Board, piece: &Piece, coord: Coord) -> bool {
-    match piece.ty {
+    match piece.ty() {
         Pawn => coord.y != 0 && coord.y != board.height - 1,
         _ => true,
     }
@@ -57,7 +57,7 @@ fn rand_non_king_type_for_coord<R: Rng + ?Sized>(rng: &mut R, board: &Board, coo
 fn rand_board<R: Rng + ?Sized>(rng: &mut R) -> Board {
     let mut board = Board::new(rng.gen_range(7..=9), rng.gen_range(7..=9));
     for player in [White, Black] {
-        add_piece_to_rand_coord(rng, &mut board, Piece { player, ty: King });
+        add_piece_to_rand_coord(rng, &mut board, Piece::new(player, King));
     }
 
     if rng.gen() {
@@ -68,10 +68,10 @@ fn rand_board<R: Rng + ?Sized>(rng: &mut R) -> Board {
                     continue;
                 }
                 if rng.gen_bool(1.0 / 8.0) {
-                    let piece = Piece {
-                        player: rng.gen::<Player>(),
-                        ty: rand_non_king_type_for_coord(rng, &board, coord),
-                    };
+                    let piece = Piece::new(
+                        rng.gen::<Player>(),
+                        rand_non_king_type_for_coord(rng, &board, coord),
+                    );
                     board.add_piece(coord, piece);
                 }
             }
@@ -79,10 +79,7 @@ fn rand_board<R: Rng + ?Sized>(rng: &mut R) -> Board {
     } else {
         for player in [White, Black] {
             for _ in 0..(rng.gen_range(5..10)) {
-                let piece = Piece {
-                    player,
-                    ty: rand_non_king_type(rng),
-                };
+                let piece = Piece::new(player, rand_non_king_type(rng));
                 add_piece_to_rand_coord(rng, &mut board, piece);
             }
         }
