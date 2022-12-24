@@ -4,7 +4,7 @@ use crate::player::{Player, Player::*};
 use rand::Rng;
 use std::ops::{Index, IndexMut};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Board {
     pieces: Vec<Option<Piece>>,
     pub width: i8,
@@ -62,6 +62,150 @@ impl Board {
             }
         }
     }
+
+    fn idx(&self, c: Coord) -> usize {
+        (c.y * self.width + c.x) as usize
+    }
+
+    pub fn swap(&mut self, c1: Coord, c2: Coord) {
+        let idx1 = self.idx(c1);
+        let idx2 = self.idx(c2);
+        self.pieces.swap(idx1, idx2)
+    }
+}
+
+#[test]
+fn test_board_swap() {
+    let n = Piece {
+        player: White,
+        ty: Knight,
+    };
+    let b = Piece {
+        player: White,
+        ty: Bishop,
+    };
+    let mut board = Board::with_pieces(3, 1, &[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]);
+
+    assert_eq!(board[(0, 0)], Some(n));
+    assert_eq!(board[(1, 0)], Some(b));
+    assert_eq!(board[(2, 0)], None);
+
+    board.swap(Coord::new(1, 0), Coord::new(0, 0));
+    assert_eq!(board[(0, 0)], Some(b));
+    assert_eq!(board[(1, 0)], Some(n));
+    assert_eq!(board[(2, 0)], None);
+
+    board.swap(Coord::new(2, 0), Coord::new(0, 0));
+    assert_eq!(board[(0, 0)], None);
+    assert_eq!(board[(1, 0)], Some(n));
+    assert_eq!(board[(2, 0)], Some(b));
+}
+
+impl Index<Coord> for Board {
+    type Output = Option<Piece>;
+
+    fn index(&self, coord: Coord) -> &Self::Output {
+        assert!(self.in_bounds(coord));
+        &self.pieces[self.idx(coord)]
+    }
+}
+
+impl Index<(i8, i8)> for Board {
+    type Output = Option<Piece>;
+
+    fn index(&self, (x, y): (i8, i8)) -> &Self::Output {
+        self.index(Coord { x, y })
+    }
+}
+
+impl IndexMut<Coord> for Board {
+    fn index_mut(&mut self, coord: Coord) -> &mut Self::Output {
+        assert!(self.in_bounds(coord));
+
+        let idx = self.idx(coord);
+        &mut self.pieces[idx]
+    }
+}
+
+impl IndexMut<(i8, i8)> for Board {
+    fn index_mut(&mut self, (x, y): (i8, i8)) -> &mut Self::Output {
+        self.index_mut(Coord { x, y })
+    }
+}
+
+#[test]
+fn test_board() {
+    use crate::piece::*;
+    let mut b = Board::new(4, 4);
+    let p1 = Some(Piece {
+        player: White,
+        ty: Type::Bishop,
+    });
+    let p2 = Some(Piece {
+        player: Black,
+        ty: Type::Knight,
+    });
+    b[(0, 0)] = p1.clone();
+    b[(3, 3)] = p2.clone();
+    assert_eq!(b[(0, 0)], p1);
+    assert_eq!(b[(3, 3)], p2);
+    assert_eq!(b[(0, 3)], None);
+}
+
+#[test]
+#[should_panic]
+fn test_board_panic_x_1() {
+    let b = Board::new(2, 3);
+    let _ = b[(2, 1)];
+}
+
+#[test]
+#[should_panic]
+fn test_board_panic_x_2() {
+    let b = Board::new(2, 3);
+    let _ = b[(-1, 1)];
+}
+
+#[test]
+#[should_panic]
+fn test_board_panic_y_1() {
+    let b = Board::new(2, 3);
+    let _ = b[(1, 3)];
+}
+
+#[test]
+#[should_panic]
+fn test_board_panic_y_2() {
+    let b = Board::new(2, 3);
+    let _ = b[(1, -1)];
+}
+
+#[test]
+#[should_panic]
+fn test_mut_board_panic_x_1() {
+    let mut b = Board::new(2, 3);
+    b[(2, 1)] = None;
+}
+
+#[test]
+#[should_panic]
+fn test_mut_board_panic_x_2() {
+    let mut b = Board::new(2, 3);
+    b[(-1, 1)] = None;
+}
+
+#[test]
+#[should_panic]
+fn test_mut_board_panic_y_1() {
+    let mut b = Board::new(2, 3);
+    b[(1, 3)] = None;
+}
+
+#[test]
+#[should_panic]
+fn test_mut_board_panic_y_2() {
+    let mut b = Board::new(2, 3);
+    b[(1, -1)] = None;
 }
 
 impl std::fmt::Debug for Board {
@@ -618,111 +762,6 @@ fn test_castle() {
     }
 }
 
-impl Index<Coord> for Board {
-    type Output = Option<Piece>;
-
-    fn index(&self, coord: Coord) -> &Self::Output {
-        assert!(self.in_bounds(coord));
-        &self.pieces[(coord.y * self.width + coord.x) as usize]
-    }
-}
-
-impl Index<(i8, i8)> for Board {
-    type Output = Option<Piece>;
-
-    fn index(&self, (x, y): (i8, i8)) -> &Self::Output {
-        self.index(Coord { x, y })
-    }
-}
-
-impl IndexMut<Coord> for Board {
-    fn index_mut(&mut self, coord: Coord) -> &mut Self::Output {
-        assert!(self.in_bounds(coord));
-        &mut self.pieces[(coord.y * self.width + coord.x) as usize]
-    }
-}
-
-impl IndexMut<(i8, i8)> for Board {
-    fn index_mut(&mut self, (x, y): (i8, i8)) -> &mut Self::Output {
-        self.index_mut(Coord { x, y })
-    }
-}
-
-#[test]
-fn test_board() {
-    use crate::piece::*;
-    let mut b = Board::new(4, 4);
-    let p1 = Some(Piece {
-        player: White,
-        ty: Type::Bishop,
-    });
-    let p2 = Some(Piece {
-        player: Black,
-        ty: Type::Knight,
-    });
-    b[(0, 0)] = p1.clone();
-    b[(3, 3)] = p2.clone();
-    assert_eq!(b[(0, 0)], p1);
-    assert_eq!(b[(3, 3)], p2);
-    assert_eq!(b[(0, 3)], None);
-}
-
-#[test]
-#[should_panic]
-fn test_board_panic_x_1() {
-    let b = Board::new(2, 3);
-    let _ = b[(2, 1)];
-}
-
-#[test]
-#[should_panic]
-fn test_board_panic_x_2() {
-    let b = Board::new(2, 3);
-    let _ = b[(-1, 1)];
-}
-
-#[test]
-#[should_panic]
-fn test_board_panic_y_1() {
-    let b = Board::new(2, 3);
-    let _ = b[(1, 3)];
-}
-
-#[test]
-#[should_panic]
-fn test_board_panic_y_2() {
-    let b = Board::new(2, 3);
-    let _ = b[(1, -1)];
-}
-
-#[test]
-#[should_panic]
-fn test_mut_board_panic_x_1() {
-    let mut b = Board::new(2, 3);
-    b[(2, 1)] = None;
-}
-
-#[test]
-#[should_panic]
-fn test_mut_board_panic_x_2() {
-    let mut b = Board::new(2, 3);
-    b[(-1, 1)] = None;
-}
-
-#[test]
-#[should_panic]
-fn test_mut_board_panic_y_1() {
-    let mut b = Board::new(2, 3);
-    b[(1, 3)] = None;
-}
-
-#[test]
-#[should_panic]
-fn test_mut_board_panic_y_2() {
-    let mut b = Board::new(2, 3);
-    b[(1, -1)] = None;
-}
-
 impl Board {
     pub fn los_alamos() -> Self {
         Self::setup_with_pawns(6, 6, false, &[Rook, Knight, Queen, King, Knight, Rook])
@@ -886,4 +925,19 @@ pub fn king_coord(board: &Board, player: Player) -> Coord {
         }
     }
     panic!()
+}
+
+// TODO: factor out coord visiting
+pub fn has_pawn(board: &Board) -> bool {
+    for y in 0..board.height {
+        for x in 0..board.width {
+            let coord = Coord::new(x, y);
+            if let Some(piece) = board[coord].as_ref() {
+                if piece.ty == Pawn {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
