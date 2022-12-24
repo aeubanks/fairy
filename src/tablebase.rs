@@ -1019,6 +1019,7 @@ fn test_generate_king_king_tablebase() {
     ];
     for (width, height) in [(6, 6), (5, 5), (4, 5), (4, 6)] {
         let tablebase = generate_tablebase(width, height, &[&pieces]);
+        // If white king couldn't capture on first move, no forced win.
         assert!(tablebase.black_tablebase.is_empty());
         let all = generate_all_boards(width, height, &pieces);
         for b in all {
@@ -1029,4 +1030,37 @@ fn test_generate_king_king_tablebase() {
             }
         }
     }
+}
+
+#[test]
+fn test_tablebase_size() {
+    let pieces1 = [
+        Piece {
+            player: White,
+            ty: King,
+        },
+        Piece {
+            player: Black,
+            ty: King,
+        },
+    ];
+    let pieces2 = [
+        Piece {
+            player: White,
+            ty: King,
+        },
+        Piece {
+            player: White,
+            ty: Queen,
+        },
+        Piece {
+            player: Black,
+            ty: King,
+        },
+    ];
+    let tablebase = generate_tablebase(4, 4, &[&pieces1, &pieces2]);
+    let all1 = generate_all_boards(4, 4, &pieces1);
+    let all2 = generate_all_boards(4, 4, &pieces2);
+    // With symmetry, we should expect a little over 1/8 of positions to be in the tablebase.
+    assert!(tablebase.white_tablebase.len() < all1.len() + all2.len() / 4);
 }
