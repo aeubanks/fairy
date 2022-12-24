@@ -146,6 +146,7 @@ fn test_flip_diagonal() {
     );
 }
 
+#[must_use]
 fn flip_coord(mut c: Coord, sym: Symmetry, board: &Board) -> Coord {
     if sym.flip_x {
         c.x = board.width - 1 - c.x;
@@ -224,9 +225,31 @@ fn test_flip_coord() {
     );
 }
 
+#[must_use]
 fn flip_move(mut m: Move, sym: Symmetry, board: &Board) -> Move {
     m.from = flip_coord(m.from, sym, board);
     m.to = flip_coord(m.to, sym, board);
+    m
+}
+
+#[must_use]
+fn unflip_coord(mut c: Coord, sym: Symmetry, board: &Board) -> Coord {
+    if sym.flip_diagonally {
+        std::mem::swap(&mut c.x, &mut c.y);
+    }
+    if sym.flip_y {
+        c.y = board.height - 1 - c.y;
+    }
+    if sym.flip_x {
+        c.x = board.width - 1 - c.x;
+    }
+    c
+}
+
+#[must_use]
+fn unflip_move(mut m: Move, sym: Symmetry, board: &Board) -> Move {
+    m.from = unflip_coord(m.from, sym, board);
+    m.to = unflip_coord(m.to, sym, board);
     m
 }
 
@@ -280,7 +303,7 @@ impl Tablebase {
         let (hash, sym) = hash(board);
         self.white_tablebase
             .get(&hash)
-            .map(|e| flip_move(e.0, sym, board))
+            .map(|e| unflip_move(e.0, sym, board))
     }
     pub fn white_depth(&self, board: &Board) -> Option<u16> {
         self.white_tablebase.get(&hash(board).0).map(|e| e.1)
@@ -297,11 +320,49 @@ impl Tablebase {
         let (hash, sym) = hash(board);
         self.black_tablebase
             .get(&hash)
-            .map(|e| flip_move(e.0, sym, board))
+            .map(|e| unflip_move(e.0, sym, board))
     }
     pub fn black_depth(&self, board: &Board) -> Option<u16> {
         self.black_tablebase.get(&hash(board).0).map(|e| e.1)
     }
+}
+
+#[test]
+fn test_generate_flip_unflip_move() {
+    let board = Board::with_pieces(
+        4,
+        4,
+        &[
+            (
+                Coord::new(0, 0),
+                Piece {
+                    player: White,
+                    ty: King,
+                },
+            ),
+            (
+                Coord::new(1, 0),
+                Piece {
+                    player: White,
+                    ty: Queen,
+                },
+            ),
+            (
+                Coord::new(2, 0),
+                Piece {
+                    player: Black,
+                    ty: King,
+                },
+            ),
+        ],
+    );
+    let m = Move {
+        from: Coord::new(1, 0),
+        to: Coord::new(2, 0),
+    };
+    let mut tablebase = Tablebase::new();
+    tablebase.white_add(&board, m, 1);
+    assert_eq!(tablebase.white_move(&board), Some(m));
 }
 
 fn hash_one_board(board: &Board) -> u64 {
@@ -329,7 +390,7 @@ fn hash(board: &Board) -> (u64, Symmetry) {
     let mut boards_to_check = ArrayVec::<(Board, Symmetry), 8>::new();
     boards_to_check.push((board.clone(), Symmetry::default()));
 
-    let bk_coord = king_coord(board, Black);
+    let mut bk_coord = king_coord(board, Black);
 
     if board.width % 2 == 1 && bk_coord.x == board.width / 2 {
         let boards_copy = boards_to_check.clone();
@@ -338,6 +399,15 @@ fn hash(board: &Board) -> (u64, Symmetry) {
             boards_to_check.push(c);
         }
     } else if bk_coord.x >= board.width / 2 {
+        bk_coord = flip_coord(
+            bk_coord,
+            Symmetry {
+                flip_x: true,
+                flip_y: false,
+                flip_diagonally: false,
+            },
+            board,
+        );
         for b in boards_to_check.as_mut() {
             flip_x(b);
         }
@@ -350,7 +420,16 @@ fn hash(board: &Board) -> (u64, Symmetry) {
                 flip_y(&mut c);
                 boards_to_check.push(c);
             }
-        } else if bk_coord.x >= board.width / 2 {
+        } else if bk_coord.y >= board.height / 2 {
+            bk_coord = flip_coord(
+                bk_coord,
+                Symmetry {
+                    flip_x: false,
+                    flip_y: true,
+                    flip_diagonally: false,
+                },
+                board,
+            );
             for b in boards_to_check.as_mut() {
                 flip_y(b);
             }
@@ -385,49 +464,66 @@ fn hash(board: &Board) -> (u64, Symmetry) {
 
 #[test]
 fn test_hash() {
-    let board1 = Board::with_pieces(
-        8,
-        8,
-        &[
-            (
-                Coord::new(0, 0),
-                Piece {
-                    player: White,
-                    ty: King,
-                },
-            ),
-            (
-                Coord::new(0, 1),
-                Piece {
-                    player: Black,
-                    ty: King,
-                },
-            ),
-        ],
+    let wk = Piece {
+        player: White,
+        ty: King,
+    };
+    let bk = Piece {
+        player: Black,
+        ty: King,
+    };
+    let board1 = Board::with_pieces(8, 8, &[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
+    let board2 = Board::with_pieces(8, 8, &[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
+
+    fn assert_hash_eq(b1: &Board, b2: &Board) {
+        assert_eq!(hash(&b1).0, hash(&b2).0);
+    }
+    fn assert_hash_ne(b1: &Board, b2: &Board) {
+        assert_ne!(hash(&b1).0, hash(&b2).0);
+    }
+    assert_hash_eq(&board1, &board1);
+    assert_hash_eq(&board2, &board2);
+    assert_hash_ne(&board1, &board2);
+    assert_hash_eq(
+        &board1,
+        &Board::with_pieces(8, 8, &[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
     );
-    let board2 = Board::with_pieces(
-        8,
-        8,
-        &[
-            (
-                Coord::new(0, 0),
-                Piece {
-                    player: White,
-                    ty: King,
-                },
-            ),
-            (
-                Coord::new(0, 2),
-                Piece {
-                    player: Black,
-                    ty: King,
-                },
-            ),
-        ],
+    assert_hash_eq(
+        &board1,
+        &Board::with_pieces(8, 8, &[(Coord::new(7, 7), wk), (Coord::new(7, 6), bk)]),
     );
-    assert_eq!(hash(&board1), hash(&board1));
-    assert_eq!(hash(&board2), hash(&board2));
-    assert_ne!(hash(&board1), hash(&board2));
+    assert_hash_eq(
+        &board1,
+        &Board::with_pieces(8, 8, &[(Coord::new(7, 7), wk), (Coord::new(6, 7), bk)]),
+    );
+    assert_hash_eq(
+        &Board::with_pieces(5, 5, &[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+        &Board::with_pieces(5, 5, &[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
+    );
+    assert_hash_eq(
+        &Board::with_pieces(5, 5, &[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+        &Board::with_pieces(5, 5, &[(Coord::new(2, 1), wk), (Coord::new(2, 2), bk)]),
+    );
+    assert_hash_eq(
+        &Board::with_pieces(5, 5, &[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+        &Board::with_pieces(5, 5, &[(Coord::new(2, 3), wk), (Coord::new(2, 2), bk)]),
+    );
+    assert_hash_eq(
+        &Board::with_pieces(5, 5, &[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+        &Board::with_pieces(5, 5, &[(Coord::new(3, 1), wk), (Coord::new(2, 2), bk)]),
+    );
+    assert_hash_eq(
+        &Board::with_pieces(5, 5, &[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+        &Board::with_pieces(5, 5, &[(Coord::new(1, 1), wk), (Coord::new(2, 2), bk)]),
+    );
+    assert_hash_eq(
+        &Board::with_pieces(5, 5, &[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+        &Board::with_pieces(5, 5, &[(Coord::new(1, 3), wk), (Coord::new(2, 2), bk)]),
+    );
+    assert_hash_ne(
+        &Board::with_pieces(5, 5, &[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+        &Board::with_pieces(5, 5, &[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
+    );
 }
 
 fn generate_all_boards_impl(ret: &mut Vec<Board>, board: &Board, pieces: &[Piece]) {
