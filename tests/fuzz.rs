@@ -1,9 +1,7 @@
-mod common;
-
-use common::*;
 use fairy::board::{king_coord, Board};
 use fairy::coord::Coord;
 use fairy::moves::all_moves;
+use fairy::perft::is_in_check;
 use fairy::piece::{Piece, Type, Type::*};
 use fairy::player::{next_player, Player, Player::*};
 use rand::{thread_rng, Rng};

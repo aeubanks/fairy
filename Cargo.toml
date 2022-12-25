@@ -17,3 +17,7 @@ criterion = "0.4"
 [[bench]]
 name = "tablebase"
 harness = false
+
+[[bench]]
+name = "perft"
+harness = false
