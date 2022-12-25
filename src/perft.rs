@@ -4,12 +4,16 @@ use crate::moves::*;
 use crate::piece::{Piece, Type::*};
 use crate::player::{next_player, Player, Player::*};
 
-pub fn is_in_check(board: &Board, player: Player) -> bool {
+pub fn is_in_check<const N: usize, const M: usize>(board: &Board<N, M>, player: Player) -> bool {
     let king_coord = king_coord(board, player);
     is_under_attack(board, king_coord, player)
 }
 
-fn perft_impl(board: &Board, player: Player, depth: u64) -> u64 {
+fn perft_impl<const N: usize, const M: usize>(
+    board: &Board<N, M>,
+    player: Player,
+    depth: u64,
+) -> u64 {
     assert_ne!(depth, 0);
     let moves = all_moves(board, player);
     let mut sum = 0;
@@ -20,9 +24,7 @@ fn perft_impl(board: &Board, player: Player, depth: u64) -> u64 {
             continue;
         }
         let next_player = next_player(player);
-        if board[m.from].as_ref().unwrap().ty() == Pawn
-            && (m.to.y == 0 || m.to.y == board.height - 1)
-        {
+        if board[m.from].as_ref().unwrap().ty() == Pawn && (m.to.y == 0 || m.to.y == M as i8 - 1) {
             for ty in [Knight, Bishop, Rook] {
                 let mut promotion_copy = copy.clone();
                 promotion_copy[m.to] = Some(Piece::new(player, ty));
@@ -42,16 +44,20 @@ fn perft_impl(board: &Board, player: Player, depth: u64) -> u64 {
     sum
 }
 
-pub struct Position {
-    pub board: Board,
+pub struct Position<const N: usize, const M: usize> {
+    pub board: Board<N, M>,
     pub player: Player,
 }
 
-pub fn perft(position: &Position, depth: u64) -> u64 {
+pub fn perft<const N: usize, const M: usize>(position: &Position<N, M>, depth: u64) -> u64 {
     perft_impl(&position.board, position.player, depth)
 }
 
-fn perft_all_impl(board: &Board, player: Player, depth: u64) -> u64 {
+fn perft_all_impl<const N: usize, const M: usize>(
+    board: &Board<N, M>,
+    player: Player,
+    depth: u64,
+) -> u64 {
     assert_ne!(depth, 0);
     let moves = all_moves(board, player);
     let mut sum = 0;
@@ -72,12 +78,12 @@ fn perft_all_impl(board: &Board, player: Player, depth: u64) -> u64 {
     sum
 }
 
-pub fn perft_all(position: &Position, depth: u64) -> u64 {
+pub fn perft_all<const N: usize, const M: usize>(position: &Position<N, M>, depth: u64) -> u64 {
     perft_all_impl(&position.board, position.player, depth)
 }
 
-pub fn fen(fen: &str) -> Position {
-    let mut board = Board::new(8, 8);
+pub fn fen(fen: &str) -> Position<8, 8> {
+    let mut board = Board::<8, 8>::default();
     let space_split: Vec<&str> = fen.split(' ').collect();
     assert!(space_split.len() == 6 || space_split.len() == 4);
 
@@ -177,9 +183,9 @@ fn test_fen() {
     {
         let Position { board, player } =
             fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        let classical = Board::classical();
-        for y in 0..board.height {
-            for x in 0..board.width {
+        let classical = crate::board::Presets::classical();
+        for y in 0..8 {
+            for x in 0..8 {
                 let coord = Coord::new(x, y);
                 assert_eq!(board[coord], classical[coord]);
 

@@ -16,11 +16,11 @@ struct Symmetry {
     flip_diagonally: bool,
 }
 
-fn flip_x((board, sym): &mut (Board, Symmetry)) {
-    for y in 0..board.height {
-        for x in 0..(board.width / 2) {
+fn flip_x<const N: usize, const M: usize>((board, sym): &mut (Board<N, M>, Symmetry)) {
+    for y in 0..M as i8 {
+        for x in 0..(N as i8 / 2) {
             let c = Coord::new(x, y);
-            let c2 = Coord::new(board.width - 1 - x, y);
+            let c2 = Coord::new(N as i8 - 1 - x, y);
             board.swap(c, c2);
         }
     }
@@ -33,7 +33,7 @@ fn test_flip_x() {
     let n = Piece::new(White, Knight);
     let b = Piece::new(White, Bishop);
     let mut bs = (
-        Board::with_pieces(3, 2, &[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
+        Board::<3, 2>::with_pieces(&[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
         Symmetry::default(),
     );
 
@@ -49,15 +49,15 @@ fn test_flip_x() {
     );
     assert_eq!(
         bs.0,
-        Board::with_pieces(3, 2, &[(Coord::new(2, 0), n), (Coord::new(1, 0), b)])
+        Board::<3, 2>::with_pieces(&[(Coord::new(2, 0), n), (Coord::new(1, 0), b)])
     );
 }
 
-fn flip_y((board, sym): &mut (Board, Symmetry)) {
-    for y in 0..(board.height / 2) {
-        for x in 0..board.width {
+fn flip_y<const N: usize, const M: usize>((board, sym): &mut (Board<N, M>, Symmetry)) {
+    for y in 0..(M as i8 / 2) {
+        for x in 0..N as i8 {
             let c = Coord::new(x, y);
-            let c2 = Coord::new(x, board.height - 1 - y);
+            let c2 = Coord::new(x, M as i8 - 1 - y);
             board.swap(c, c2);
         }
     }
@@ -70,7 +70,7 @@ fn test_flip_y() {
     let n = Piece::new(White, Knight);
     let b = Piece::new(White, Bishop);
     let mut bs = (
-        Board::with_pieces(3, 2, &[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
+        Board::<3, 2>::with_pieces(&[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
         Symmetry::default(),
     );
 
@@ -86,13 +86,13 @@ fn test_flip_y() {
     );
     assert_eq!(
         bs.0,
-        Board::with_pieces(3, 2, &[(Coord::new(0, 1), n), (Coord::new(1, 1), b)])
+        Board::<3, 2>::with_pieces(&[(Coord::new(0, 1), n), (Coord::new(1, 1), b)])
     );
 }
 
-fn flip_diagonal((board, sym): &mut (Board, Symmetry)) {
-    assert_eq!(board.width, board.height);
-    for y in 1..board.height {
+fn flip_diagonal<const N: usize, const M: usize>((board, sym): &mut (Board<N, M>, Symmetry)) {
+    assert_eq!(N, M);
+    for y in 1..M as i8 {
         for x in 0..y {
             let c = Coord::new(x, y);
             let c2 = Coord::new(y, x);
@@ -108,7 +108,7 @@ fn test_flip_diagonal() {
     let n = Piece::new(White, Knight);
     let b = Piece::new(White, Bishop);
     let mut bs = (
-        Board::with_pieces(3, 3, &[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
+        Board::<3, 3>::with_pieces(&[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
         Symmetry::default(),
     );
 
@@ -124,17 +124,17 @@ fn test_flip_diagonal() {
     );
     assert_eq!(
         bs.0,
-        Board::with_pieces(3, 3, &[(Coord::new(0, 0), n), (Coord::new(0, 1), b)])
+        Board::<3, 3>::with_pieces(&[(Coord::new(0, 0), n), (Coord::new(0, 1), b)])
     );
 }
 
 #[must_use]
-fn flip_coord(mut c: Coord, sym: Symmetry, board: &Board) -> Coord {
+fn flip_coord(mut c: Coord, sym: Symmetry, width: i8, height: i8) -> Coord {
     if sym.flip_x {
-        c.x = board.width - 1 - c.x;
+        c.x = width - 1 - c.x;
     }
     if sym.flip_y {
-        c.y = board.height - 1 - c.y;
+        c.y = height - 1 - c.y;
     }
     if sym.flip_diagonally {
         std::mem::swap(&mut c.x, &mut c.y);
@@ -144,7 +144,6 @@ fn flip_coord(mut c: Coord, sym: Symmetry, board: &Board) -> Coord {
 
 #[test]
 fn test_flip_coord() {
-    let board = Board::new(4, 4);
     assert_eq!(
         flip_coord(
             Coord::new(1, 2),
@@ -153,7 +152,8 @@ fn test_flip_coord() {
                 flip_y: false,
                 flip_diagonally: false
             },
-            &board
+            4,
+            4
         ),
         Coord::new(1, 2)
     );
@@ -165,7 +165,8 @@ fn test_flip_coord() {
                 flip_y: false,
                 flip_diagonally: false
             },
-            &board
+            4,
+            4
         ),
         Coord::new(2, 2)
     );
@@ -177,7 +178,8 @@ fn test_flip_coord() {
                 flip_y: true,
                 flip_diagonally: false
             },
-            &board
+            4,
+            4
         ),
         Coord::new(1, 1)
     );
@@ -189,7 +191,8 @@ fn test_flip_coord() {
                 flip_y: false,
                 flip_diagonally: true
             },
-            &board
+            4,
+            4
         ),
         Coord::new(2, 1)
     );
@@ -201,43 +204,43 @@ fn test_flip_coord() {
                 flip_y: true,
                 flip_diagonally: true
             },
-            &board
+            4,
+            4
         ),
         Coord::new(1, 3)
     );
 }
 
 #[must_use]
-fn flip_move(mut m: Move, sym: Symmetry, board: &Board) -> Move {
-    m.from = flip_coord(m.from, sym, board);
-    m.to = flip_coord(m.to, sym, board);
+fn flip_move(mut m: Move, sym: Symmetry, width: i8, height: i8) -> Move {
+    m.from = flip_coord(m.from, sym, width, height);
+    m.to = flip_coord(m.to, sym, width, height);
     m
 }
 
 #[must_use]
-fn unflip_coord(mut c: Coord, sym: Symmetry, board: &Board) -> Coord {
+fn unflip_coord(mut c: Coord, sym: Symmetry, width: i8, height: i8) -> Coord {
     if sym.flip_diagonally {
         std::mem::swap(&mut c.x, &mut c.y);
     }
     if sym.flip_y {
-        c.y = board.height - 1 - c.y;
+        c.y = height - 1 - c.y;
     }
     if sym.flip_x {
-        c.x = board.width - 1 - c.x;
+        c.x = width - 1 - c.x;
     }
     c
 }
 
 #[must_use]
-fn unflip_move(mut m: Move, sym: Symmetry, board: &Board) -> Move {
-    m.from = unflip_coord(m.from, sym, board);
-    m.to = unflip_coord(m.to, sym, board);
+fn unflip_move(mut m: Move, sym: Symmetry, width: i8, height: i8) -> Move {
+    m.from = unflip_coord(m.from, sym, width, height);
+    m.to = unflip_coord(m.to, sym, width, height);
     m
 }
 
 #[test]
 fn test_flip_move() {
-    let board = Board::new(4, 4);
     assert_eq!(
         flip_move(
             Move {
@@ -249,7 +252,8 @@ fn test_flip_move() {
                 flip_y: true,
                 flip_diagonally: false
             },
-            &board
+            4,
+            4
         ),
         Move {
             from: Coord::new(1, 3),
@@ -273,53 +277,59 @@ impl Tablebase {
             black_tablebase: MapTy::new(),
         }
     }
-    pub fn white_add(&mut self, board: &Board, m: Move, depth: u16) {
+    pub fn white_add<const N: usize, const M: usize>(
+        &mut self,
+        board: &Board<N, M>,
+        m: Move,
+        depth: u16,
+    ) {
         let (hash, sym) = hash(board);
         self.white_tablebase
-            .insert(hash, (flip_move(m, sym, board), depth));
+            .insert(hash, (flip_move(m, sym, N as i8, M as i8), depth));
     }
-    pub fn white_contains(&self, board: &Board) -> bool {
+    pub fn white_contains<const N: usize, const M: usize>(&self, board: &Board<N, M>) -> bool {
         self.white_tablebase.contains_key(&hash(board).0)
     }
-    pub fn white_move(&self, board: &Board) -> Option<Move> {
+    pub fn white_move<const N: usize, const M: usize>(&self, board: &Board<N, M>) -> Option<Move> {
         let (hash, sym) = hash(board);
         self.white_tablebase
             .get(&hash)
-            .map(|e| unflip_move(e.0, sym, board))
+            .map(|e| unflip_move(e.0, sym, N as i8, M as i8))
     }
-    pub fn white_depth(&self, board: &Board) -> Option<u16> {
+    pub fn white_depth<const N: usize, const M: usize>(&self, board: &Board<N, M>) -> Option<u16> {
         self.white_tablebase.get(&hash(board).0).map(|e| e.1)
     }
-    pub fn black_add(&mut self, board: &Board, m: Move, depth: u16) {
+    pub fn black_add<const N: usize, const M: usize>(
+        &mut self,
+        board: &Board<N, M>,
+        m: Move,
+        depth: u16,
+    ) {
         let (hash, sym) = hash(board);
         self.black_tablebase
-            .insert(hash, (flip_move(m, sym, board), depth));
+            .insert(hash, (flip_move(m, sym, N as i8, M as i8), depth));
     }
-    pub fn black_contains(&self, board: &Board) -> bool {
+    pub fn black_contains<const N: usize, const M: usize>(&self, board: &Board<N, M>) -> bool {
         self.black_tablebase.contains_key(&hash(board).0)
     }
-    pub fn black_move(&self, board: &Board) -> Option<Move> {
+    pub fn black_move<const N: usize, const M: usize>(&self, board: &Board<N, M>) -> Option<Move> {
         let (hash, sym) = hash(board);
         self.black_tablebase
             .get(&hash)
-            .map(|e| unflip_move(e.0, sym, board))
+            .map(|e| unflip_move(e.0, sym, N as i8, M as i8))
     }
-    pub fn black_depth(&self, board: &Board) -> Option<u16> {
+    pub fn black_depth<const N: usize, const M: usize>(&self, board: &Board<N, M>) -> Option<u16> {
         self.black_tablebase.get(&hash(board).0).map(|e| e.1)
     }
 }
 
 #[test]
 fn test_generate_flip_unflip_move() {
-    let board = Board::with_pieces(
-        4,
-        4,
-        &[
-            (Coord::new(0, 0), Piece::new(White, King)),
-            (Coord::new(1, 0), Piece::new(White, Queen)),
-            (Coord::new(2, 0), Piece::new(Black, King)),
-        ],
-    );
+    let board = Board::<4, 4>::with_pieces(&[
+        (Coord::new(0, 0), Piece::new(White, King)),
+        (Coord::new(1, 0), Piece::new(White, Queen)),
+        (Coord::new(2, 0), Piece::new(Black, King)),
+    ]);
     let m = Move {
         from: Coord::new(1, 0),
         to: Coord::new(2, 0),
@@ -329,12 +339,12 @@ fn test_generate_flip_unflip_move() {
     assert_eq!(tablebase.white_move(&board), Some(m));
 }
 
-fn hash_one_board(board: &Board) -> u64 {
+fn hash_one_board<const N: usize, const M: usize>(board: &Board<N, M>) -> u64 {
     let mut hasher = DefaultHasher::new();
-    board.width.hash(&mut hasher);
-    board.height.hash(&mut hasher);
-    for y in 0..board.height {
-        for x in 0..board.width {
+    N.hash(&mut hasher);
+    M.hash(&mut hasher);
+    for y in 0..M as i8 {
+        for x in 0..N as i8 {
             if let Some(p) = board[(x, y)] {
                 x.hash(&mut hasher);
                 y.hash(&mut hasher);
@@ -345,24 +355,24 @@ fn hash_one_board(board: &Board) -> u64 {
     hasher.finish()
 }
 
-fn hash(board: &Board) -> (u64, Symmetry) {
+fn hash<const N: usize, const M: usize>(board: &Board<N, M>) -> (u64, Symmetry) {
     // FIXME: this is faster right now...
     // return (hash_one_board(board), Symmetry::default());
 
     // TODO: add fast path when no symmetry to avoid clone?
 
-    let mut boards_to_check = ArrayVec::<(Board, Symmetry), 8>::new();
+    let mut boards_to_check = ArrayVec::<(Board<N, M>, Symmetry), 8>::new();
     boards_to_check.push((board.clone(), Symmetry::default()));
 
     let mut bk_coord = king_coord(board, Black);
 
-    if board.width % 2 == 1 && bk_coord.x == board.width / 2 {
+    if N % 2 == 1 && bk_coord.x == N as i8 / 2 {
         let boards_copy = boards_to_check.clone();
         for mut c in boards_copy {
             flip_x(&mut c);
             boards_to_check.push(c);
         }
-    } else if bk_coord.x >= board.width / 2 {
+    } else if bk_coord.x >= N as i8 / 2 {
         bk_coord = flip_coord(
             bk_coord,
             Symmetry {
@@ -370,7 +380,8 @@ fn hash(board: &Board) -> (u64, Symmetry) {
                 flip_y: false,
                 flip_diagonally: false,
             },
-            board,
+            N as i8,
+            M as i8,
         );
         for b in boards_to_check.as_mut() {
             flip_x(b);
@@ -378,13 +389,13 @@ fn hash(board: &Board) -> (u64, Symmetry) {
     }
     // pawns are not symmetrical on the y axis or diagonally
     if !has_pawn(board) {
-        if board.height % 2 == 1 && bk_coord.y == board.height / 2 {
+        if M % 2 == 1 && bk_coord.y == M as i8 / 2 {
             let boards_copy = boards_to_check.clone();
             for mut c in boards_copy {
                 flip_y(&mut c);
                 boards_to_check.push(c);
             }
-        } else if bk_coord.y >= board.height / 2 {
+        } else if bk_coord.y >= M as i8 / 2 {
             bk_coord = flip_coord(
                 bk_coord,
                 Symmetry {
@@ -392,14 +403,15 @@ fn hash(board: &Board) -> (u64, Symmetry) {
                     flip_y: true,
                     flip_diagonally: false,
                 },
-                board,
+                N as i8,
+                M as i8,
             );
             for b in boards_to_check.as_mut() {
                 flip_y(b);
             }
         }
 
-        if board.width == board.height {
+        if N == M {
             if bk_coord.x == bk_coord.y {
                 let boards_copy = boards_to_check.clone();
                 for mut c in boards_copy {
@@ -430,13 +442,13 @@ fn hash(board: &Board) -> (u64, Symmetry) {
 fn test_hash() {
     let wk = Piece::new(White, King);
     let bk = Piece::new(Black, King);
-    let board1 = Board::with_pieces(8, 8, &[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
-    let board2 = Board::with_pieces(8, 8, &[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
+    let board1 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
+    let board2 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
 
-    fn assert_hash_eq(b1: &Board, b2: &Board) {
+    fn assert_hash_eq<const N: usize, const M: usize>(b1: &Board<N, M>, b2: &Board<N, M>) {
         assert_eq!(hash(&b1).0, hash(&b2).0);
     }
-    fn assert_hash_ne(b1: &Board, b2: &Board) {
+    fn assert_hash_ne<const N: usize, const M: usize>(b1: &Board<N, M>, b2: &Board<N, M>) {
         assert_ne!(hash(&b1).0, hash(&b2).0);
     }
     assert_hash_eq(&board1, &board1);
@@ -444,52 +456,56 @@ fn test_hash() {
     assert_hash_ne(&board1, &board2);
     assert_hash_eq(
         &board1,
-        &Board::with_pieces(8, 8, &[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
+        &Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
     );
     assert_hash_eq(
         &board1,
-        &Board::with_pieces(8, 8, &[(Coord::new(7, 7), wk), (Coord::new(7, 6), bk)]),
+        &Board::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(7, 6), bk)]),
     );
     assert_hash_eq(
         &board1,
-        &Board::with_pieces(8, 8, &[(Coord::new(7, 7), wk), (Coord::new(6, 7), bk)]),
+        &Board::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(6, 7), bk)]),
     );
     assert_hash_eq(
-        &Board::with_pieces(5, 5, &[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-        &Board::with_pieces(5, 5, &[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
     );
     assert_hash_eq(
-        &Board::with_pieces(5, 5, &[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-        &Board::with_pieces(5, 5, &[(Coord::new(2, 1), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(2, 1), wk), (Coord::new(2, 2), bk)]),
     );
     assert_hash_eq(
-        &Board::with_pieces(5, 5, &[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-        &Board::with_pieces(5, 5, &[(Coord::new(2, 3), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(2, 3), wk), (Coord::new(2, 2), bk)]),
     );
     assert_hash_eq(
-        &Board::with_pieces(5, 5, &[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-        &Board::with_pieces(5, 5, &[(Coord::new(3, 1), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 1), wk), (Coord::new(2, 2), bk)]),
     );
     assert_hash_eq(
-        &Board::with_pieces(5, 5, &[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-        &Board::with_pieces(5, 5, &[(Coord::new(1, 1), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(1, 1), wk), (Coord::new(2, 2), bk)]),
     );
     assert_hash_eq(
-        &Board::with_pieces(5, 5, &[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-        &Board::with_pieces(5, 5, &[(Coord::new(1, 3), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(1, 3), wk), (Coord::new(2, 2), bk)]),
     );
     assert_hash_ne(
-        &Board::with_pieces(5, 5, &[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-        &Board::with_pieces(5, 5, &[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+        &Board::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
     );
 }
 
-fn generate_all_boards_impl(ret: &mut Vec<Board>, board: &Board, pieces: &[Piece]) {
+fn generate_all_boards_impl<const N: usize, const M: usize>(
+    ret: &mut Vec<Board<N, M>>,
+    board: &Board<N, M>,
+    pieces: &[Piece],
+) {
     match pieces {
         [p, rest @ ..] => {
-            for y in 0..board.height {
-                for x in 0..board.width {
-                    if p.ty() == Pawn && (y == 0 || y == board.height - 1) {
+            for y in 0..M as i8 {
+                for x in 0..N as i8 {
+                    if p.ty() == Pawn && (y == 0 || y == M as i8 - 1) {
                         continue;
                     }
                     let coord = Coord::new(x, y);
@@ -505,8 +521,8 @@ fn generate_all_boards_impl(ret: &mut Vec<Board>, board: &Board, pieces: &[Piece
     }
 }
 
-pub fn generate_all_boards(width: i8, height: i8, pieces: &[Piece]) -> Vec<Board> {
-    let board = Board::new(width, height);
+pub fn generate_all_boards<const N: usize, const M: usize>(pieces: &[Piece]) -> Vec<Board<N, M>> {
+    let board = Board::<N, M>::default();
     let mut ret = Vec::new();
     generate_all_boards_impl(&mut ret, &board, pieces);
     ret
@@ -515,12 +531,12 @@ pub fn generate_all_boards(width: i8, height: i8, pieces: &[Piece]) -> Vec<Board
 #[test]
 fn test_generate_all_boards() {
     {
-        let boards = generate_all_boards(8, 8, &[Piece::new(White, King)]);
+        let boards = generate_all_boards::<8, 8>(&[Piece::new(White, King)]);
         assert_eq!(boards.len(), 64);
     }
     {
         let boards =
-            generate_all_boards(8, 8, &[Piece::new(White, King), Piece::new(White, Queen)]);
+            generate_all_boards::<8, 8>(&[Piece::new(White, King), Piece::new(White, Queen)]);
         assert_eq!(boards.len(), 64 * 63);
         assert_eq!(boards[0][(0, 0)], Some(Piece::new(White, King)));
         assert_eq!(boards[0][(1, 0)], Some(Piece::new(White, Queen)));
@@ -532,7 +548,10 @@ fn test_generate_all_boards() {
     }
 }
 
-fn populate_initial_wins(tablebase: &mut Tablebase, boards: &[Board]) {
+fn populate_initial_wins<const N: usize, const M: usize>(
+    tablebase: &mut Tablebase,
+    boards: &[Board<N, M>],
+) {
     for b in boards {
         // white can capture black's king
         let opponent_king_coord = king_coord(b, Black);
@@ -563,22 +582,14 @@ fn populate_initial_wins(tablebase: &mut Tablebase, boards: &[Board]) {
 fn test_populate_initial_tablebases() {
     let mut tablebase = Tablebase::new();
     let boards = [
-        Board::with_pieces(
-            8,
-            8,
-            &[
-                (Coord::new(0, 0), Piece::new(White, King)),
-                (Coord::new(0, 1), Piece::new(Black, King)),
-            ],
-        ),
-        Board::with_pieces(
-            8,
-            8,
-            &[
-                (Coord::new(0, 0), Piece::new(White, King)),
-                (Coord::new(0, 2), Piece::new(Black, King)),
-            ],
-        ),
+        Board::<8, 8>::with_pieces(&[
+            (Coord::new(0, 0), Piece::new(White, King)),
+            (Coord::new(0, 1), Piece::new(Black, King)),
+        ]),
+        Board::<8, 8>::with_pieces(&[
+            (Coord::new(0, 0), Piece::new(White, King)),
+            (Coord::new(0, 2), Piece::new(Black, King)),
+        ]),
     ];
     populate_initial_wins(&mut tablebase, &boards);
     assert_eq!(
@@ -598,40 +609,31 @@ fn test_populate_initial_tablebases_stalemate() {
     let mut tablebase = Tablebase::new();
     populate_initial_wins(
         &mut tablebase,
-        &generate_all_boards(
-            1,
-            8,
-            &[
-                Piece::new(White, King),
-                Piece::new(Black, Pawn),
-                Piece::new(Black, King),
-            ],
-        ),
+        &generate_all_boards::<1, 8>(&[
+            Piece::new(White, King),
+            Piece::new(Black, Pawn),
+            Piece::new(Black, King),
+        ]),
     );
     assert_eq!(
-        tablebase.black_depth(&Board::with_pieces(
-            1,
-            8,
-            &[
-                (Coord::new(0, 7), Piece::new(White, King,)),
-                (Coord::new(0, 1), Piece::new(Black, Pawn,)),
-                (Coord::new(0, 0), Piece::new(Black, King,)),
-            ]
-        )),
+        tablebase.black_depth(&Board::<1, 8>::with_pieces(&[
+            (Coord::new(0, 7), Piece::new(White, King,)),
+            (Coord::new(0, 1), Piece::new(Black, Pawn,)),
+            (Coord::new(0, 0), Piece::new(Black, King,)),
+        ])),
         Some(0)
     );
-    assert!(!tablebase.black_contains(&Board::with_pieces(
-        1,
-        8,
-        &[
-            (Coord::new(0, 7), Piece::new(White, King,)),
-            (Coord::new(0, 2), Piece::new(Black, Pawn,)),
-            (Coord::new(0, 0), Piece::new(Black, King,)),
-        ]
-    )));
+    assert!(!tablebase.black_contains(&Board::<1, 8>::with_pieces(&[
+        (Coord::new(0, 7), Piece::new(White, King,)),
+        (Coord::new(0, 2), Piece::new(Black, Pawn,)),
+        (Coord::new(0, 0), Piece::new(Black, King,)),
+    ])));
 }
 
-fn iterate_black(tablebase: &mut Tablebase, boards: &[Board]) -> bool {
+fn iterate_black<const N: usize, const M: usize>(
+    tablebase: &mut Tablebase,
+    boards: &[Board<N, M>],
+) -> bool {
     let mut made_progress = false;
     for b in boards {
         if tablebase.black_contains(b) {
@@ -683,10 +685,10 @@ fn iterate_black(tablebase: &mut Tablebase, boards: &[Board]) -> bool {
 fn test_iterate_black() {
     let wk = Piece::new(White, King);
     let bk = Piece::new(Black, King);
-    let board = Board::with_pieces(4, 1, &[(Coord::new(0, 0), wk), (Coord::new(2, 0), bk)]);
+    let board = Board::<4, 1>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(2, 0), bk)]);
     let mut tablebase = Tablebase::new();
     tablebase.white_add(
-        &Board::with_pieces(4, 1, &[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
+        &Board::<4, 1>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
         Move {
             from: Coord::new(0, 0),
             to: Coord::new(0, 0),
@@ -696,7 +698,7 @@ fn test_iterate_black() {
     assert!(!iterate_black(&mut tablebase, &[board.clone()]));
     assert!(tablebase.black_tablebase.is_empty());
     tablebase.white_add(
-        &Board::with_pieces(4, 1, &[(Coord::new(0, 0), wk), (Coord::new(3, 0), bk)]),
+        &Board::<4, 1>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(3, 0), bk)]),
         Move {
             from: Coord::new(0, 0),
             to: Coord::new(0, 0),
@@ -714,7 +716,10 @@ fn test_iterate_black() {
     );
 }
 
-fn iterate_white(tablebase: &mut Tablebase, boards: &[Board]) -> bool {
+fn iterate_white<const N: usize, const M: usize>(
+    tablebase: &mut Tablebase,
+    boards: &[Board<N, M>],
+) -> bool {
     let mut made_progress = false;
     for b in boards {
         if tablebase.white_contains(b) {
@@ -763,13 +768,13 @@ fn iterate_white(tablebase: &mut Tablebase, boards: &[Board]) -> bool {
 fn test_iterate_white() {
     let wk = Piece::new(White, King);
     let bk = Piece::new(Black, King);
-    let board = Board::with_pieces(5, 1, &[(Coord::new(1, 0), wk), (Coord::new(4, 0), bk)]);
+    let board = Board::<5, 1>::with_pieces(&[(Coord::new(1, 0), wk), (Coord::new(4, 0), bk)]);
     let mut tablebase = Tablebase::new();
     assert!(!iterate_white(&mut tablebase, &[board.clone()]));
     assert!(tablebase.white_tablebase.is_empty());
 
     tablebase.black_add(
-        &Board::with_pieces(5, 1, &[(Coord::new(2, 0), wk), (Coord::new(4, 0), bk)]),
+        &Board::<5, 1>::with_pieces(&[(Coord::new(2, 0), wk), (Coord::new(4, 0), bk)]),
         Move {
             from: Coord::new(0, 0),
             to: Coord::new(0, 0),
@@ -787,7 +792,7 @@ fn test_iterate_white() {
     );
     tablebase.white_tablebase.clear();
     tablebase.black_add(
-        &Board::with_pieces(5, 1, &[(Coord::new(0, 0), wk), (Coord::new(4, 0), bk)]),
+        &Board::<5, 1>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(4, 0), bk)]),
         Move {
             from: Coord::new(0, 0),
             to: Coord::new(0, 0),
@@ -820,12 +825,12 @@ fn verify_piece_set(pieces: &[Piece]) {
     assert_eq!(bk_count, 1);
 }
 
-pub fn generate_tablebase(width: i8, height: i8, piece_sets: &[&[Piece]]) -> Tablebase {
+pub fn generate_tablebase<const N: usize, const M: usize>(piece_sets: &[&[Piece]]) -> Tablebase {
     let mut tablebase = Tablebase::new();
 
     for set in piece_sets {
         verify_piece_set(set);
-        let all = generate_all_boards(width, height, set);
+        let all = generate_all_boards::<N, M>(set);
         populate_initial_wins(&mut tablebase, &all);
         loop {
             if !iterate_black(&mut tablebase, &all) {
@@ -841,12 +846,12 @@ pub fn generate_tablebase(width: i8, height: i8, piece_sets: &[&[Piece]]) -> Tab
 
 #[test]
 fn test_generate_king_king_tablebase() {
-    let pieces = [Piece::new(White, King), Piece::new(Black, King)];
-    for (width, height) in [(6, 6), (5, 5), (4, 5), (4, 6)] {
-        let tablebase = generate_tablebase(width, height, &[&pieces]);
+    fn test<const N: usize, const M: usize>() {
+        let pieces = [Piece::new(White, King), Piece::new(Black, King)];
+        let tablebase = generate_tablebase::<N, M>(&[&pieces]);
         // If white king couldn't capture on first move, no forced win.
         assert!(tablebase.black_tablebase.is_empty());
-        let all = generate_all_boards(width, height, &pieces);
+        let all = generate_all_boards::<N, M>(&pieces);
         for b in all {
             if is_under_attack(&b, king_coord(&b, Black), Black) {
                 assert_eq!(tablebase.white_depth(&b), Some(1));
@@ -855,6 +860,10 @@ fn test_generate_king_king_tablebase() {
             }
         }
     }
+    test::<6, 6>();
+    test::<5, 5>();
+    test::<4, 5>();
+    test::<4, 6>();
 }
 
 #[test]
@@ -865,9 +874,9 @@ fn test_tablebase_size() {
         Piece::new(White, Queen),
         Piece::new(Black, King),
     ];
-    let tablebase = generate_tablebase(4, 4, &[&pieces1, &pieces2]);
-    let all1 = generate_all_boards(4, 4, &pieces1);
-    let all2 = generate_all_boards(4, 4, &pieces2);
+    let tablebase = generate_tablebase::<4, 4>(&[&pieces1, &pieces2]);
+    let all1 = generate_all_boards::<4, 4>(&pieces1);
+    let all2 = generate_all_boards::<4, 4>(&pieces2);
     // With symmetry, we should expect a little over 1/8 of positions to be in the tablebase.
     assert!(tablebase.white_tablebase.len() < all1.len() + all2.len() / 4);
 }

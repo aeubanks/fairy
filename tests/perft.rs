@@ -1,11 +1,11 @@
-use fairy::board::Board;
+use fairy::board::Presets;
 use fairy::perft::{fen, perft, Position};
 use fairy::player::Player::White;
 
 #[test]
 fn classical_1() {
     let pos = Position {
-        board: Board::classical(),
+        board: Presets::classical(),
         player: White,
     };
     assert_eq!(perft(&pos, 1), 20);

@@ -7,7 +7,7 @@ use fairy::tablebase::*;
 fn three_piece_tablebase(pieces: &[Piece]) -> Tablebase {
     assert_eq!(pieces.len(), 3);
     let kk = [Piece::new(White, King), Piece::new(Black, King)];
-    generate_tablebase(6, 6, &[&kk, &pieces])
+    generate_tablebase::<6, 6>(&[&kk, &pieces])
 }
 
 fn kqk(c: &mut Criterion) {

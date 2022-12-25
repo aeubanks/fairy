@@ -4,9 +4,9 @@ use fairy::piece::{Piece, Type::*};
 use fairy::player::{next_player, Player::*};
 use fairy::tablebase::{generate_all_boards, generate_tablebase, Tablebase};
 
-fn black_king_exists(board: &Board) -> bool {
-    for y in 0..board.height {
-        for x in 0..board.width {
+fn black_king_exists<const N: usize, const M: usize>(board: &Board<N, M>) -> bool {
+    for y in 0..M as i8 {
+        for x in 0..N as i8 {
             let coord = Coord::new(x, y);
             if let Some(piece) = board[coord].as_ref() {
                 if piece.player() == Black && piece.ty() == King {
@@ -18,7 +18,10 @@ fn black_king_exists(board: &Board) -> bool {
     false
 }
 
-fn verify_board_tablebase(board: &Board, tablebase: &Tablebase) {
+fn verify_board_tablebase<const N: usize, const M: usize>(
+    board: &Board<N, M>,
+    tablebase: &Tablebase,
+) {
     let mut board = board.clone();
     let mut expected_depth = tablebase.white_depth(&board).unwrap();
     let mut player = White;
@@ -40,8 +43,8 @@ fn verify_board_tablebase(board: &Board, tablebase: &Tablebase) {
 fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
     assert_eq!(pieces.len(), 3);
     let kk = [Piece::new(White, King), Piece::new(Black, King)];
-    let tablebase = generate_tablebase(4, 4, &[&kk, &pieces]);
-    let all = generate_all_boards(4, 4, pieces);
+    let tablebase = generate_tablebase::<4, 4>(&[&kk, &pieces]);
+    let all = generate_all_boards::<4, 4>(pieces);
 
     for b in all {
         let wd = tablebase.white_depth(&b);

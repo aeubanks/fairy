@@ -5,12 +5,10 @@ use rand::Rng;
 use std::ops::{Index, IndexMut};
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct Board {
-    pieces: Vec<Option<Piece>>,
-    pub width: i8,
-    pub height: i8,
-    pub last_pawn_double_move: Option<Coord>,
+pub struct Board<const N: usize, const M: usize> {
+    pieces: [[Option<Piece>; M]; N],
     pub castling_rights: [Option<Coord>; 4],
+    pub last_pawn_double_move: Option<Coord>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -20,20 +18,25 @@ pub enum ExistingPieceResult {
     Opponent,
 }
 
-impl Board {
-    pub fn new(width: i8, height: i8) -> Self {
+// This really should be derivable...
+impl<const N: usize, const M: usize> Default for Board<N, M> {
+    fn default() -> Self {
+        assert!(N > 0);
+        assert!(N < i8::MAX as usize);
+        assert!(M > 0);
+        assert!(M < i8::MAX as usize);
         Self {
-            pieces: vec![None; (width * height) as usize],
-            width,
-            height,
-            last_pawn_double_move: None,
+            pieces: [[None; M]; N],
             castling_rights: [None; 4],
+            last_pawn_double_move: None,
         }
     }
+}
 
+impl<const N: usize, const M: usize> Board<N, M> {
     #[cfg(test)]
-    pub fn with_pieces(width: i8, height: i8, pieces: &[(Coord, Piece)]) -> Self {
-        let mut board = Self::new(width, height);
+    pub fn with_pieces(pieces: &[(Coord, Piece)]) -> Self {
+        let mut board = Self::default();
         for (c, p) in pieces {
             board.add_piece(*c, p.clone());
         }
@@ -41,7 +44,7 @@ impl Board {
     }
 
     pub fn in_bounds(&self, coord: Coord) -> bool {
-        coord.x < self.width && coord.x >= 0 && coord.y < self.height && coord.y >= 0
+        coord.x < N as i8 && coord.x >= 0 && coord.y < M as i8 && coord.y >= 0
     }
 
     pub fn add_piece(&mut self, coord: Coord, piece: Piece) {
@@ -63,14 +66,11 @@ impl Board {
         }
     }
 
-    fn idx(&self, c: Coord) -> usize {
-        (c.y * self.width + c.x) as usize
-    }
-
     pub fn swap(&mut self, c1: Coord, c2: Coord) {
-        let idx1 = self.idx(c1);
-        let idx2 = self.idx(c2);
-        self.pieces.swap(idx1, idx2)
+        assert_ne!(c1, c2);
+        let mut a = self[c1].take();
+        std::mem::swap(&mut a, &mut self[c2]);
+        std::mem::swap(&mut a, &mut self[c1]);
     }
 }
 
@@ -78,7 +78,7 @@ impl Board {
 fn test_board_swap() {
     let n = Piece::new(White, Knight);
     let b = Piece::new(White, Bishop);
-    let mut board = Board::with_pieces(3, 1, &[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]);
+    let mut board = Board::<3, 1>::with_pieces(&[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]);
 
     assert_eq!(board[(0, 0)], Some(n));
     assert_eq!(board[(1, 0)], Some(b));
@@ -95,16 +95,16 @@ fn test_board_swap() {
     assert_eq!(board[(2, 0)], Some(b));
 }
 
-impl Index<Coord> for Board {
+impl<const N: usize, const M: usize> Index<Coord> for Board<N, M> {
     type Output = Option<Piece>;
 
     fn index(&self, coord: Coord) -> &Self::Output {
         assert!(self.in_bounds(coord));
-        &self.pieces[self.idx(coord)]
+        &self.pieces[coord.x as usize][coord.y as usize]
     }
 }
 
-impl Index<(i8, i8)> for Board {
+impl<const N: usize, const M: usize> Index<(i8, i8)> for Board<N, M> {
     type Output = Option<Piece>;
 
     fn index(&self, (x, y): (i8, i8)) -> &Self::Output {
@@ -112,16 +112,15 @@ impl Index<(i8, i8)> for Board {
     }
 }
 
-impl IndexMut<Coord> for Board {
+impl<const N: usize, const M: usize> IndexMut<Coord> for Board<N, M> {
     fn index_mut(&mut self, coord: Coord) -> &mut Self::Output {
         assert!(self.in_bounds(coord));
 
-        let idx = self.idx(coord);
-        &mut self.pieces[idx]
+        &mut self.pieces[coord.x as usize][coord.y as usize]
     }
 }
 
-impl IndexMut<(i8, i8)> for Board {
+impl<const N: usize, const M: usize> IndexMut<(i8, i8)> for Board<N, M> {
     fn index_mut(&mut self, (x, y): (i8, i8)) -> &mut Self::Output {
         self.index_mut(Coord { x, y })
     }
@@ -130,7 +129,7 @@ impl IndexMut<(i8, i8)> for Board {
 #[test]
 fn test_board() {
     use crate::piece::*;
-    let mut b = Board::new(4, 4);
+    let mut b = Board::<4, 4>::default();
     let p1 = Some(Piece::new(White, Bishop));
     let p2 = Some(Piece::new(Black, Knight));
     b[(0, 0)] = p1.clone();
@@ -143,63 +142,63 @@ fn test_board() {
 #[test]
 #[should_panic]
 fn test_board_panic_x_1() {
-    let b = Board::new(2, 3);
+    let b = Board::<2, 3>::default();
     let _ = b[(2, 1)];
 }
 
 #[test]
 #[should_panic]
 fn test_board_panic_x_2() {
-    let b = Board::new(2, 3);
+    let b = Board::<2, 3>::default();
     let _ = b[(-1, 1)];
 }
 
 #[test]
 #[should_panic]
 fn test_board_panic_y_1() {
-    let b = Board::new(2, 3);
+    let b = Board::<2, 3>::default();
     let _ = b[(1, 3)];
 }
 
 #[test]
 #[should_panic]
 fn test_board_panic_y_2() {
-    let b = Board::new(2, 3);
+    let b = Board::<2, 3>::default();
     let _ = b[(1, -1)];
 }
 
 #[test]
 #[should_panic]
 fn test_mut_board_panic_x_1() {
-    let mut b = Board::new(2, 3);
+    let mut b = Board::<2, 3>::default();
     b[(2, 1)] = None;
 }
 
 #[test]
 #[should_panic]
 fn test_mut_board_panic_x_2() {
-    let mut b = Board::new(2, 3);
+    let mut b = Board::<2, 3>::default();
     b[(-1, 1)] = None;
 }
 
 #[test]
 #[should_panic]
 fn test_mut_board_panic_y_1() {
-    let mut b = Board::new(2, 3);
+    let mut b = Board::<2, 3>::default();
     b[(1, 3)] = None;
 }
 
 #[test]
 #[should_panic]
 fn test_mut_board_panic_y_2() {
-    let mut b = Board::new(2, 3);
+    let mut b = Board::<2, 3>::default();
     b[(1, -1)] = None;
 }
 
-impl std::fmt::Debug for Board {
+impl<const N: usize, const M: usize> std::fmt::Debug for Board<N, M> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for y in (0..self.height).rev() {
-            for x in 0..self.width {
+        for y in (0..M as i8).rev() {
+            for x in 0..N as i8 {
                 let c = match self[(x, y)].as_ref() {
                     None => '.',
                     Some(p) => {
@@ -231,16 +230,12 @@ impl std::fmt::Debug for Board {
 
 #[test]
 fn test_dump() {
-    let board = Board::with_pieces(
-        4,
-        4,
-        &[
-            (Coord::new(0, 0), Piece::new(White, King)),
-            (Coord::new(2, 0), Piece::new(Black, King)),
-            (Coord::new(2, 2), Piece::new(White, Chancellor)),
-            (Coord::new(3, 3), Piece::new(Black, Bishop)),
-        ],
-    );
+    let board = Board::<4, 4>::with_pieces(&[
+        (Coord::new(0, 0), Piece::new(White, King)),
+        (Coord::new(2, 0), Piece::new(Black, King)),
+        (Coord::new(2, 2), Piece::new(White, Chancellor)),
+        (Coord::new(3, 3), Piece::new(Black, Bishop)),
+    ]);
     assert_eq!(format!("{:?}", board), "...b\n..C.\n....\nK.k.\n");
 }
 
@@ -250,7 +245,7 @@ pub struct Move {
     pub to: Coord,
 }
 
-impl Board {
+impl<const N: usize, const M: usize> Board<N, M> {
     pub fn make_move(&mut self, m: Move, player: Player) {
         assert_ne!(m.from, m.to);
         assert!(self.existing_piece_result(m.from, player) == ExistingPieceResult::Friend);
@@ -273,7 +268,7 @@ impl Board {
             self[opponent_pawn_coord] = None;
         }
         // promotion
-        if piece.ty() == Pawn && (m.to.y == 0 || m.to.y == self.height - 1) {
+        if piece.ty() == Pawn && (m.to.y == 0 || m.to.y == M as i8 - 1) {
             // TODO: support more than promoting to queen
             piece = Piece::new(piece.player(), Queen);
         }
@@ -307,8 +302,8 @@ impl Board {
                 (Coord::new(2, m.from.y), Coord::new(3, m.from.y))
             } else {
                 (
-                    Coord::new(self.width - 2, m.from.y),
-                    Coord::new(self.width - 3, m.from.y),
+                    Coord::new(N as i8 - 2, m.from.y),
+                    Coord::new(N as i8 - 3, m.from.y),
                 )
             };
             assert!(self[rook_dest].as_ref().is_none());
@@ -323,7 +318,7 @@ impl Board {
 
 #[test]
 fn test_make_move() {
-    let mut board = Board::new(8, 8);
+    let mut board = Board::<8, 8>::default();
     board.add_piece(Coord::new(2, 1), Piece::new(White, Pawn));
     board.add_piece(Coord::new(3, 6), Piece::new(Black, Pawn));
     assert_eq!(board.last_pawn_double_move, None);
@@ -360,7 +355,7 @@ fn test_make_move() {
 
 #[test]
 fn test_en_passant() {
-    let mut board = Board::new(8, 8);
+    let mut board = Board::<8, 8>::default();
     board.add_piece(Coord::new(2, 4), Piece::new(White, Pawn));
     board.add_piece(Coord::new(3, 4), Piece::new(Black, Pawn));
     board.last_pawn_double_move = Some(Coord::new(3, 4));
@@ -378,7 +373,7 @@ fn test_en_passant() {
 
 #[test]
 fn test_en_promotion() {
-    let mut board = Board::new(8, 8);
+    let mut board = Board::<8, 8>::default();
     board.add_piece(Coord::new(2, 5), Piece::new(White, Pawn));
     board.add_piece(Coord::new(3, 2), Piece::new(Black, Pawn));
 
@@ -421,18 +416,14 @@ fn test_en_promotion() {
 
 #[test]
 fn test_castling_rights() {
-    let mut board = Board::with_pieces(
-        8,
-        8,
-        &[
-            (Coord::new(0, 0), Piece::new(White, Rook)),
-            (Coord::new(7, 0), Piece::new(White, Rook)),
-            (Coord::new(4, 0), Piece::new(White, King)),
-            (Coord::new(0, 7), Piece::new(Black, Rook)),
-            (Coord::new(7, 7), Piece::new(Black, Rook)),
-            (Coord::new(4, 7), Piece::new(Black, King)),
-        ],
-    );
+    let mut board = Board::<8, 8>::with_pieces(&[
+        (Coord::new(0, 0), Piece::new(White, Rook)),
+        (Coord::new(7, 0), Piece::new(White, Rook)),
+        (Coord::new(4, 0), Piece::new(White, King)),
+        (Coord::new(0, 7), Piece::new(Black, Rook)),
+        (Coord::new(7, 7), Piece::new(Black, Rook)),
+        (Coord::new(4, 7), Piece::new(Black, King)),
+    ]);
     board.castling_rights = [
         Some(Coord::new(0, 0)),
         Some(Coord::new(7, 0)),
@@ -503,18 +494,14 @@ fn test_castling_rights() {
 
 #[test]
 fn test_castle() {
-    let board = Board::with_pieces(
-        8,
-        8,
-        &[
-            (Coord::new(0, 0), Piece::new(White, Rook)),
-            (Coord::new(7, 0), Piece::new(White, Rook)),
-            (Coord::new(4, 0), Piece::new(White, King)),
-            (Coord::new(0, 7), Piece::new(Black, Rook)),
-            (Coord::new(7, 7), Piece::new(Black, Rook)),
-            (Coord::new(4, 7), Piece::new(Black, King)),
-        ],
-    );
+    let board = Board::<8, 8>::with_pieces(&[
+        (Coord::new(0, 0), Piece::new(White, Rook)),
+        (Coord::new(7, 0), Piece::new(White, Rook)),
+        (Coord::new(4, 0), Piece::new(White, King)),
+        (Coord::new(0, 7), Piece::new(Black, Rook)),
+        (Coord::new(7, 7), Piece::new(Black, Rook)),
+        (Coord::new(4, 7), Piece::new(Black, King)),
+    ]);
     {
         let mut board2 = board.clone();
         board2.make_move(
@@ -576,15 +563,11 @@ fn test_castle() {
         assert!(board2[(7, 7)].is_none());
     }
     {
-        let mut board = Board::with_pieces(
-            8,
-            8,
-            &[
-                (Coord::new(0, 0), Piece::new(White, Rook)),
-                (Coord::new(7, 0), Piece::new(White, Rook)),
-                (Coord::new(1, 0), Piece::new(White, King)),
-            ],
-        );
+        let mut board = Board::<8, 8>::with_pieces(&[
+            (Coord::new(0, 0), Piece::new(White, Rook)),
+            (Coord::new(7, 0), Piece::new(White, Rook)),
+            (Coord::new(1, 0), Piece::new(White, King)),
+        ]);
         board.make_move(
             Move {
                 from: Coord::new(1, 0),
@@ -600,24 +583,24 @@ fn test_castle() {
     }
 }
 
-impl Board {
-    pub fn los_alamos() -> Self {
-        Self::setup_with_pawns(6, 6, false, &[Rook, Knight, Queen, King, Knight, Rook])
+#[allow(dead_code)]
+pub struct Presets;
+
+#[allow(dead_code)]
+impl Presets {
+    pub fn los_alamos() -> Board<6, 6> {
+        Board::<6, 6>::setup_with_pawns(false, &[Rook, Knight, Queen, King, Knight, Rook])
     }
 
-    pub fn classical() -> Self {
-        Self::setup_with_pawns(
-            8,
-            8,
+    pub fn classical() -> Board<8, 8> {
+        Board::<8, 8>::setup_with_pawns(
             true,
             &[Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook],
         )
     }
 
-    pub fn embassy() -> Self {
-        Self::setup_with_pawns(
-            10,
-            8,
+    pub fn embassy() -> Board<10, 8> {
+        Board::<10, 8>::setup_with_pawns(
             true,
             &[
                 Rook, Knight, Bishop, Queen, King, Chancellor, Archbishop, Bishop, Knight, Rook,
@@ -640,7 +623,7 @@ impl Board {
         pieces[i] = Some(ty);
     }
 
-    pub fn chess960<R: Rng + ?Sized>(rng: &mut R) -> Self {
+    pub fn chess960<R: Rng + ?Sized>(rng: &mut R) -> Board<8, 8> {
         let mut pieces: [Option<Type>; 8] = [None; 8];
         Self::set_nth_empty(rng.gen_range(0..4) * 2, &mut pieces, Bishop);
         Self::set_nth_empty(rng.gen_range(0..4) * 2 + 1, &mut pieces, Bishop);
@@ -651,10 +634,10 @@ impl Board {
         Self::set_nth_empty(0, &mut pieces, King);
         Self::set_nth_empty(0, &mut pieces, Rook);
 
-        Self::setup_with_pawns(8, 8, true, &pieces.map(|p| p.unwrap()))
+        Board::<8, 8>::setup_with_pawns(true, &pieces.map(|p| p.unwrap()))
     }
 
-    pub fn capablanca_random<R: Rng + ?Sized>(rng: &mut R) -> Self {
+    pub fn capablanca_random<R: Rng + ?Sized>(rng: &mut R) -> Board<10, 8> {
         let mut evens: [Option<Type>; 5] = [None; 5];
         let mut odds: [Option<Type>; 5] = [None; 5];
         evens[rng.gen_range(0..5)] = Some(Bishop);
@@ -682,20 +665,22 @@ impl Board {
         Self::set_nth_empty(0, &mut pieces, King);
         Self::set_nth_empty(0, &mut pieces, Rook);
 
-        Self::setup_with_pawns(10, 8, true, &pieces.map(|p| p.unwrap()))
+        Board::<10, 8>::setup_with_pawns(true, &pieces.map(|p| p.unwrap()))
     }
+}
 
-    fn setup_with_pawns(width: i8, height: i8, castling: bool, pieces: &[Type]) -> Self {
-        let mut board = Self::new(width, height);
-        for i in 0..board.width {
+impl<const N: usize, const M: usize> Board<N, M> {
+    fn setup_with_pawns(castling: bool, pieces: &[Type]) -> Self {
+        let mut board = Self::default();
+        for i in 0..N as i8 {
             board.add_piece(Coord::new(i, 1), Piece::new(White, Pawn));
-            board.add_piece(Coord::new(i, board.height - 2), Piece::new(Black, Pawn));
+            board.add_piece(Coord::new(i, M as i8 - 2), Piece::new(Black, Pawn));
         }
-        assert!(pieces.len() == board.width as usize);
+        assert!(pieces.len() == N);
         for (i, ty) in pieces.into_iter().enumerate() {
             let white_coord = Coord::new(i as i8, 0);
             board.add_piece(white_coord, Piece::new(White, *ty));
-            let black_coord = Coord::new(i as i8, board.height - 1);
+            let black_coord = Coord::new(i as i8, M as i8 - 1);
             board.add_piece(black_coord, Piece::new(Black, *ty));
             if castling {
                 if board.castling_rights[0].is_none() {
@@ -716,20 +701,20 @@ impl Board {
 
 #[test]
 fn test_premade_boards() {
-    Board::classical();
-    Board::los_alamos();
-    Board::embassy();
+    Presets::classical();
+    Presets::los_alamos();
+    Presets::embassy();
 
     let mut rng = rand::thread_rng();
     for _ in 0..10 {
-        Board::chess960(&mut rng);
-        Board::capablanca_random(&mut rng);
+        Presets::chess960(&mut rng);
+        Presets::capablanca_random(&mut rng);
     }
 }
 
-pub fn king_coord(board: &Board, player: Player) -> Coord {
-    for y in 0..board.height {
-        for x in 0..board.width {
+pub fn king_coord<const N: usize, const M: usize>(board: &Board<N, M>, player: Player) -> Coord {
+    for y in 0..M as i8 {
+        for x in 0..N as i8 {
             let coord = Coord::new(x, y);
             if let Some(piece) = board[coord].as_ref() {
                 if piece.player() == player && piece.ty() == King {
@@ -742,9 +727,9 @@ pub fn king_coord(board: &Board, player: Player) -> Coord {
 }
 
 // TODO: factor out coord visiting
-pub fn has_pawn(board: &Board) -> bool {
-    for y in 0..board.height {
-        for x in 0..board.width {
+pub fn has_pawn<const N: usize, const M: usize>(board: &Board<N, M>) -> bool {
+    for y in 0..M as i8 {
+        for x in 0..N as i8 {
             let coord = Coord::new(x, y);
             if let Some(piece) = board[coord].as_ref() {
                 if piece.ty() == Pawn {
