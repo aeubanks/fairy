@@ -18,6 +18,25 @@ pub enum Type {
     Amazon,
 }
 
+impl Type {
+    pub fn char(&self) -> char {
+        use Type::*;
+        let ret = match self {
+            Pawn => 'P',
+            Knight => 'N',
+            Bishop => 'B',
+            Rook => 'R',
+            Queen => 'Q',
+            King => 'K',
+            Chancellor => 'C',
+            Archbishop => 'A',
+            Amazon => 'Z',
+        };
+        assert!(ret.is_uppercase());
+        ret
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Piece {
     val: NonZeroU8,

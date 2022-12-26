@@ -202,17 +202,7 @@ impl<const N: usize, const M: usize> std::fmt::Debug for Board<N, M> {
                 let c = match self[(x, y)].as_ref() {
                     None => '.',
                     Some(p) => {
-                        let c = match p.ty() {
-                            Pawn => 'P',
-                            Knight => 'N',
-                            Bishop => 'B',
-                            Rook => 'R',
-                            Queen => 'Q',
-                            King => 'K',
-                            Chancellor => 'C',
-                            Archbishop => 'A',
-                            Amazon => 'Z',
-                        };
+                        let c = p.ty().char();
                         if p.player() == White {
                             c
                         } else {
