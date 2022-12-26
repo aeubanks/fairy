@@ -62,10 +62,10 @@ fn add_moves_for_leaper<const N: usize, const M: usize>(
     board: &Board<N, M>,
     coord: Coord,
     player: Player,
-    offsets: &[Coord],
+    offset: Coord,
 ) {
-    for offset in offsets {
-        let try_coord = coord + *offset;
+    for offset in offsets(offset) {
+        let try_coord = coord + offset;
         if board.in_bounds(try_coord) {
             match board.existing_piece_result(try_coord, player) {
                 ExistingPieceResult::Empty | ExistingPieceResult::Opponent => {
@@ -119,15 +119,6 @@ fn offsets(offset: Coord) -> Vec<Coord> {
     ret
 }
 
-fn add_rook_moves<const N: usize, const M: usize>(
-    moves: &mut Vec<Coord>,
-    board: &Board<N, M>,
-    coord: Coord,
-    player: Player,
-) {
-    add_moves_for_rider(moves, board, coord, player, Coord::new(1, 0))
-}
-
 #[cfg(test)]
 fn assert_moves_eq(expected: &[Coord], moves: Vec<Coord>) {
     use std::collections::HashSet;
@@ -148,7 +139,12 @@ fn test_rook() {
     let mut board = Board::<4, 4>::default();
     {
         let mut moves = Vec::new();
-        add_rook_moves(&mut moves, &board, Coord::new(1, 2), White);
+        add_moves_for_piece(
+            &mut moves,
+            &board,
+            &Piece::new(White, Rook),
+            Coord::new(1, 2),
+        );
         assert_moves_eq(
             &[
                 Coord::new(0, 2),
@@ -165,7 +161,12 @@ fn test_rook() {
     board.add_piece(Coord::new(1, 1), Piece::new(Black, Rook));
     {
         let mut moves = Vec::new();
-        add_rook_moves(&mut moves, &board, Coord::new(1, 2), White);
+        add_moves_for_piece(
+            &mut moves,
+            &board,
+            &Piece::new(White, Rook),
+            Coord::new(1, 2),
+        );
         assert_moves_eq(
             &[Coord::new(0, 2), Coord::new(1, 1), Coord::new(1, 3)],
             moves,
@@ -173,21 +174,17 @@ fn test_rook() {
     }
 }
 
-fn add_bishop_moves<const N: usize, const M: usize>(
-    moves: &mut Vec<Coord>,
-    board: &Board<N, M>,
-    coord: Coord,
-    player: Player,
-) {
-    add_moves_for_rider(moves, board, coord, player, Coord::new(1, 1))
-}
-
 #[test]
 fn test_bishop() {
     let mut board = Board::<6, 6>::default();
     {
         let mut moves = Vec::new();
-        add_bishop_moves(&mut moves, &board, Coord::new(1, 2), White);
+        add_moves_for_piece(
+            &mut moves,
+            &board,
+            &Piece::new(White, Bishop),
+            Coord::new(1, 2),
+        );
         assert_moves_eq(
             &[
                 Coord::new(0, 1),
@@ -205,7 +202,12 @@ fn test_bishop() {
     board.add_piece(Coord::new(2, 1), Piece::new(Black, Bishop));
     {
         let mut moves = Vec::new();
-        add_bishop_moves(&mut moves, &board, Coord::new(1, 2), White);
+        add_moves_for_piece(
+            &mut moves,
+            &board,
+            &Piece::new(White, Bishop),
+            Coord::new(1, 2),
+        );
         assert_moves_eq(
             &[
                 Coord::new(0, 1),
@@ -219,62 +221,17 @@ fn test_bishop() {
     }
 }
 
-fn add_queen_moves<const N: usize, const M: usize>(
-    moves: &mut Vec<Coord>,
-    board: &Board<N, M>,
-    coord: Coord,
-    player: Player,
-) {
-    add_rook_moves(moves, board, coord, player);
-    add_bishop_moves(moves, board, coord, player);
-}
-
-fn add_chancellor_moves<const N: usize, const M: usize>(
-    moves: &mut Vec<Coord>,
-    board: &Board<N, M>,
-    coord: Coord,
-    player: Player,
-) {
-    add_rook_moves(moves, board, coord, player);
-    add_knight_moves(moves, board, coord, player);
-}
-
-fn add_archbishop_moves<const N: usize, const M: usize>(
-    moves: &mut Vec<Coord>,
-    board: &Board<N, M>,
-    coord: Coord,
-    player: Player,
-) {
-    add_bishop_moves(moves, board, coord, player);
-    add_knight_moves(moves, board, coord, player);
-}
-
-fn add_amazon_moves<const N: usize, const M: usize>(
-    moves: &mut Vec<Coord>,
-    board: &Board<N, M>,
-    coord: Coord,
-    player: Player,
-) {
-    add_bishop_moves(moves, board, coord, player);
-    add_rook_moves(moves, board, coord, player);
-    add_knight_moves(moves, board, coord, player);
-}
-
-fn add_knight_moves<const N: usize, const M: usize>(
-    moves: &mut Vec<Coord>,
-    board: &Board<N, M>,
-    coord: Coord,
-    player: Player,
-) {
-    add_moves_for_leaper(moves, board, coord, player, &offsets((2, 1).into()))
-}
-
 #[test]
 fn test_knight() {
     let mut board = Board::<6, 6>::default();
     {
         let mut moves = Vec::new();
-        add_knight_moves(&mut moves, &board, Coord::new(2, 2), White);
+        add_moves_for_piece(
+            &mut moves,
+            &board,
+            &Piece::new(White, Knight),
+            Coord::new(2, 2),
+        );
         assert_moves_eq(
             &[
                 Coord::new(1, 0),
@@ -291,14 +248,24 @@ fn test_knight() {
     }
     {
         let mut moves = Vec::new();
-        add_knight_moves(&mut moves, &board, Coord::new(0, 0), White);
+        add_moves_for_piece(
+            &mut moves,
+            &board,
+            &Piece::new(White, Knight),
+            Coord::new(0, 0),
+        );
         assert_moves_eq(&[Coord::new(1, 2), Coord::new(2, 1)], moves);
     }
     board.add_piece(Coord::new(1, 0), Piece::new(White, Knight));
     board.add_piece(Coord::new(1, 4), Piece::new(Black, Knight));
     {
         let mut moves = Vec::new();
-        add_knight_moves(&mut moves, &board, Coord::new(2, 2), White);
+        add_moves_for_piece(
+            &mut moves,
+            &board,
+            &Piece::new(White, Knight),
+            Coord::new(2, 2),
+        );
         assert_moves_eq(
             &[
                 Coord::new(1, 4),
@@ -314,15 +281,12 @@ fn test_knight() {
     }
 }
 
-fn add_king_moves<const N: usize, const M: usize>(
+fn add_castling_moves<const N: usize, const M: usize>(
     moves: &mut Vec<Coord>,
     board: &Board<N, M>,
     coord: Coord,
     player: Player,
 ) {
-    add_moves_for_leaper(moves, board, coord, player, &offsets((1, 1).into()));
-    add_moves_for_leaper(moves, board, coord, player, &offsets((1, 0).into()));
-
     // castling
 
     fn no_pieces_between_inc<const N: usize, const M: usize>(
@@ -416,7 +380,12 @@ fn test_king() {
     {
         let board = Board::<6, 5>::default();
         let mut moves = Vec::new();
-        add_king_moves(&mut moves, &board, Coord::new(2, 2), White);
+        add_moves_for_piece(
+            &mut moves,
+            &board,
+            &Piece::new(White, King),
+            Coord::new(2, 2),
+        );
         assert_moves_eq(
             &[
                 Coord::new(1, 1),
@@ -434,7 +403,12 @@ fn test_king() {
     {
         let board = Board::<6, 5>::default();
         let mut moves = Vec::new();
-        add_king_moves(&mut moves, &board, Coord::new(5, 4), White);
+        add_moves_for_piece(
+            &mut moves,
+            &board,
+            &Piece::new(White, King),
+            Coord::new(5, 4),
+        );
         assert_moves_eq(
             &[Coord::new(4, 3), Coord::new(5, 3), Coord::new(4, 4)],
             moves,
@@ -445,7 +419,12 @@ fn test_king() {
         board.add_piece(Coord::new(1, 2), Piece::new(White, Knight));
         board.add_piece(Coord::new(1, 3), Piece::new(Black, Knight));
         let mut moves = Vec::new();
-        add_king_moves(&mut moves, &board, Coord::new(2, 2), White);
+        add_moves_for_piece(
+            &mut moves,
+            &board,
+            &Piece::new(White, King),
+            Coord::new(2, 2),
+        );
         assert_moves_eq(
             &[
                 Coord::new(1, 1),
@@ -465,9 +444,8 @@ fn test_king() {
         board.add_piece(Coord::new(7, 0), Piece::new(White, Rook));
         {
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(4, 0), White);
-            assert!(!moves.contains(&Coord::new(2, 0)));
-            assert!(!moves.contains(&Coord::new(6, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(4, 0), White);
+            assert_moves_eq(&[], moves);
         }
     }
     {
@@ -482,56 +460,49 @@ fn test_king() {
         board.add_piece(Coord::new(7, 0), Piece::new(White, Rook));
         {
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(4, 0), White);
-            assert!(moves.contains(&Coord::new(0, 0)));
-            assert!(moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(4, 0), White);
+            assert_moves_eq(&[Coord::new(0, 0), Coord::new(7, 0)], moves);
         }
         {
             let mut board2 = board.clone();
             board2.add_piece(Coord::new(4, 2), Piece::new(Black, Rook));
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board2, Coord::new(4, 0), White);
-            assert!(!moves.contains(&Coord::new(0, 0)));
-            assert!(!moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board2, Coord::new(4, 0), White);
+            assert_moves_eq(&[], moves);
         }
         {
             let mut board2 = board.clone();
             board2.add_piece(Coord::new(3, 2), Piece::new(Black, Rook));
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board2, Coord::new(4, 0), White);
-            assert!(!moves.contains(&Coord::new(0, 0)));
-            assert!(moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board2, Coord::new(4, 0), White);
+            assert_moves_eq(&[Coord::new(7, 0)], moves);
         }
         {
             let mut board2 = board.clone();
             board2.add_piece(Coord::new(6, 2), Piece::new(Black, Rook));
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board2, Coord::new(4, 0), White);
-            assert!(moves.contains(&Coord::new(0, 0)));
-            assert!(!moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board2, Coord::new(4, 0), White);
+            assert_moves_eq(&[Coord::new(0, 0)], moves);
         }
         {
             let mut board2 = board.clone();
             let mut moves = Vec::new();
             board2.add_piece(Coord::new(1, 0), Piece::new(White, Knight));
             board2.add_piece(Coord::new(6, 0), Piece::new(Black, Knight));
-            add_king_moves(&mut moves, &board2, Coord::new(4, 0), White);
-            assert!(!moves.contains(&Coord::new(0, 0)));
-            assert!(!moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board2, Coord::new(4, 0), White);
+            assert_moves_eq(&[], moves);
         }
         {
             board.castling_rights[0] = None;
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(4, 0), White);
-            assert!(!moves.contains(&Coord::new(0, 0)));
-            assert!(moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(4, 0), White);
+            assert_moves_eq(&[Coord::new(7, 0)], moves);
         }
         {
             board.castling_rights[1] = None;
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(4, 0), White);
-            assert!(!moves.contains(&Coord::new(0, 0)));
-            assert!(!moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(4, 0), White);
+            assert_moves_eq(&[], moves);
         }
     }
     {
@@ -543,9 +514,8 @@ fn test_king() {
         board.castling_rights = [Some(Coord::new(0, 0)), Some(Coord::new(7, 0)), None, None];
         {
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(1, 0), White);
-            assert!(moves.contains(&Coord::new(0, 0)));
-            assert!(moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(1, 0), White);
+            assert_moves_eq(&[Coord::new(0, 0), Coord::new(7, 0)], moves);
         }
     }
     {
@@ -557,9 +527,8 @@ fn test_king() {
         board.castling_rights = [Some(Coord::new(0, 0)), Some(Coord::new(7, 0)), None, None];
         {
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(6, 0), White);
-            assert!(moves.contains(&Coord::new(0, 0)));
-            assert!(moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(6, 0), White);
+            assert_moves_eq(&[Coord::new(0, 0), Coord::new(7, 0)], moves);
         }
     }
     {
@@ -571,9 +540,8 @@ fn test_king() {
         board.castling_rights = [Some(Coord::new(1, 0)), Some(Coord::new(5, 0)), None, None];
         {
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(3, 0), White);
-            assert!(moves.contains(&Coord::new(1, 0)));
-            assert!(moves.contains(&Coord::new(5, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(3, 0), White);
+            assert_moves_eq(&[Coord::new(1, 0), Coord::new(5, 0)], moves);
         }
     }
     {
@@ -585,9 +553,8 @@ fn test_king() {
         board.castling_rights = [Some(Coord::new(1, 0)), Some(Coord::new(6, 0)), None, None];
         {
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(5, 0), White);
-            assert!(moves.contains(&Coord::new(1, 0)));
-            assert!(moves.contains(&Coord::new(6, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(5, 0), White);
+            assert_moves_eq(&[Coord::new(1, 0), Coord::new(6, 0)], moves);
         }
     }
     {
@@ -599,9 +566,8 @@ fn test_king() {
         board.castling_rights = [Some(Coord::new(0, 0)), Some(Coord::new(2, 0)), None, None];
         {
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(1, 0), White);
-            assert!(!moves.contains(&Coord::new(0, 0)));
-            assert!(moves.contains(&Coord::new(2, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(1, 0), White);
+            assert_moves_eq(&[Coord::new(2, 0)], moves);
         }
     }
     {
@@ -613,9 +579,8 @@ fn test_king() {
         board.castling_rights = [Some(Coord::new(5, 0)), Some(Coord::new(7, 0)), None, None];
         {
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(6, 0), White);
-            assert!(moves.contains(&Coord::new(5, 0)));
-            assert!(!moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(6, 0), White);
+            assert_moves_eq(&[Coord::new(5, 0)], moves);
         }
     }
     {
@@ -627,9 +592,8 @@ fn test_king() {
         board.castling_rights = [Some(Coord::new(3, 0)), Some(Coord::new(5, 0)), None, None];
         {
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(4, 0), White);
-            assert!(moves.contains(&Coord::new(3, 0)));
-            assert!(moves.contains(&Coord::new(5, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(4, 0), White);
+            assert_moves_eq(&[Coord::new(3, 0), Coord::new(5, 0)], moves);
         }
     }
     {
@@ -641,9 +605,8 @@ fn test_king() {
         board.castling_rights = [Some(Coord::new(0, 0)), Some(Coord::new(7, 0)), None, None];
         {
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(6, 0), White);
-            assert!(moves.contains(&Coord::new(0, 0)));
-            assert!(moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(6, 0), White);
+            assert_moves_eq(&[Coord::new(0, 0), Coord::new(7, 0)], moves);
         }
     }
     {
@@ -655,9 +618,8 @@ fn test_king() {
         board.castling_rights = [Some(Coord::new(0, 0)), Some(Coord::new(7, 0)), None, None];
         {
             let mut moves = Vec::new();
-            add_king_moves(&mut moves, &board, Coord::new(2, 0), White);
-            assert!(moves.contains(&Coord::new(0, 0)));
-            assert!(moves.contains(&Coord::new(7, 0)));
+            add_castling_moves(&mut moves, &board, Coord::new(2, 0), White);
+            assert_moves_eq(&[Coord::new(0, 0), Coord::new(7, 0)], moves);
         }
     }
 }
@@ -830,14 +792,17 @@ fn add_moves_for_piece<const N: usize, const M: usize>(
 ) {
     match piece.ty() {
         Pawn => add_pawn_moves(moves, board, coord, piece.player()),
-        Rook => add_rook_moves(moves, board, coord, piece.player()),
-        Bishop => add_bishop_moves(moves, board, coord, piece.player()),
-        Queen => add_queen_moves(moves, board, coord, piece.player()),
-        Knight => add_knight_moves(moves, board, coord, piece.player()),
-        King => add_king_moves(moves, board, coord, piece.player()),
-        Chancellor => add_chancellor_moves(moves, board, coord, piece.player()),
-        Archbishop => add_archbishop_moves(moves, board, coord, piece.player()),
-        Amazon => add_amazon_moves(moves, board, coord, piece.player()),
+        ty => {
+            for l in ty.leaper_offsets() {
+                add_moves_for_leaper(moves, board, coord, piece.player(), l);
+            }
+            for r in ty.rider_offsets() {
+                add_moves_for_rider(moves, board, coord, piece.player(), r);
+            }
+        }
+    }
+    if piece.ty() == King {
+        add_castling_moves(moves, board, coord, piece.player());
     }
 }
 
@@ -916,31 +881,38 @@ pub fn is_under_attack<const N: usize, const M: usize>(
         assert_eq!(p.player(), player);
     }
     for o in offsets(Coord::new(1, 0)) {
-        match enemy_piece_rider(board, coord, o, player) {
-            Some(Queen) | Some(Rook) | Some(Chancellor) | Some(Amazon) => return true,
-            _ => {}
+        if let Some(ty) = enemy_piece_rider(board, coord, o, player) {
+            if ty != Pawn && ty.rider_offsets().contains(&Coord::new(1, 0)) {
+                return true;
+            }
         }
     }
     for o in offsets(Coord::new(1, 1)) {
-        match enemy_piece_rider(board, coord, o, player) {
-            Some(Queen) | Some(Bishop) | Some(Archbishop) | Some(Amazon) => return true,
-            _ => {}
+        if let Some(ty) = enemy_piece_rider(board, coord, o, player) {
+            if ty != Pawn && ty.rider_offsets().contains(&Coord::new(1, 1)) {
+                return true;
+            }
         }
     }
-    for o in offsets(Coord::new(1, 2)) {
-        match enemy_piece_leaper(board, coord, o, player) {
-            Some(Knight) | Some(Archbishop) | Some(Chancellor) | Some(Amazon) => return true,
-            _ => {}
+    for o in offsets(Coord::new(2, 1)) {
+        if let Some(ty) = enemy_piece_leaper(board, coord, o, player) {
+            if ty != Pawn && ty.leaper_offsets().contains(&Coord::new(2, 1)) {
+                return true;
+            }
         }
     }
     for o in offsets(Coord::new(1, 1)) {
-        if let Some(King) = enemy_piece_leaper(board, coord, o, player) {
-            return true;
+        if let Some(ty) = enemy_piece_leaper(board, coord, o, player) {
+            if ty != Pawn && ty.leaper_offsets().contains(&Coord::new(1, 1)) {
+                return true;
+            }
         }
     }
     for o in offsets(Coord::new(1, 0)) {
-        if let Some(King) = enemy_piece_leaper(board, coord, o, player) {
-            return true;
+        if let Some(ty) = enemy_piece_leaper(board, coord, o, player) {
+            if ty != Pawn && ty.leaper_offsets().contains(&Coord::new(1, 0)) {
+                return true;
+            }
         }
     }
     fn has_enemy_pawn<const N: usize, const M: usize>(

@@ -1,4 +1,6 @@
+use crate::coord::Coord;
 use crate::player::Player;
+use arrayvec::ArrayVec;
 use derive_rand::Rand;
 use num_derive::FromPrimitive;
 use num_traits::cast::FromPrimitive;
@@ -33,6 +35,43 @@ impl Type {
             Amazon => 'Z',
         };
         assert!(ret.is_uppercase());
+        ret
+    }
+
+    pub fn leaper_offsets(&self) -> ArrayVec<Coord, 2> {
+        use Type::*;
+        let mut ret = ArrayVec::new();
+        match self {
+            Pawn => panic!(),
+            Knight | Chancellor | Archbishop | Amazon => {
+                ret.push(Coord::new(2, 1));
+            }
+            King => {
+                ret.push(Coord::new(1, 1));
+                ret.push(Coord::new(1, 0));
+            }
+            Rook | Bishop | Queen => {}
+        }
+        ret
+    }
+
+    pub fn rider_offsets(&self) -> ArrayVec<Coord, 2> {
+        use Type::*;
+        let mut ret = ArrayVec::new();
+        match self {
+            Pawn => panic!(),
+            Rook | Chancellor => {
+                ret.push(Coord::new(1, 0));
+            }
+            Bishop | Archbishop => {
+                ret.push(Coord::new(1, 1));
+            }
+            Queen | Amazon => {
+                ret.push(Coord::new(1, 0));
+                ret.push(Coord::new(1, 1));
+            }
+            King | Knight => {}
+        }
         ret
     }
 }
