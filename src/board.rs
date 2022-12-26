@@ -2,7 +2,7 @@ use crate::coord::Coord;
 use crate::piece::{Piece, Type, Type::*};
 use crate::player::{Player, Player::*};
 use rand::Rng;
-use std::ops::{Index, IndexMut};
+use std::ops::Index;
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Board<const N: usize, const M: usize> {
@@ -47,9 +47,25 @@ impl<const N: usize, const M: usize> Board<N, M> {
         coord.x < N as i8 && coord.x >= 0 && coord.y < M as i8 && coord.y >= 0
     }
 
+    pub fn clear(&mut self, coord: Coord) {
+        self.pieces[coord.x as usize][coord.y as usize] = None;
+    }
+
     pub fn add_piece(&mut self, coord: Coord, piece: Piece) {
+        self.set(coord, Some(piece));
+    }
+
+    pub fn set(&mut self, coord: Coord, piece: Option<Piece>) {
+        assert!(self.in_bounds(coord));
         assert!(self[coord].is_none());
-        self[coord] = Some(piece);
+
+        self.pieces[coord.x as usize][coord.y as usize] = piece;
+    }
+
+    pub fn take(&mut self, coord: Coord) -> Option<Piece> {
+        assert!(self.in_bounds(coord));
+
+        self.pieces[coord.x as usize][coord.y as usize].take()
     }
 
     pub fn existing_piece_result(&self, coord: Coord, player: Player) -> ExistingPieceResult {
@@ -68,9 +84,10 @@ impl<const N: usize, const M: usize> Board<N, M> {
 
     pub fn swap(&mut self, c1: Coord, c2: Coord) {
         assert_ne!(c1, c2);
-        let mut a = self[c1].take();
-        std::mem::swap(&mut a, &mut self[c2]);
-        std::mem::swap(&mut a, &mut self[c1]);
+        let p1 = self.take(c1);
+        let p2 = self.take(c2);
+        self.set(c1, p2);
+        self.set(c2, p1);
     }
 }
 
@@ -112,31 +129,19 @@ impl<const N: usize, const M: usize> Index<(i8, i8)> for Board<N, M> {
     }
 }
 
-impl<const N: usize, const M: usize> IndexMut<Coord> for Board<N, M> {
-    fn index_mut(&mut self, coord: Coord) -> &mut Self::Output {
-        assert!(self.in_bounds(coord));
-
-        &mut self.pieces[coord.x as usize][coord.y as usize]
-    }
-}
-
-impl<const N: usize, const M: usize> IndexMut<(i8, i8)> for Board<N, M> {
-    fn index_mut(&mut self, (x, y): (i8, i8)) -> &mut Self::Output {
-        self.index_mut(Coord { x, y })
-    }
-}
-
 #[test]
 fn test_board() {
     use crate::piece::*;
     let mut b = Board::<4, 4>::default();
-    let p1 = Some(Piece::new(White, Bishop));
-    let p2 = Some(Piece::new(Black, Knight));
-    b[(0, 0)] = p1.clone();
-    b[(3, 3)] = p2.clone();
-    assert_eq!(b[(0, 0)], p1);
-    assert_eq!(b[(3, 3)], p2);
+    let p1 = Piece::new(White, Bishop);
+    let p2 = Piece::new(Black, Knight);
+    b.add_piece(Coord::new(0, 0), p1);
+    b.set(Coord::new(3, 3), Some(p2));
+    assert_eq!(b[(0, 0)], Some(p1));
+    assert_eq!(b[(3, 3)], Some(p2));
     assert_eq!(b[(0, 3)], None);
+    b.clear(Coord::new(0, 0));
+    assert_eq!(b[(0, 0)], None);
 }
 
 #[test]
@@ -171,28 +176,52 @@ fn test_board_panic_y_2() {
 #[should_panic]
 fn test_mut_board_panic_x_1() {
     let mut b = Board::<2, 3>::default();
-    b[(2, 1)] = None;
+    b.set(Coord::new(2, 1), None);
 }
 
 #[test]
 #[should_panic]
 fn test_mut_board_panic_x_2() {
     let mut b = Board::<2, 3>::default();
-    b[(-1, 1)] = None;
+    b.set(Coord::new(-1, 1), None);
 }
 
 #[test]
 #[should_panic]
 fn test_mut_board_panic_y_1() {
     let mut b = Board::<2, 3>::default();
-    b[(1, 3)] = None;
+    b.set(Coord::new(1, 3), None);
 }
 
 #[test]
 #[should_panic]
 fn test_mut_board_panic_y_2() {
     let mut b = Board::<2, 3>::default();
-    b[(1, -1)] = None;
+    b.set(Coord::new(1, -1), None);
+}
+
+#[test]
+#[should_panic]
+fn test_board_set_existing_piece_panic_1() {
+    let mut b = Board::<2, 3>::default();
+    b.add_piece(Coord::new(1, 1), Piece::new(White, King));
+    b.add_piece(Coord::new(1, 1), Piece::new(White, King));
+}
+
+#[test]
+#[should_panic]
+fn test_board_set_existing_piece_panic_2() {
+    let mut b = Board::<2, 3>::default();
+    b.add_piece(Coord::new(1, 1), Piece::new(White, King));
+    b.set(Coord::new(1, 1), Some(Piece::new(White, King)));
+}
+
+#[test]
+#[should_panic]
+fn test_board_set_existing_piece_panic_3() {
+    let mut b = Board::<2, 3>::default();
+    b.add_piece(Coord::new(1, 1), Piece::new(White, King));
+    b.set(Coord::new(1, 1), None);
 }
 
 impl<const N: usize, const M: usize> std::fmt::Debug for Board<N, M> {
@@ -240,7 +269,7 @@ impl<const N: usize, const M: usize> Board<N, M> {
         assert_ne!(m.from, m.to);
         assert!(self.existing_piece_result(m.from, player) == ExistingPieceResult::Friend);
         let to_res = self.existing_piece_result(m.to, player);
-        let mut piece = self[m.from].take().unwrap();
+        let mut piece = self.take(m.from).unwrap();
         // pawn double moves
         if piece.ty() == Pawn && (m.from.y - m.to.y).abs() == 2 {
             self.last_pawn_double_move = Some(m.to);
@@ -255,7 +284,7 @@ impl<const N: usize, const M: usize> Board<N, M> {
                     == ExistingPieceResult::Opponent
             );
             assert!(self[opponent_pawn_coord].as_ref().unwrap().ty() == Pawn);
-            self[opponent_pawn_coord] = None;
+            self.clear(opponent_pawn_coord);
         }
         // promotion
         if piece.ty() == Pawn && (m.to.y == 0 || m.to.y == M as i8 - 1) {
@@ -284,7 +313,7 @@ impl<const N: usize, const M: usize> Board<N, M> {
         }
         // castling
         if piece.ty() == King && to_res == ExistingPieceResult::Friend {
-            let rook = self[m.to].take();
+            let rook = self.take(m.to);
             assert_eq!(rook.as_ref().unwrap().ty(), Rook);
             // king moves to rook to castle with
             // king should always be between two rooks to castle with
@@ -297,11 +326,12 @@ impl<const N: usize, const M: usize> Board<N, M> {
                 )
             };
             assert!(self[rook_dest].as_ref().is_none());
-            self[rook_dest] = rook;
-            self[dest] = Some(piece);
+            self.set(rook_dest, rook);
+            self.add_piece(dest, piece);
         } else {
             assert!(to_res != ExistingPieceResult::Friend);
-            self[m.to] = Some(piece);
+            self.clear(m.to);
+            self.add_piece(m.to, piece);
         }
     }
 }

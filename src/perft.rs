@@ -27,7 +27,8 @@ fn perft_impl<const N: usize, const M: usize>(
         if board[m.from].as_ref().unwrap().ty() == Pawn && (m.to.y == 0 || m.to.y == M as i8 - 1) {
             for ty in [Knight, Bishop, Rook] {
                 let mut promotion_copy = copy.clone();
-                promotion_copy[m.to] = Some(Piece::new(player, ty));
+                promotion_copy.clear(m.to);
+                promotion_copy.add_piece(m.to, Piece::new(player, ty));
                 if depth == 1 {
                     sum += 1
                 } else {
