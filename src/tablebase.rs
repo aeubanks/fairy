@@ -878,5 +878,5 @@ fn test_tablebase_size() {
     let all1 = generate_all_boards::<4, 4>(&pieces1);
     let all2 = generate_all_boards::<4, 4>(&pieces2);
     // With symmetry, we should expect a little over 1/8 of positions to be in the tablebase.
-    assert!(tablebase.white_tablebase.len() < all1.len() + all2.len() / 4);
+    assert!(tablebase.white_tablebase.len() < all1.len() + all2.len() / 6);
 }
