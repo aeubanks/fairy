@@ -295,11 +295,6 @@ fn hash_one_board<const N: usize, const M: usize>(board: &Board<N, M>, sym: Symm
 }
 
 fn hash<const N: usize, const M: usize>(board: &Board<N, M>, has_pawn: bool) -> (u64, Symmetry) {
-    // FIXME: this is faster right now...
-    // return (hash_one_board(board), Symmetry::default());
-
-    // TODO: add fast path when no symmetry to avoid clone?
-
     debug_assert_eq!(has_pawn, board_has_pawn(board));
 
     let mut symmetries_to_check = ArrayVec::<Symmetry, 8>::new();
