@@ -96,6 +96,14 @@ impl Piece {
     pub fn ty(&self) -> Type {
         Type::from_u8(self.val.get() & ((1 << 6) - 1)).unwrap()
     }
+
+    pub fn char(&self) -> char {
+        let c = self.ty().char();
+        match self.player() {
+            Player::White => c,
+            Player::Black => c.to_lowercase().next().unwrap(),
+        }
+    }
 }
 
 #[test]
@@ -105,6 +113,14 @@ fn test_piece() {
     let p = Piece::new(White, King);
     assert_eq!(p.player(), White);
     assert_eq!(p.ty(), King);
+}
+
+#[test]
+fn test_piece_char() {
+    use Player::*;
+    use Type::*;
+    assert_eq!(Piece::new(White, King).char(), 'K');
+    assert_eq!(Piece::new(Black, Queen).char(), 'q');
 }
 
 const_assert_eq!(1, std::mem::size_of::<Piece>());
