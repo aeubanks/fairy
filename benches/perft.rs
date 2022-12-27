@@ -11,16 +11,16 @@ fn run_perft_all(c: &mut Criterion) {
     };
     let pos2 = fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
     c.bench_function("perft_classical1", |b| {
-        b.iter(|| perft(black_box(&pos1), 5))
+        b.iter(|| perft(black_box(&pos1), 4))
     });
     c.bench_function("perft_classical2", |b| {
-        b.iter(|| perft(black_box(&pos2), 4))
+        b.iter(|| perft(black_box(&pos2), 3))
     });
     c.bench_function("perft_all_classical1", |b| {
-        b.iter(|| perft_all(black_box(&pos1), 5))
+        b.iter(|| perft_all(black_box(&pos1), 4))
     });
     c.bench_function("perft_all_classical2", |b| {
-        b.iter(|| perft_all(black_box(&pos2), 4))
+        b.iter(|| perft_all(black_box(&pos2), 3))
     });
 }
 
