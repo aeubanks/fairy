@@ -162,7 +162,7 @@ pub fn fen(fen: &str) -> Position<8, 8> {
         let en_passant = space_split[3];
         if en_passant != "-" {
             assert_eq!(en_passant.len(), 2);
-            let x = en_passant.chars().nth(0).unwrap() as i32 - 'a' as i32;
+            let x = en_passant.chars().next().unwrap() as i32 - 'a' as i32;
             assert!(x >= 0 && x < 8);
             let rank = en_passant.chars().nth(1).unwrap().to_digit(10).unwrap();
             assert!(rank == 3 || rank == 6);

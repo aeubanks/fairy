@@ -278,6 +278,8 @@ fn test_flip_move() {
 }
 
 type MapTy = HashMap<u64, (Move, u16)>;
+
+#[derive(Default)]
 pub struct Tablebase {
     // table of best move to play on white's turn to force a win
     white_tablebase: MapTy,
@@ -286,12 +288,6 @@ pub struct Tablebase {
 }
 
 impl Tablebase {
-    pub fn new() -> Self {
-        Self {
-            white_tablebase: MapTy::new(),
-            black_tablebase: MapTy::new(),
-        }
-    }
     pub fn white_result<const N: usize, const M: usize>(
         &self,
         board: &Board<N, M>,
@@ -379,7 +375,7 @@ fn test_generate_flip_unflip_move() {
         from: Coord::new(1, 0),
         to: Coord::new(2, 0),
     };
-    let mut tablebase = Tablebase::new();
+    let mut tablebase = Tablebase::default();
     tablebase.white_add_impl(&board, m, 1, false);
     assert_eq!(tablebase.white_result(&board), Some((m, 1)));
 }
@@ -564,7 +560,7 @@ fn generate_all_boards_impl<const N: usize, const M: usize>(
                     let coord = Coord::new(x, y);
                     if board[coord].is_none() {
                         let mut clone = board.clone();
-                        clone.add_piece(coord, p.clone());
+                        clone.add_piece(coord, *p);
                         generate_all_boards_impl(ret, &clone, rest);
                     }
                 }
@@ -635,7 +631,7 @@ fn populate_initial_wins<const N: usize, const M: usize>(
 
 #[test]
 fn test_populate_initial_tablebases() {
-    let mut tablebase = Tablebase::new();
+    let mut tablebase = Tablebase::default();
     let boards = [
         Board::<8, 8>::with_pieces(&[
             (Coord::new(0, 0), Piece::new(White, King)),
@@ -664,7 +660,7 @@ fn test_populate_initial_tablebases() {
 
 #[test]
 fn test_populate_initial_tablebases_stalemate() {
-    let mut tablebase = Tablebase::new();
+    let mut tablebase = Tablebase::default();
     populate_initial_wins(
         &mut tablebase,
         &generate_all_boards::<1, 8>(&[
@@ -752,7 +748,7 @@ fn test_iterate_black() {
     let wk = Piece::new(White, King);
     let bk = Piece::new(Black, King);
     let board = Board::<4, 1>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(2, 0), bk)]);
-    let mut tablebase = Tablebase::new();
+    let mut tablebase = Tablebase::default();
     tablebase.white_add_impl(
         &Board::<4, 1>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
         Move {
@@ -840,7 +836,7 @@ fn test_iterate_white() {
     let wk = Piece::new(White, King);
     let bk = Piece::new(Black, King);
     let board = Board::<5, 1>::with_pieces(&[(Coord::new(1, 0), wk), (Coord::new(4, 0), bk)]);
-    let mut tablebase = Tablebase::new();
+    let mut tablebase = Tablebase::default();
     assert!(!iterate_white(&mut tablebase, &[board.clone()], false));
     assert!(tablebase.white_tablebase.is_empty());
 
@@ -903,7 +899,7 @@ fn verify_piece_set(pieces: &[Piece]) {
 }
 
 pub fn generate_tablebase<const N: usize, const M: usize>(piece_sets: &[&[Piece]]) -> Tablebase {
-    let mut tablebase = Tablebase::new();
+    let mut tablebase = Tablebase::default();
 
     for set in piece_sets {
         let has_pawn = set.iter().any(|p| p.ty() == Pawn);
