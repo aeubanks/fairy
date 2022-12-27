@@ -4,10 +4,10 @@ use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
 use fairy::tablebase::*;
 
-fn three_piece_tablebase<const N: usize, const M: usize>(pieces: &[Piece]) -> Tablebase<N, M> {
+fn three_piece_tablebase<const W: usize, const H: usize>(pieces: &[Piece]) -> Tablebase<W, H> {
     assert_eq!(pieces.len(), 3);
     let kk = [Piece::new(White, King), Piece::new(Black, King)];
-    generate_tablebase::<N, M>(&[&kk, &pieces])
+    generate_tablebase::<W, H>(&[&kk, &pieces])
 }
 
 fn kqk(c: &mut Criterion) {

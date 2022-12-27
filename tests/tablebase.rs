@@ -4,9 +4,9 @@ use fairy::piece::{Piece, Type::*};
 use fairy::player::{next_player, Player::*};
 use fairy::tablebase::{generate_all_boards, generate_tablebase, Tablebase};
 
-fn black_king_exists<const N: usize, const M: usize>(board: &Board<N, M>) -> bool {
-    for y in 0..M as i8 {
-        for x in 0..N as i8 {
+fn black_king_exists<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
+    for y in 0..H as i8 {
+        for x in 0..W as i8 {
             let coord = Coord::new(x, y);
             if let Some(piece) = board[coord].as_ref() {
                 if piece.player() == Black && piece.ty() == King {
@@ -18,9 +18,9 @@ fn black_king_exists<const N: usize, const M: usize>(board: &Board<N, M>) -> boo
     false
 }
 
-fn verify_board_tablebase<const N: usize, const M: usize>(
-    board: &Board<N, M>,
-    tablebase: &Tablebase<N, M>,
+fn verify_board_tablebase<const W: usize, const H: usize>(
+    board: &Board<W, H>,
+    tablebase: &Tablebase<W, H>,
 ) {
     let mut board = board.clone();
     let (_, mut expected_depth) = tablebase.white_result(&board).unwrap();

@@ -11,9 +11,9 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 // TODO: factor out coord visiting
-fn board_has_pawn<const N: usize, const M: usize>(board: &Board<N, M>) -> bool {
-    for y in 0..M as i8 {
-        for x in 0..N as i8 {
+fn board_has_pawn<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
+    for y in 0..H as i8 {
+        for x in 0..W as i8 {
             let coord = Coord::new(x, y);
             if let Some(piece) = board[coord].as_ref() {
                 if piece.ty() == Pawn {
@@ -169,50 +169,50 @@ fn test_flip_move() {
 type MapTy = HashMap<u64, (Move, u16)>;
 
 #[derive(Default)]
-pub struct Tablebase<const N: usize, const M: usize> {
+pub struct Tablebase<const W: usize, const H: usize> {
     // table of best move to play on white's turn to force a win
     white_tablebase: MapTy,
     // table of best move to play on black's turn to prolong a loss
     black_tablebase: MapTy,
 }
 
-impl<const N: usize, const M: usize> Tablebase<N, M> {
-    pub fn white_result(&self, board: &Board<N, M>) -> Option<(Move, u16)> {
+impl<const W: usize, const H: usize> Tablebase<W, H> {
+    pub fn white_result(&self, board: &Board<W, H>) -> Option<(Move, u16)> {
         let has_pawn = board_has_pawn(board);
         let (hash, sym) = hash(board, has_pawn);
         self.white_tablebase
             .get(&hash)
-            .map(|e| (unflip_move(e.0, sym, N as i8, M as i8), e.1))
+            .map(|e| (unflip_move(e.0, sym, W as i8, H as i8), e.1))
     }
-    pub fn black_result(&self, board: &Board<N, M>) -> Option<(Move, u16)> {
+    pub fn black_result(&self, board: &Board<W, H>) -> Option<(Move, u16)> {
         let has_pawn = board_has_pawn(board);
         let (hash, sym) = hash(board, has_pawn);
         self.black_tablebase
             .get(&hash)
-            .map(|e| (unflip_move(e.0, sym, N as i8, M as i8), e.1))
+            .map(|e| (unflip_move(e.0, sym, W as i8, H as i8), e.1))
     }
-    fn white_add_impl(&mut self, board: &Board<N, M>, m: Move, depth: u16, has_pawn: bool) {
+    fn white_add_impl(&mut self, board: &Board<W, H>, m: Move, depth: u16, has_pawn: bool) {
         let (hash, sym) = hash(board, has_pawn);
         self.white_tablebase
-            .insert(hash, (flip_move(m, sym, N as i8, M as i8), depth));
+            .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
     }
-    fn white_contains_impl(&self, board: &Board<N, M>, has_pawn: bool) -> bool {
+    fn white_contains_impl(&self, board: &Board<W, H>, has_pawn: bool) -> bool {
         self.white_tablebase.contains_key(&hash(board, has_pawn).0)
     }
-    fn white_depth_impl(&self, board: &Board<N, M>, has_pawn: bool) -> Option<u16> {
+    fn white_depth_impl(&self, board: &Board<W, H>, has_pawn: bool) -> Option<u16> {
         self.white_tablebase
             .get(&hash(board, has_pawn).0)
             .map(|e| e.1)
     }
-    fn black_add_impl(&mut self, board: &Board<N, M>, m: Move, depth: u16, has_pawn: bool) {
+    fn black_add_impl(&mut self, board: &Board<W, H>, m: Move, depth: u16, has_pawn: bool) {
         let (hash, sym) = hash(board, has_pawn);
         self.black_tablebase
-            .insert(hash, (flip_move(m, sym, N as i8, M as i8), depth));
+            .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
     }
-    fn black_contains_impl(&self, board: &Board<N, M>, has_pawn: bool) -> bool {
+    fn black_contains_impl(&self, board: &Board<W, H>, has_pawn: bool) -> bool {
         self.black_tablebase.contains_key(&hash(board, has_pawn).0)
     }
-    fn black_depth_impl(&self, board: &Board<N, M>, has_pawn: bool) -> Option<u16> {
+    fn black_depth_impl(&self, board: &Board<W, H>, has_pawn: bool) -> Option<u16> {
         self.black_tablebase
             .get(&hash(board, has_pawn).0)
             .map(|e| e.1)
@@ -235,13 +235,13 @@ fn test_generate_flip_unflip_move() {
     assert_eq!(tablebase.white_result(&board), Some((m, 1)));
 }
 
-fn hash_one_board<const N: usize, const M: usize>(board: &Board<N, M>, sym: Symmetry) -> u64 {
+fn hash_one_board<const W: usize, const H: usize>(board: &Board<W, H>, sym: Symmetry) -> u64 {
     // need to visit in consistent order across symmetries
     let mut pieces = ArrayVec::<(Coord, Piece), 6>::new();
-    for y in 0..M as i8 {
-        for x in 0..N as i8 {
+    for y in 0..H as i8 {
+        for x in 0..W as i8 {
             if let Some(p) = board[(x, y)] {
-                let c = flip_coord(Coord::new(x, y), sym, N as i8, M as i8);
+                let c = flip_coord(Coord::new(x, y), sym, W as i8, H as i8);
                 pieces.push((c, p));
             }
         }
@@ -258,7 +258,7 @@ fn hash_one_board<const N: usize, const M: usize>(board: &Board<N, M>, sym: Symm
     hasher.finish()
 }
 
-fn hash<const N: usize, const M: usize>(board: &Board<N, M>, has_pawn: bool) -> (u64, Symmetry) {
+fn hash<const W: usize, const H: usize>(board: &Board<W, H>, has_pawn: bool) -> (u64, Symmetry) {
     debug_assert_eq!(has_pawn, board_has_pawn(board));
 
     let mut symmetries_to_check = ArrayVec::<Symmetry, 8>::new();
@@ -266,13 +266,13 @@ fn hash<const N: usize, const M: usize>(board: &Board<N, M>, has_pawn: bool) -> 
 
     let mut bk_coord = king_coord(board, Black);
 
-    if N % 2 == 1 && bk_coord.x == N as i8 / 2 {
+    if W % 2 == 1 && bk_coord.x == W as i8 / 2 {
         let symmetries_copy = symmetries_to_check.clone();
         for mut s in symmetries_copy {
             s.flip_x = true;
             symmetries_to_check.push(s);
         }
-    } else if bk_coord.x >= N as i8 / 2 {
+    } else if bk_coord.x >= W as i8 / 2 {
         bk_coord = flip_coord(
             bk_coord,
             Symmetry {
@@ -280,8 +280,8 @@ fn hash<const N: usize, const M: usize>(board: &Board<N, M>, has_pawn: bool) -> 
                 flip_y: false,
                 flip_diagonally: false,
             },
-            N as i8,
-            M as i8,
+            W as i8,
+            H as i8,
         );
         for s in symmetries_to_check.as_mut() {
             s.flip_x = true;
@@ -289,13 +289,13 @@ fn hash<const N: usize, const M: usize>(board: &Board<N, M>, has_pawn: bool) -> 
     }
     // pawns are not symmetrical on the y axis or diagonally
     if !has_pawn {
-        if M % 2 == 1 && bk_coord.y == M as i8 / 2 {
+        if H % 2 == 1 && bk_coord.y == H as i8 / 2 {
             let symmetries_copy = symmetries_to_check.clone();
             for mut s in symmetries_copy {
                 s.flip_y = true;
                 symmetries_to_check.push(s);
             }
-        } else if bk_coord.y >= M as i8 / 2 {
+        } else if bk_coord.y >= H as i8 / 2 {
             bk_coord = flip_coord(
                 bk_coord,
                 Symmetry {
@@ -303,15 +303,15 @@ fn hash<const N: usize, const M: usize>(board: &Board<N, M>, has_pawn: bool) -> 
                     flip_y: true,
                     flip_diagonally: false,
                 },
-                N as i8,
-                M as i8,
+                W as i8,
+                H as i8,
             );
             for s in symmetries_to_check.as_mut() {
                 s.flip_y = true;
             }
         }
 
-        if N == M {
+        if W == H {
             if bk_coord.x == bk_coord.y {
                 let symmetries_copy = symmetries_to_check.clone();
                 for mut s in symmetries_copy {
@@ -347,13 +347,13 @@ fn test_hash() {
     let board1 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
     let board2 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
 
-    fn assert_hash_eq<const N: usize, const M: usize>(b1: &Board<N, M>, b2: &Board<N, M>) {
+    fn assert_hash_eq<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
         assert_eq!(
             hash(&b1, board_has_pawn(&b1)).0,
             hash(&b2, board_has_pawn(&b2)).0
         );
     }
-    fn assert_hash_ne<const N: usize, const M: usize>(b1: &Board<N, M>, b2: &Board<N, M>) {
+    fn assert_hash_ne<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
         assert_ne!(
             hash(&b1, board_has_pawn(&b1)).0,
             hash(&b2, board_has_pawn(&b2)).0
@@ -432,16 +432,16 @@ fn test_hash() {
     );
 }
 
-fn generate_all_boards_impl<const N: usize, const M: usize>(
-    ret: &mut Vec<Board<N, M>>,
-    board: &Board<N, M>,
+fn generate_all_boards_impl<const W: usize, const H: usize>(
+    ret: &mut Vec<Board<W, H>>,
+    board: &Board<W, H>,
     pieces: &[Piece],
 ) {
     match pieces {
         [p, rest @ ..] => {
-            for y in 0..M as i8 {
-                for x in 0..N as i8 {
-                    if p.ty() == Pawn && (y == 0 || y == M as i8 - 1) {
+            for y in 0..H as i8 {
+                for x in 0..W as i8 {
+                    if p.ty() == Pawn && (y == 0 || y == H as i8 - 1) {
                         continue;
                     }
                     let coord = Coord::new(x, y);
@@ -457,8 +457,8 @@ fn generate_all_boards_impl<const N: usize, const M: usize>(
     }
 }
 
-pub fn generate_all_boards<const N: usize, const M: usize>(pieces: &[Piece]) -> Vec<Board<N, M>> {
-    let board = Board::<N, M>::default();
+pub fn generate_all_boards<const W: usize, const H: usize>(pieces: &[Piece]) -> Vec<Board<W, H>> {
+    let board = Board::<W, H>::default();
     let mut ret = Vec::new();
     generate_all_boards_impl(&mut ret, &board, pieces);
     ret
@@ -484,11 +484,11 @@ fn test_generate_all_boards() {
     }
 }
 
-fn populate_initial_wins<const N: usize, const M: usize>(
-    tablebase: &mut Tablebase<N, M>,
-    boards: &[Board<N, M>],
+fn populate_initial_wins<const W: usize, const H: usize>(
+    tablebase: &mut Tablebase<W, H>,
+    boards: &[Board<W, H>],
     has_pawn: bool,
-) -> Vec<Board<N, M>> {
+) -> Vec<Board<W, H>> {
     let mut ret = Vec::new();
     for b in boards {
         // white can capture black's king
@@ -584,11 +584,11 @@ fn test_populate_initial_tablebases_stalemate() {
     ));
 }
 
-fn iterate_black<const N: usize, const M: usize>(
-    tablebase: &mut Tablebase<N, M>,
-    boards: &[Board<N, M>],
+fn iterate_black<const W: usize, const H: usize>(
+    tablebase: &mut Tablebase<W, H>,
+    boards: &[Board<W, H>],
     has_pawn: bool,
-) -> Vec<Board<N, M>> {
+) -> Vec<Board<W, H>> {
     let mut next_boards = Vec::new();
     for b in boards {
         if tablebase.black_contains_impl(b, has_pawn) {
@@ -678,11 +678,11 @@ fn test_iterate_black() {
     );
 }
 
-fn iterate_white<const N: usize, const M: usize>(
-    tablebase: &mut Tablebase<N, M>,
-    boards: &[Board<N, M>],
+fn iterate_white<const W: usize, const H: usize>(
+    tablebase: &mut Tablebase<W, H>,
+    boards: &[Board<W, H>],
     has_pawn: bool,
-) -> Vec<Board<N, M>> {
+) -> Vec<Board<W, H>> {
     let mut next_boards = Vec::new();
     for b in boards {
         if tablebase.white_contains_impl(b, has_pawn) {
@@ -800,10 +800,10 @@ fn verify_piece_set(pieces: &[Piece]) {
     assert_eq!(bk_count, 1);
 }
 
-fn reachable_positions<const N: usize, const M: usize>(
-    boards: &[Board<N, M>],
+fn reachable_positions<const W: usize, const H: usize>(
+    boards: &[Board<W, H>],
     player: Player,
-) -> Vec<Board<N, M>> {
+) -> Vec<Board<W, H>> {
     let mut ret = Vec::new();
     for board in boards {
         for m in all_moves_to_end_at_board_no_captures(board, player) {
@@ -823,15 +823,15 @@ fn reachable_positions<const N: usize, const M: usize>(
     ret
 }
 
-pub fn generate_tablebase<const N: usize, const M: usize>(
+pub fn generate_tablebase<const W: usize, const H: usize>(
     piece_sets: &[&[Piece]],
-) -> Tablebase<N, M> {
+) -> Tablebase<W, H> {
     let mut tablebase = Tablebase::default();
 
     for set in piece_sets {
         let has_pawn = set.iter().any(|p| p.ty() == Pawn);
         verify_piece_set(set);
-        let mut boards_to_check = generate_all_boards::<N, M>(set);
+        let mut boards_to_check = generate_all_boards::<W, H>(set);
         boards_to_check = populate_initial_wins(&mut tablebase, &boards_to_check, has_pawn);
         loop {
             boards_to_check = iterate_black(&mut tablebase, &boards_to_check, has_pawn);
@@ -852,12 +852,12 @@ pub fn generate_tablebase<const N: usize, const M: usize>(
 
 #[test]
 fn test_generate_king_king_tablebase() {
-    fn test<const N: usize, const M: usize>() {
+    fn test<const W: usize, const H: usize>() {
         let pieces = [Piece::new(White, King), Piece::new(Black, King)];
-        let tablebase = generate_tablebase::<N, M>(&[&pieces]);
+        let tablebase = generate_tablebase::<W, H>(&[&pieces]);
         // If white king couldn't capture on first move, no forced win.
         assert!(tablebase.black_tablebase.is_empty());
-        let all = generate_all_boards::<N, M>(&pieces);
+        let all = generate_all_boards::<W, H>(&pieces);
         for b in all {
             if is_under_attack(&b, king_coord(&b, Black), Black) {
                 assert_eq!(tablebase.white_depth_impl(&b, false), Some(1));

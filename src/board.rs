@@ -6,8 +6,8 @@ use static_assertions::const_assert_eq;
 use std::ops::Index;
 
 #[derive(Clone, PartialEq, Eq)]
-pub struct Board<const N: usize, const M: usize> {
-    pieces: [[Option<Piece>; M]; N],
+pub struct Board<const W: usize, const H: usize> {
+    pieces: [[Option<Piece>; H]; W],
     pub castling_rights: [Option<Coord>; 4],
     pub last_pawn_double_move: Option<Coord>,
 }
@@ -20,14 +20,14 @@ pub enum ExistingPieceResult {
 }
 
 // This really should be derivable...
-impl<const N: usize, const M: usize> Default for Board<N, M> {
+impl<const W: usize, const H: usize> Default for Board<W, H> {
     fn default() -> Self {
-        assert!(N > 0);
-        assert!(N < i8::MAX as usize);
-        assert!(M > 0);
-        assert!(M < i8::MAX as usize);
+        assert!(W > 0);
+        assert!(W < i8::MAX as usize);
+        assert!(H > 0);
+        assert!(H < i8::MAX as usize);
         Self {
-            pieces: [[None; M]; N],
+            pieces: [[None; H]; W],
             castling_rights: [None; 4],
             last_pawn_double_move: None,
         }
@@ -36,7 +36,7 @@ impl<const N: usize, const M: usize> Default for Board<N, M> {
 
 const_assert_eq!(79, std::mem::size_of::<Board<8, 8>>());
 
-impl<const N: usize, const M: usize> Board<N, M> {
+impl<const W: usize, const H: usize> Board<W, H> {
     #[cfg(test)]
     pub fn with_pieces(pieces: &[(Coord, Piece)]) -> Self {
         let mut board = Self::default();
@@ -47,7 +47,7 @@ impl<const N: usize, const M: usize> Board<N, M> {
     }
 
     pub fn in_bounds(&self, coord: Coord) -> bool {
-        coord.x < N as i8 && coord.x >= 0 && coord.y < M as i8 && coord.y >= 0
+        coord.x < W as i8 && coord.x >= 0 && coord.y < H as i8 && coord.y >= 0
     }
 
     pub fn clear(&mut self, coord: Coord) {
@@ -115,7 +115,7 @@ fn test_board_swap() {
     assert_eq!(board[(2, 0)], Some(b));
 }
 
-impl<const N: usize, const M: usize> Index<Coord> for Board<N, M> {
+impl<const W: usize, const H: usize> Index<Coord> for Board<W, H> {
     type Output = Option<Piece>;
 
     fn index(&self, coord: Coord) -> &Self::Output {
@@ -124,7 +124,7 @@ impl<const N: usize, const M: usize> Index<Coord> for Board<N, M> {
     }
 }
 
-impl<const N: usize, const M: usize> Index<(i8, i8)> for Board<N, M> {
+impl<const W: usize, const H: usize> Index<(i8, i8)> for Board<W, H> {
     type Output = Option<Piece>;
 
     fn index(&self, (x, y): (i8, i8)) -> &Self::Output {
@@ -227,10 +227,10 @@ fn test_board_set_existing_piece_panic_3() {
     b.set(Coord::new(1, 1), None);
 }
 
-impl<const N: usize, const M: usize> std::fmt::Debug for Board<N, M> {
+impl<const W: usize, const H: usize> std::fmt::Debug for Board<W, H> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for y in (0..M as i8).rev() {
-            for x in 0..N as i8 {
+        for y in (0..H as i8).rev() {
+            for x in 0..W as i8 {
                 let c = match self[(x, y)].as_ref() {
                     None => '.',
                     Some(p) => {
@@ -267,7 +267,7 @@ pub struct Move {
     pub to: Coord,
 }
 
-impl<const N: usize, const M: usize> Board<N, M> {
+impl<const W: usize, const H: usize> Board<W, H> {
     pub fn make_move(&mut self, m: Move, player: Player) {
         assert_ne!(m.from, m.to);
         assert!(self.existing_piece_result(m.from, player) == ExistingPieceResult::Friend);
@@ -290,7 +290,7 @@ impl<const N: usize, const M: usize> Board<N, M> {
             self.clear(opponent_pawn_coord);
         }
         // promotion
-        if piece.ty() == Pawn && (m.to.y == 0 || m.to.y == M as i8 - 1) {
+        if piece.ty() == Pawn && (m.to.y == 0 || m.to.y == H as i8 - 1) {
             // TODO: support more than promoting to queen
             piece = Piece::new(piece.player(), Queen);
         }
@@ -324,8 +324,8 @@ impl<const N: usize, const M: usize> Board<N, M> {
                 (Coord::new(2, m.from.y), Coord::new(3, m.from.y))
             } else {
                 (
-                    Coord::new(N as i8 - 2, m.from.y),
-                    Coord::new(N as i8 - 3, m.from.y),
+                    Coord::new(W as i8 - 2, m.from.y),
+                    Coord::new(W as i8 - 3, m.from.y),
                 )
             };
             assert!(self[rook_dest].as_ref().is_none());
@@ -692,18 +692,18 @@ impl Presets {
     }
 }
 
-impl<const N: usize, const M: usize> Board<N, M> {
+impl<const W: usize, const H: usize> Board<W, H> {
     fn setup_with_pawns(castling: bool, pieces: &[Type]) -> Self {
         let mut board = Self::default();
-        for i in 0..N as i8 {
+        for i in 0..W as i8 {
             board.add_piece(Coord::new(i, 1), Piece::new(White, Pawn));
-            board.add_piece(Coord::new(i, M as i8 - 2), Piece::new(Black, Pawn));
+            board.add_piece(Coord::new(i, H as i8 - 2), Piece::new(Black, Pawn));
         }
-        assert!(pieces.len() == N);
+        assert!(pieces.len() == W);
         for (i, ty) in pieces.into_iter().enumerate() {
             let white_coord = Coord::new(i as i8, 0);
             board.add_piece(white_coord, Piece::new(White, *ty));
-            let black_coord = Coord::new(i as i8, M as i8 - 1);
+            let black_coord = Coord::new(i as i8, H as i8 - 1);
             board.add_piece(black_coord, Piece::new(Black, *ty));
             if castling {
                 if board.castling_rights[0].is_none() {
@@ -735,9 +735,9 @@ fn test_premade_boards() {
     }
 }
 
-pub fn king_coord<const N: usize, const M: usize>(board: &Board<N, M>, player: Player) -> Coord {
-    for y in 0..M as i8 {
-        for x in 0..N as i8 {
+pub fn king_coord<const W: usize, const H: usize>(board: &Board<W, H>, player: Player) -> Coord {
+    for y in 0..H as i8 {
+        for x in 0..W as i8 {
             let coord = Coord::new(x, y);
             if let Some(piece) = board[coord].as_ref() {
                 if piece.player() == player && piece.ty() == King {

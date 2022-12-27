@@ -4,13 +4,13 @@ use crate::moves::*;
 use crate::piece::{Piece, Type::*};
 use crate::player::{next_player, Player, Player::*};
 
-pub fn is_in_check<const N: usize, const M: usize>(board: &Board<N, M>, player: Player) -> bool {
+pub fn is_in_check<const W: usize, const H: usize>(board: &Board<W, H>, player: Player) -> bool {
     let king_coord = king_coord(board, player);
     is_under_attack(board, king_coord, player)
 }
 
-fn perft_impl<const N: usize, const M: usize>(
-    board: &Board<N, M>,
+fn perft_impl<const W: usize, const H: usize>(
+    board: &Board<W, H>,
     player: Player,
     depth: u64,
 ) -> u64 {
@@ -24,7 +24,7 @@ fn perft_impl<const N: usize, const M: usize>(
             continue;
         }
         let next_player = next_player(player);
-        if board[m.from].as_ref().unwrap().ty() == Pawn && (m.to.y == 0 || m.to.y == M as i8 - 1) {
+        if board[m.from].as_ref().unwrap().ty() == Pawn && (m.to.y == 0 || m.to.y == H as i8 - 1) {
             for ty in [Knight, Bishop, Rook] {
                 let mut promotion_copy = copy.clone();
                 promotion_copy.clear(m.to);
@@ -45,17 +45,17 @@ fn perft_impl<const N: usize, const M: usize>(
     sum
 }
 
-pub struct Position<const N: usize, const M: usize> {
-    pub board: Board<N, M>,
+pub struct Position<const W: usize, const H: usize> {
+    pub board: Board<W, H>,
     pub player: Player,
 }
 
-pub fn perft<const N: usize, const M: usize>(position: &Position<N, M>, depth: u64) -> u64 {
+pub fn perft<const W: usize, const H: usize>(position: &Position<W, H>, depth: u64) -> u64 {
     perft_impl(&position.board, position.player, depth)
 }
 
-fn perft_all_impl<const N: usize, const M: usize>(
-    board: &Board<N, M>,
+fn perft_all_impl<const W: usize, const H: usize>(
+    board: &Board<W, H>,
     player: Player,
     depth: u64,
 ) -> u64 {
@@ -79,7 +79,7 @@ fn perft_all_impl<const N: usize, const M: usize>(
     sum
 }
 
-pub fn perft_all<const N: usize, const M: usize>(position: &Position<N, M>, depth: u64) -> u64 {
+pub fn perft_all<const W: usize, const H: usize>(position: &Position<W, H>, depth: u64) -> u64 {
     perft_all_impl(&position.board, position.player, depth)
 }
 
