@@ -2,6 +2,7 @@ use crate::board::{Board, ExistingPieceResult, Move};
 use crate::coord::Coord;
 use crate::piece::{Piece, Type, Type::*};
 use crate::player::{Player, Player::*};
+use arrayvec::ArrayVec;
 
 fn add_move_if_result<const N: usize, const M: usize>(
     moves: &mut Vec<Coord>,
@@ -77,11 +78,11 @@ fn add_moves_for_leaper<const N: usize, const M: usize>(
     }
 }
 
-fn offsets(offset: Coord) -> Vec<Coord> {
+fn offsets(offset: Coord) -> ArrayVec<Coord, 8> {
     assert!(offset.x >= 0);
     assert!(offset.y >= 0);
     assert!(offset.x > 0 || offset.y > 0);
-    let mut ret = Vec::new();
+    let mut ret = ArrayVec::new();
     ret.push(Coord {
         x: offset.x,
         y: offset.y,
