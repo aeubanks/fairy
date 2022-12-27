@@ -748,18 +748,3 @@ pub fn king_coord<const N: usize, const M: usize>(board: &Board<N, M>, player: P
     }
     panic!()
 }
-
-// TODO: factor out coord visiting
-pub fn has_pawn<const N: usize, const M: usize>(board: &Board<N, M>) -> bool {
-    for y in 0..M as i8 {
-        for x in 0..N as i8 {
-            let coord = Coord::new(x, y);
-            if let Some(piece) = board[coord].as_ref() {
-                if piece.ty() == Pawn {
-                    return true;
-                }
-            }
-        }
-    }
-    false
-}
