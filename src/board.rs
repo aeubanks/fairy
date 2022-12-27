@@ -2,6 +2,7 @@ use crate::coord::Coord;
 use crate::piece::{Piece, Type, Type::*};
 use crate::player::{Player, Player::*};
 use rand::Rng;
+use static_assertions::const_assert_eq;
 use std::ops::Index;
 
 #[derive(Clone, PartialEq, Eq)]
@@ -32,6 +33,8 @@ impl<const N: usize, const M: usize> Default for Board<N, M> {
         }
     }
 }
+
+const_assert_eq!(79, std::mem::size_of::<Board<8, 8>>());
 
 impl<const N: usize, const M: usize> Board<N, M> {
     #[cfg(test)]
