@@ -142,7 +142,7 @@ fn test_rook() {
         add_moves_for_piece(
             &mut moves,
             &board,
-            &Piece::new(White, Rook),
+            Piece::new(White, Rook),
             Coord::new(1, 2),
         );
         assert_moves_eq(
@@ -164,7 +164,7 @@ fn test_rook() {
         add_moves_for_piece(
             &mut moves,
             &board,
-            &Piece::new(White, Rook),
+            Piece::new(White, Rook),
             Coord::new(1, 2),
         );
         assert_moves_eq(
@@ -182,7 +182,7 @@ fn test_bishop() {
         add_moves_for_piece(
             &mut moves,
             &board,
-            &Piece::new(White, Bishop),
+            Piece::new(White, Bishop),
             Coord::new(1, 2),
         );
         assert_moves_eq(
@@ -205,7 +205,7 @@ fn test_bishop() {
         add_moves_for_piece(
             &mut moves,
             &board,
-            &Piece::new(White, Bishop),
+            Piece::new(White, Bishop),
             Coord::new(1, 2),
         );
         assert_moves_eq(
@@ -229,7 +229,7 @@ fn test_knight() {
         add_moves_for_piece(
             &mut moves,
             &board,
-            &Piece::new(White, Knight),
+            Piece::new(White, Knight),
             Coord::new(2, 2),
         );
         assert_moves_eq(
@@ -251,7 +251,7 @@ fn test_knight() {
         add_moves_for_piece(
             &mut moves,
             &board,
-            &Piece::new(White, Knight),
+            Piece::new(White, Knight),
             Coord::new(0, 0),
         );
         assert_moves_eq(&[Coord::new(1, 2), Coord::new(2, 1)], moves);
@@ -263,7 +263,7 @@ fn test_knight() {
         add_moves_for_piece(
             &mut moves,
             &board,
-            &Piece::new(White, Knight),
+            Piece::new(White, Knight),
             Coord::new(2, 2),
         );
         assert_moves_eq(
@@ -383,7 +383,7 @@ fn test_king() {
         add_moves_for_piece(
             &mut moves,
             &board,
-            &Piece::new(White, King),
+            Piece::new(White, King),
             Coord::new(2, 2),
         );
         assert_moves_eq(
@@ -406,7 +406,7 @@ fn test_king() {
         add_moves_for_piece(
             &mut moves,
             &board,
-            &Piece::new(White, King),
+            Piece::new(White, King),
             Coord::new(5, 4),
         );
         assert_moves_eq(
@@ -422,7 +422,7 @@ fn test_king() {
         add_moves_for_piece(
             &mut moves,
             &board,
-            &Piece::new(White, King),
+            Piece::new(White, King),
             Coord::new(2, 2),
         );
         assert_moves_eq(
@@ -787,7 +787,7 @@ fn test_pawn() {
 fn add_moves_for_piece<const N: usize, const M: usize>(
     moves: &mut Vec<Coord>,
     board: &Board<N, M>,
-    piece: &Piece,
+    piece: Piece,
     coord: Coord,
 ) {
     match piece.ty() {
@@ -816,7 +816,7 @@ pub fn all_moves<const N: usize, const M: usize>(board: &Board<N, M>, player: Pl
                 if piece.player() == player {
                     let coord = (x, y).into();
                     let mut piece_moves = Vec::new();
-                    add_moves_for_piece(&mut piece_moves, board, piece, coord);
+                    add_moves_for_piece(&mut piece_moves, board, *piece, coord);
                     moves.append(
                         &mut piece_moves
                             .iter()
@@ -1105,7 +1105,7 @@ fn add_moves_for_leaper_to_end_at_board_no_captures<const N: usize, const M: usi
 fn add_moves_for_piece_to_end_at_board_no_captures<const N: usize, const M: usize>(
     moves: &mut Vec<Coord>,
     board: &Board<N, M>,
-    piece: &Piece,
+    piece: Piece,
     coord: Coord,
 ) {
     match piece.ty() {
@@ -1131,7 +1131,7 @@ fn test_add_moves_for_piece_to_end_at_board_no_captures() {
         add_moves_for_piece_to_end_at_board_no_captures(
             &mut moves,
             &board,
-            &Piece::new(White, Rook),
+            Piece::new(White, Rook),
             Coord::new(1, 1),
         );
         assert_moves_eq(
@@ -1152,7 +1152,7 @@ fn test_add_moves_for_piece_to_end_at_board_no_captures() {
         add_moves_for_piece_to_end_at_board_no_captures(
             &mut moves,
             &board,
-            &Piece::new(White, Knight),
+            Piece::new(White, Knight),
             Coord::new(1, 1),
         );
         assert_moves_eq(&[Coord::new(3, 0), Coord::new(0, 3)], moves);
@@ -1176,7 +1176,7 @@ pub fn all_moves_to_end_at_board_no_captures<const N: usize, const M: usize>(
                 add_moves_for_piece_to_end_at_board_no_captures(
                     &mut piece_moves,
                     board,
-                    piece,
+                    *piece,
                     coord,
                 );
                 moves.append(

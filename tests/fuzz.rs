@@ -6,7 +6,7 @@ use fairy::piece::{Piece, Type, Type::*};
 use fairy::player::{next_player, Player, Player::*};
 use rand::{thread_rng, Rng};
 
-fn valid_piece_for_coord(piece: &Piece, coord: Coord, height: i8) -> bool {
+fn valid_piece_for_coord(piece: Piece, coord: Coord, height: i8) -> bool {
     match piece.ty() {
         Pawn => coord.y != 0 && coord.y != height - 1,
         _ => true,
@@ -23,7 +23,7 @@ fn add_piece_to_rand_coord<R: Rng + ?Sized, const N: usize, const M: usize>(
         if board[coord].is_some() {
             continue;
         }
-        if !valid_piece_for_coord(&piece, coord, M as i8) {
+        if !valid_piece_for_coord(piece, coord, M as i8) {
             continue;
         }
         board.add_piece(coord, piece);
