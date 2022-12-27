@@ -383,6 +383,8 @@ fn hash<const N: usize, const M: usize>(board: &Board<N, M>, has_pawn: bool) -> 
 fn test_hash() {
     let wk = Piece::new(White, King);
     let bk = Piece::new(Black, King);
+    let wp = Piece::new(White, Pawn);
+    let bp = Piece::new(Black, Pawn);
     let board1 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
     let board2 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
 
@@ -440,6 +442,34 @@ fn test_hash() {
     assert_hash_ne(
         &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
         &Board::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
+    );
+    assert_hash_eq(
+        &Board::<8, 8>::with_pieces(&[
+            (Coord::new(1, 0), wk),
+            (Coord::new(1, 1), wp),
+            (Coord::new(1, 7), bk),
+            (Coord::new(1, 6), bp),
+        ]),
+        &Board::<8, 8>::with_pieces(&[
+            (Coord::new(6, 0), wk),
+            (Coord::new(6, 1), wp),
+            (Coord::new(6, 7), bk),
+            (Coord::new(6, 6), bp),
+        ]),
+    );
+    assert_hash_ne(
+        &Board::<8, 8>::with_pieces(&[
+            (Coord::new(1, 0), wk),
+            (Coord::new(1, 1), wp),
+            (Coord::new(1, 7), bk),
+            (Coord::new(1, 6), bp),
+        ]),
+        &Board::<8, 8>::with_pieces(&[
+            (Coord::new(1, 7), wk),
+            (Coord::new(1, 6), wp),
+            (Coord::new(1, 0), bk),
+            (Coord::new(1, 1), bp),
+        ]),
     );
 }
 
