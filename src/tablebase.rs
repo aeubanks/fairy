@@ -193,6 +193,7 @@ impl<const W: usize, const H: usize> Tablebase<W, H> {
     }
     fn white_add_impl(&mut self, board: &Board<W, H>, m: Move, depth: u16, has_pawn: bool) {
         let (hash, sym) = hash(board, has_pawn);
+        debug_assert!(!self.white_tablebase.contains_key(&hash));
         self.white_tablebase
             .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
     }
@@ -206,6 +207,7 @@ impl<const W: usize, const H: usize> Tablebase<W, H> {
     }
     fn black_add_impl(&mut self, board: &Board<W, H>, m: Move, depth: u16, has_pawn: bool) {
         let (hash, sym) = hash(board, has_pawn);
+        debug_assert!(!self.black_tablebase.contains_key(&hash));
         self.black_tablebase
             .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
     }
@@ -492,28 +494,32 @@ fn populate_initial_wins<const W: usize, const H: usize>(
     let mut ret = Vec::new();
     for b in boards {
         // white can capture black's king
-        let opponent_king_coord = king_coord(b, Black);
-        if is_under_attack(b, opponent_king_coord, Black) {
-            let all_moves = all_moves(b, White);
-            let m = all_moves
-                .into_iter()
-                .find(|m| m.to == opponent_king_coord)
-                .unwrap();
-            tablebase.white_add_impl(b, m, 1, has_pawn);
-            ret.push(b.clone());
+        if !tablebase.white_contains_impl(b, has_pawn) {
+            let opponent_king_coord = king_coord(b, Black);
+            if is_under_attack(b, opponent_king_coord, Black) {
+                let all_moves = all_moves(b, White);
+                let m = all_moves
+                    .into_iter()
+                    .find(|m| m.to == opponent_king_coord)
+                    .unwrap();
+                tablebase.white_add_impl(b, m, 1, has_pawn);
+                ret.push(b.clone());
+            }
         }
-        // stalemate is a win
-        if all_moves(b, Black).is_empty() {
-            tablebase.black_add_impl(
-                b,
-                // arbitrary move
-                Move {
-                    from: Coord::new(0, 0),
-                    to: Coord::new(0, 0),
-                },
-                0,
-                has_pawn,
-            );
+        if !tablebase.black_contains_impl(b, has_pawn) {
+            // stalemate is a win
+            if all_moves(b, Black).is_empty() {
+                tablebase.black_add_impl(
+                    b,
+                    // arbitrary move
+                    Move {
+                        from: Coord::new(0, 0),
+                        to: Coord::new(0, 0),
+                    },
+                    0,
+                    has_pawn,
+                );
+            }
         }
     }
     ret
