@@ -1,9 +1,9 @@
-use crate::board::{king_coord, Board, Move};
+use crate::board::{king_coord, Board, ExistingPieceResult, Move};
 use crate::coord::Coord;
-use crate::moves::{all_moves, is_under_attack};
+use crate::moves::{all_moves, all_moves_to_end_at_board_no_captures, is_under_attack};
 use crate::piece::Piece;
 use crate::piece::Type::*;
-use crate::player::Player::*;
+use crate::player::{Player, Player::*};
 use arrayvec::ArrayVec;
 use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
@@ -529,7 +529,8 @@ fn populate_initial_wins<const N: usize, const M: usize>(
     tablebase: &mut Tablebase,
     boards: &[Board<N, M>],
     has_pawn: bool,
-) {
+) -> Vec<Board<N, M>> {
+    let mut ret = Vec::new();
     for b in boards {
         // white can capture black's king
         let opponent_king_coord = king_coord(b, Black);
@@ -540,6 +541,7 @@ fn populate_initial_wins<const N: usize, const M: usize>(
                 .find(|m| m.to == opponent_king_coord)
                 .unwrap();
             tablebase.white_add_impl(b, m, 1, has_pawn);
+            ret.push(b.clone());
         }
         // stalemate is a win
         if all_moves(b, Black).is_empty() {
@@ -555,6 +557,7 @@ fn populate_initial_wins<const N: usize, const M: usize>(
             );
         }
     }
+    ret
 }
 
 #[test]
@@ -570,7 +573,10 @@ fn test_populate_initial_tablebases() {
             (Coord::new(0, 2), Piece::new(Black, King)),
         ]),
     ];
-    populate_initial_wins(&mut tablebase, &boards, false);
+    assert_eq!(
+        populate_initial_wins(&mut tablebase, &boards, false).len(),
+        1
+    );
     assert_eq!(
         tablebase.white_result(&boards[0]),
         Some((
@@ -623,8 +629,8 @@ fn iterate_black<const N: usize, const M: usize>(
     tablebase: &mut Tablebase,
     boards: &[Board<N, M>],
     has_pawn: bool,
-) -> bool {
-    let mut made_progress = false;
+) -> Vec<Board<N, M>> {
+    let mut next_boards = Vec::new();
     for b in boards {
         if tablebase.black_contains_impl(b, has_pawn) {
             continue;
@@ -665,10 +671,10 @@ fn iterate_black<const N: usize, const M: usize>(
         }
         if let Some(max_depth) = max_depth {
             tablebase.black_add_impl(b, best_move.unwrap(), max_depth + 1, has_pawn);
-            made_progress = true;
+            next_boards.push(b.clone());
         }
     }
-    made_progress
+    next_boards
 }
 
 #[test]
@@ -686,7 +692,7 @@ fn test_iterate_black() {
         1,
         false,
     );
-    assert!(!iterate_black(&mut tablebase, &[board.clone()], false));
+    assert!(iterate_black(&mut tablebase, &[board.clone()], false).is_empty());
     assert!(tablebase.black_tablebase.is_empty());
     tablebase.white_add_impl(
         &Board::<4, 1>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(3, 0), bk)]),
@@ -697,7 +703,10 @@ fn test_iterate_black() {
         3,
         false,
     );
-    assert!(iterate_black(&mut tablebase, &[board.clone()], false));
+    assert_eq!(
+        iterate_black(&mut tablebase, &[board.clone()], false).len(),
+        1
+    );
     assert_eq!(
         tablebase.black_result(&board),
         Some((
@@ -714,8 +723,8 @@ fn iterate_white<const N: usize, const M: usize>(
     tablebase: &mut Tablebase,
     boards: &[Board<N, M>],
     has_pawn: bool,
-) -> bool {
-    let mut made_progress = false;
+) -> Vec<Board<N, M>> {
+    let mut next_boards = Vec::new();
     for b in boards {
         if tablebase.white_contains_impl(b, has_pawn) {
             continue;
@@ -753,10 +762,10 @@ fn iterate_white<const N: usize, const M: usize>(
         }
         if let Some(min_depth) = min_depth {
             tablebase.white_add_impl(b, best_move.unwrap(), min_depth + 1, has_pawn);
-            made_progress = true;
+            next_boards.push(b.clone());
         }
     }
-    made_progress
+    next_boards
 }
 
 #[test]
@@ -765,7 +774,7 @@ fn test_iterate_white() {
     let bk = Piece::new(Black, King);
     let board = Board::<5, 1>::with_pieces(&[(Coord::new(1, 0), wk), (Coord::new(4, 0), bk)]);
     let mut tablebase = Tablebase::default();
-    assert!(!iterate_white(&mut tablebase, &[board.clone()], false));
+    assert!(iterate_white(&mut tablebase, &[board.clone()], false).is_empty());
     assert!(tablebase.white_tablebase.is_empty());
 
     tablebase.black_add_impl(
@@ -777,7 +786,10 @@ fn test_iterate_white() {
         2,
         false,
     );
-    assert!(iterate_white(&mut tablebase, &[board.clone()], false));
+    assert_eq!(
+        iterate_white(&mut tablebase, &[board.clone()], false).len(),
+        1
+    );
     assert_eq!(
         tablebase.white_result(&board),
         Some((
@@ -798,7 +810,10 @@ fn test_iterate_white() {
         4,
         false,
     );
-    assert!(iterate_white(&mut tablebase, &[board.clone()], false));
+    assert_eq!(
+        iterate_white(&mut tablebase, &[board.clone()], false).len(),
+        1
+    );
     assert_eq!(
         tablebase.white_result(&board),
         Some((
@@ -826,21 +841,49 @@ fn verify_piece_set(pieces: &[Piece]) {
     assert_eq!(bk_count, 1);
 }
 
+fn reachable_positions<const N: usize, const M: usize>(
+    boards: &[Board<N, M>],
+    player: Player,
+) -> Vec<Board<N, M>> {
+    let mut ret = Vec::new();
+    for board in boards {
+        for m in all_moves_to_end_at_board_no_captures(board, player) {
+            assert_eq!(
+                board.existing_piece_result(m.from, player),
+                ExistingPieceResult::Empty
+            );
+            assert_eq!(
+                board.existing_piece_result(m.to, player),
+                ExistingPieceResult::Friend
+            );
+            let mut clone = board.clone();
+            clone.swap(m.from, m.to);
+            ret.push(clone);
+        }
+    }
+    ret
+}
+
 pub fn generate_tablebase<const N: usize, const M: usize>(piece_sets: &[&[Piece]]) -> Tablebase {
     let mut tablebase = Tablebase::default();
 
     for set in piece_sets {
         let has_pawn = set.iter().any(|p| p.ty() == Pawn);
         verify_piece_set(set);
-        let all = generate_all_boards::<N, M>(set);
-        populate_initial_wins(&mut tablebase, &all, has_pawn);
+        let mut boards_to_check = generate_all_boards::<N, M>(set);
+        boards_to_check = populate_initial_wins(&mut tablebase, &boards_to_check, has_pawn);
         loop {
-            if !iterate_black(&mut tablebase, &all, has_pawn) {
+            boards_to_check = iterate_black(&mut tablebase, &boards_to_check, has_pawn);
+            if boards_to_check.is_empty() {
                 break;
             }
-            if !iterate_white(&mut tablebase, &all, has_pawn) {
+            boards_to_check = reachable_positions(&boards_to_check, White);
+
+            boards_to_check = iterate_white(&mut tablebase, &boards_to_check, has_pawn);
+            if boards_to_check.is_empty() {
                 break;
             }
+            boards_to_check = reachable_positions(&boards_to_check, Black);
         }
     }
     tablebase

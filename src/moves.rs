@@ -806,6 +806,7 @@ fn add_moves_for_piece<const N: usize, const M: usize>(
     }
 }
 
+#[must_use]
 pub fn all_moves<const N: usize, const M: usize>(board: &Board<N, M>, player: Player) -> Vec<Move> {
     let mut moves = Vec::new();
 
@@ -1070,4 +1071,125 @@ fn test_under_attack() {
         assert!(!is_under_attack(&board, Coord::new(1, 0), Black));
         assert!(!is_under_attack(&board, Coord::new(2, 0), Black));
     }
+}
+
+fn add_moves_for_rider_to_end_at_board_no_captures<const N: usize, const M: usize>(
+    moves: &mut Vec<Coord>,
+    board: &Board<N, M>,
+    coord: Coord,
+    rider_offset: Coord,
+) {
+    for offset in offsets(rider_offset) {
+        let mut try_coord = coord + offset;
+        while board.in_bounds(try_coord) && board[try_coord].is_none() {
+            moves.push(try_coord);
+            try_coord = try_coord + offset;
+        }
+    }
+}
+
+fn add_moves_for_leaper_to_end_at_board_no_captures<const N: usize, const M: usize>(
+    moves: &mut Vec<Coord>,
+    board: &Board<N, M>,
+    coord: Coord,
+    offset: Coord,
+) {
+    for offset in offsets(offset) {
+        let try_coord = coord + offset;
+        if board.in_bounds(try_coord) && board[try_coord].is_none() {
+            moves.push(try_coord);
+        }
+    }
+}
+
+fn add_moves_for_piece_to_end_at_board_no_captures<const N: usize, const M: usize>(
+    moves: &mut Vec<Coord>,
+    board: &Board<N, M>,
+    piece: &Piece,
+    coord: Coord,
+) {
+    match piece.ty() {
+        Pawn => todo!(),
+        ty => {
+            for l in ty.leaper_offsets() {
+                add_moves_for_leaper_to_end_at_board_no_captures(moves, board, coord, l);
+            }
+            for r in ty.rider_offsets() {
+                add_moves_for_rider_to_end_at_board_no_captures(moves, board, coord, r);
+            }
+        }
+    }
+}
+
+#[test]
+fn test_add_moves_for_piece_to_end_at_board_no_captures() {
+    {
+        let mut moves = Vec::new();
+        let mut board = Board::<4, 4>::default();
+        board.add_piece(Coord::new(3, 1), Piece::new(White, Bishop));
+        board.add_piece(Coord::new(1, 3), Piece::new(Black, Bishop));
+        add_moves_for_piece_to_end_at_board_no_captures(
+            &mut moves,
+            &board,
+            &Piece::new(White, Rook),
+            Coord::new(1, 1),
+        );
+        assert_moves_eq(
+            &[
+                Coord::new(1, 0),
+                Coord::new(0, 1),
+                Coord::new(2, 1),
+                Coord::new(1, 2),
+            ],
+            moves,
+        );
+    }
+    {
+        let mut moves = Vec::new();
+        let mut board = Board::<4, 4>::default();
+        board.add_piece(Coord::new(3, 2), Piece::new(White, Bishop));
+        board.add_piece(Coord::new(2, 3), Piece::new(Black, Bishop));
+        add_moves_for_piece_to_end_at_board_no_captures(
+            &mut moves,
+            &board,
+            &Piece::new(White, Knight),
+            Coord::new(1, 1),
+        );
+        assert_moves_eq(&[Coord::new(3, 0), Coord::new(0, 3)], moves);
+    }
+}
+
+#[must_use]
+pub fn all_moves_to_end_at_board_no_captures<const N: usize, const M: usize>(
+    board: &Board<N, M>,
+    player: Player,
+) -> Vec<Move> {
+    let mut moves = Vec::new();
+    for y in 0..M as i8 {
+        for x in 0..N as i8 {
+            let coord = Coord::new(x, y);
+            if let Some(piece) = board[coord].as_ref() {
+                if piece.player() != player {
+                    continue;
+                }
+                let mut piece_moves = Vec::new();
+                add_moves_for_piece_to_end_at_board_no_captures(
+                    &mut piece_moves,
+                    board,
+                    piece,
+                    coord,
+                );
+                moves.append(
+                    &mut piece_moves
+                        .iter()
+                        .map(|c| Move {
+                            from: *c,
+                            to: coord,
+                        })
+                        .collect(),
+                );
+            }
+        }
+    }
+    moves
 }

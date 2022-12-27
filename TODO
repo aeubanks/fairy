@@ -6,6 +6,5 @@ tablebase
   pack board pieces
   use single int for coord
   figure out why including symmetry is slower
-  only look at moves that can reach previous set of added moves
   investigate caching king position/pawn existence (reference counting?)
   

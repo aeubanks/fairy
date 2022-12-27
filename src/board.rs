@@ -12,7 +12,7 @@ pub struct Board<const N: usize, const M: usize> {
     pub last_pawn_double_move: Option<Coord>,
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum ExistingPieceResult {
     Empty,
     Friend,
