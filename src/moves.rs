@@ -1,6 +1,6 @@
 use crate::board::{Board, ExistingPieceResult, Move};
 use crate::coord::Coord;
-use crate::piece::{Piece, Type, Type::*};
+use crate::piece::{Piece, Type::*};
 use crate::player::{Player, Player::*};
 use arrayvec::ArrayVec;
 
@@ -840,12 +840,12 @@ fn enemy_piece_rider<const W: usize, const H: usize>(
     coord: Coord,
     offset: Coord,
     player: Player,
-) -> Option<Type> {
+) -> Option<Coord> {
     let mut try_coord = coord + offset;
     while board.in_bounds(try_coord) {
         if let Some(p) = board[try_coord].as_ref() {
             if p.player() != player {
-                return Some(p.ty());
+                return Some(try_coord);
             } else {
                 return None;
             }
@@ -860,12 +860,12 @@ fn enemy_piece_leaper<const W: usize, const H: usize>(
     coord: Coord,
     offset: Coord,
     player: Player,
-) -> Option<Type> {
+) -> Option<Coord> {
     let try_coord = coord + offset;
     if board.in_bounds(try_coord) {
         if let Some(p) = board[try_coord].as_ref() {
             if p.player() != player {
-                return Some(p.ty());
+                return Some(try_coord);
             } else {
                 return None;
             }
@@ -879,41 +879,54 @@ pub fn is_under_attack<const W: usize, const H: usize>(
     coord: Coord,
     player: Player,
 ) -> bool {
+    under_attack_from_coord(board, coord, player).is_some()
+}
+
+pub fn under_attack_from_coord<const W: usize, const H: usize>(
+    board: &Board<W, H>,
+    coord: Coord,
+    player: Player,
+) -> Option<Coord> {
     if let Some(p) = board[coord].as_ref() {
         assert_eq!(p.player(), player);
     }
     for o in offsets(Coord::new(1, 0)) {
-        if let Some(ty) = enemy_piece_rider(board, coord, o, player) {
+        if let Some(c) = enemy_piece_rider(board, coord, o, player) {
+            let ty = board[c].unwrap().ty();
             if ty != Pawn && ty.rider_offsets().contains(&Coord::new(1, 0)) {
-                return true;
+                return Some(c);
             }
         }
     }
     for o in offsets(Coord::new(1, 1)) {
-        if let Some(ty) = enemy_piece_rider(board, coord, o, player) {
+        if let Some(c) = enemy_piece_rider(board, coord, o, player) {
+            let ty = board[c].unwrap().ty();
             if ty != Pawn && ty.rider_offsets().contains(&Coord::new(1, 1)) {
-                return true;
+                return Some(c);
             }
         }
     }
     for o in offsets(Coord::new(2, 1)) {
-        if let Some(ty) = enemy_piece_leaper(board, coord, o, player) {
+        if let Some(c) = enemy_piece_leaper(board, coord, o, player) {
+            let ty = board[c].unwrap().ty();
             if ty != Pawn && ty.leaper_offsets().contains(&Coord::new(2, 1)) {
-                return true;
+                return Some(c);
             }
         }
     }
     for o in offsets(Coord::new(1, 1)) {
-        if let Some(ty) = enemy_piece_leaper(board, coord, o, player) {
+        if let Some(c) = enemy_piece_leaper(board, coord, o, player) {
+            let ty = board[c].unwrap().ty();
             if ty != Pawn && ty.leaper_offsets().contains(&Coord::new(1, 1)) {
-                return true;
+                return Some(c);
             }
         }
     }
     for o in offsets(Coord::new(1, 0)) {
-        if let Some(ty) = enemy_piece_leaper(board, coord, o, player) {
+        if let Some(c) = enemy_piece_leaper(board, coord, o, player) {
+            let ty = board[c].unwrap().ty();
             if ty != Pawn && ty.leaper_offsets().contains(&Coord::new(1, 0)) {
-                return true;
+                return Some(c);
             }
         }
     }
@@ -930,19 +943,19 @@ pub fn is_under_attack<const W: usize, const H: usize>(
         false
     }
     if player == White {
-        if has_enemy_pawn(board, coord + Coord::new(1, 1), player)
-            || has_enemy_pawn(board, coord + Coord::new(-1, 1), player)
-        {
-            return true;
+        for try_coord in [coord + Coord::new(1, 1), coord + Coord::new(-1, 1)] {
+            if has_enemy_pawn(board, try_coord, player) {
+                return Some(try_coord);
+            }
         }
     } else {
-        if has_enemy_pawn(board, coord + Coord::new(1, -1), player)
-            || has_enemy_pawn(board, coord + Coord::new(-1, -1), player)
-        {
-            return true;
+        for try_coord in [coord + Coord::new(1, -1), coord + Coord::new(-1, -1)] {
+            if has_enemy_pawn(board, try_coord, player) {
+                return Some(try_coord);
+            }
         }
     }
-    false
+    None
 }
 
 #[test]
@@ -954,123 +967,390 @@ fn test_under_attack() {
             (Coord::new(0, 3), Piece::new(Black, Pawn)),
             (Coord::new(7, 7), Piece::new(Black, Rook)),
         ]);
-        assert!(is_under_attack(&board, Coord::new(6, 7), White));
-        assert!(is_under_attack(&board, Coord::new(5, 7), White));
-        assert!(!is_under_attack(&board, Coord::new(1, 0), White));
-        assert!(!is_under_attack(&board, Coord::new(0, 0), White));
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(6, 7), White),
+            Some(Coord::new(7, 7))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(5, 7), White),
+            Some(Coord::new(7, 7))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 0), White),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 0), White),
+            None
+        );
 
-        assert!(is_under_attack(&board, Coord::new(1, 0), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 0), Black));
-        assert!(!is_under_attack(&board, Coord::new(4, 0), Black));
-        assert!(is_under_attack(&board, Coord::new(0, 1), Black));
-        assert!(is_under_attack(&board, Coord::new(0, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(0, 3), Black));
-        assert!(!is_under_attack(&board, Coord::new(0, 4), Black));
-        assert!(!is_under_attack(&board, Coord::new(6, 7), Black));
-        assert!(!is_under_attack(&board, Coord::new(7, 7), Black));
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 0), Black),
+            Some(Coord::new(0, 0))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 0), Black),
+            Some(Coord::new(0, 0))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(4, 0), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 1), Black),
+            Some(Coord::new(0, 0))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 2), Black),
+            Some(Coord::new(0, 0))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 3), Black),
+            Some(Coord::new(0, 0))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 4), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(6, 7), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(7, 7), Black),
+            None
+        );
     }
     {
         let board = Board::<8, 8>::with_pieces(&[(Coord::new(1, 1), Piece::new(White, Bishop))]);
-        assert!(is_under_attack(&board, Coord::new(0, 0), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(3, 3), Black));
-        assert!(is_under_attack(&board, Coord::new(0, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 0), Black));
-        assert!(!is_under_attack(&board, Coord::new(1, 0), Black));
-        assert!(!is_under_attack(&board, Coord::new(0, 1), Black));
-        assert!(!is_under_attack(&board, Coord::new(1, 2), Black));
-        assert!(!is_under_attack(&board, Coord::new(2, 1), Black));
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 0), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 2), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(3, 3), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 2), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 0), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 0), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 1), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 2), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 1), Black),
+            None
+        );
     }
     {
         let board =
             Board::<8, 8>::with_pieces(&[(Coord::new(3, 3), Piece::new(White, Archbishop))]);
-        assert!(is_under_attack(&board, Coord::new(1, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(1, 4), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 1), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 5), Black));
-        assert!(is_under_attack(&board, Coord::new(4, 1), Black));
-        assert!(is_under_attack(&board, Coord::new(4, 5), Black));
-        assert!(is_under_attack(&board, Coord::new(5, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(5, 4), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(1, 1), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 4), Black));
-        assert!(is_under_attack(&board, Coord::new(4, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(4, 4), Black));
-        assert!(!is_under_attack(&board, Coord::new(2, 3), Black));
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 2), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 4), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 1), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 5), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(4, 1), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(4, 5), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(5, 2), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(5, 4), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 2), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 1), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 4), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(4, 2), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(4, 4), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 3), Black),
+            None
+        );
     }
     {
         let board =
             Board::<8, 8>::with_pieces(&[(Coord::new(3, 3), Piece::new(White, Chancellor))]);
-        assert!(is_under_attack(&board, Coord::new(1, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(1, 4), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 1), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 5), Black));
-        assert!(is_under_attack(&board, Coord::new(4, 1), Black));
-        assert!(is_under_attack(&board, Coord::new(4, 5), Black));
-        assert!(is_under_attack(&board, Coord::new(5, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(5, 4), Black));
-        assert!(is_under_attack(&board, Coord::new(3, 4), Black));
-        assert!(is_under_attack(&board, Coord::new(3, 5), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 3), Black));
-        assert!(is_under_attack(&board, Coord::new(4, 3), Black));
-        assert!(is_under_attack(&board, Coord::new(3, 2), Black));
-        assert!(!is_under_attack(&board, Coord::new(2, 2), Black));
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 2), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 4), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 1), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 5), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(4, 1), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(4, 5), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(5, 2), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(5, 4), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(3, 4), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(3, 5), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 3), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(4, 3), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(3, 2), Black),
+            Some(Coord::new(3, 3))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 2), Black),
+            None
+        );
     }
     {
         let board = Board::<8, 8>::with_pieces(&[(Coord::new(1, 1), Piece::new(White, Queen))]);
-        assert!(is_under_attack(&board, Coord::new(0, 0), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(3, 3), Black));
-        assert!(is_under_attack(&board, Coord::new(0, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 0), Black));
-        assert!(is_under_attack(&board, Coord::new(1, 0), Black));
-        assert!(is_under_attack(&board, Coord::new(0, 1), Black));
-        assert!(is_under_attack(&board, Coord::new(1, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(1, 3), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 1), Black));
-        assert!(!is_under_attack(&board, Coord::new(2, 3), Black));
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 0), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 2), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(3, 3), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 2), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 0), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 0), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 1), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 2), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 3), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 1), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 3), Black),
+            None
+        );
     }
     {
         let board = Board::<8, 8>::with_pieces(&[(Coord::new(1, 1), Piece::new(White, King))]);
-        assert!(is_under_attack(&board, Coord::new(0, 0), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 2), Black));
-        assert!(!is_under_attack(&board, Coord::new(3, 3), Black));
-        assert!(is_under_attack(&board, Coord::new(0, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 0), Black));
-        assert!(is_under_attack(&board, Coord::new(1, 0), Black));
-        assert!(is_under_attack(&board, Coord::new(0, 1), Black));
-        assert!(is_under_attack(&board, Coord::new(1, 2), Black));
-        assert!(!is_under_attack(&board, Coord::new(1, 3), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 1), Black));
-        assert!(!is_under_attack(&board, Coord::new(2, 3), Black));
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 0), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 2), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(3, 3), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 2), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 0), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 0), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 1), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 2), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 3), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 1), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 3), Black),
+            None
+        );
     }
     {
         let board = Board::<8, 8>::with_pieces(&[(Coord::new(1, 1), Piece::new(White, Knight))]);
-        assert!(is_under_attack(&board, Coord::new(0, 3), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 3), Black));
-        assert!(!is_under_attack(&board, Coord::new(3, 5), Black));
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 3), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 3), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(3, 5), Black),
+            None
+        );
     }
     {
         let board = Board::<8, 8>::with_pieces(&[
             (Coord::new(1, 1), Piece::new(White, Pawn)),
             (Coord::new(6, 6), Piece::new(Black, Pawn)),
         ]);
-        assert!(is_under_attack(&board, Coord::new(5, 5), White));
-        assert!(is_under_attack(&board, Coord::new(7, 5), White));
-        assert!(!is_under_attack(&board, Coord::new(6, 5), White));
-        assert!(!is_under_attack(&board, Coord::new(6, 4), White));
-        assert!(!is_under_attack(&board, Coord::new(5, 7), White));
-        assert!(!is_under_attack(&board, Coord::new(6, 7), White));
-        assert!(!is_under_attack(&board, Coord::new(7, 7), White));
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(5, 5), White),
+            Some(Coord::new(6, 6))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(7, 5), White),
+            Some(Coord::new(6, 6))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(6, 5), White),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(6, 4), White),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(5, 7), White),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(6, 7), White),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(7, 7), White),
+            None
+        );
 
-        assert!(is_under_attack(&board, Coord::new(0, 2), Black));
-        assert!(is_under_attack(&board, Coord::new(2, 2), Black));
-        assert!(!is_under_attack(&board, Coord::new(1, 2), Black));
-        assert!(!is_under_attack(&board, Coord::new(1, 3), Black));
-        assert!(!is_under_attack(&board, Coord::new(0, 0), Black));
-        assert!(!is_under_attack(&board, Coord::new(1, 0), Black));
-        assert!(!is_under_attack(&board, Coord::new(2, 0), Black));
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 2), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 2), Black),
+            Some(Coord::new(1, 1))
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 2), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 3), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(0, 0), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(1, 0), Black),
+            None
+        );
+        assert_eq!(
+            under_attack_from_coord(&board, Coord::new(2, 0), Black),
+            None
+        );
     }
 }
 

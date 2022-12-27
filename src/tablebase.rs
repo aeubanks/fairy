@@ -1,6 +1,6 @@
 use crate::board::{king_coord, Board, ExistingPieceResult, Move};
 use crate::coord::Coord;
-use crate::moves::{all_moves, all_moves_to_end_at_board_no_captures, is_under_attack};
+use crate::moves::{all_moves, all_moves_to_end_at_board_no_captures, under_attack_from_coord};
 use crate::piece::Piece;
 use crate::piece::Type::*;
 use crate::player::{Player, Player::*};
@@ -496,13 +496,16 @@ fn populate_initial_wins<const W: usize, const H: usize>(
         // white can capture black's king
         if !tablebase.white_contains_impl(b, has_pawn) {
             let opponent_king_coord = king_coord(b, Black);
-            if is_under_attack(b, opponent_king_coord, Black) {
-                let all_moves = all_moves(b, White);
-                let m = all_moves
-                    .into_iter()
-                    .find(|m| m.to == opponent_king_coord)
-                    .unwrap();
-                tablebase.white_add_impl(b, m, 1, has_pawn);
+            if let Some(c) = under_attack_from_coord(b, opponent_king_coord, Black) {
+                tablebase.white_add_impl(
+                    b,
+                    Move {
+                        from: c,
+                        to: opponent_king_coord,
+                    },
+                    1,
+                    has_pawn,
+                );
                 ret.push(b.clone());
             }
         }
@@ -865,7 +868,7 @@ fn test_generate_king_king_tablebase() {
         assert!(tablebase.black_tablebase.is_empty());
         let all = generate_all_boards::<W, H>(&pieces);
         for b in all {
-            if is_under_attack(&b, king_coord(&b, Black), Black) {
+            if crate::moves::is_under_attack(&b, king_coord(&b, Black), Black) {
                 assert_eq!(tablebase.white_depth_impl(&b, false), Some(1));
             } else {
                 assert_eq!(tablebase.white_depth_impl(&b, false), None);
