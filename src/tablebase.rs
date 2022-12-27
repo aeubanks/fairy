@@ -169,84 +169,50 @@ fn test_flip_move() {
 type MapTy = HashMap<u64, (Move, u16)>;
 
 #[derive(Default)]
-pub struct Tablebase {
+pub struct Tablebase<const N: usize, const M: usize> {
     // table of best move to play on white's turn to force a win
     white_tablebase: MapTy,
     // table of best move to play on black's turn to prolong a loss
     black_tablebase: MapTy,
 }
 
-impl Tablebase {
-    pub fn white_result<const N: usize, const M: usize>(
-        &self,
-        board: &Board<N, M>,
-    ) -> Option<(Move, u16)> {
+impl<const N: usize, const M: usize> Tablebase<N, M> {
+    pub fn white_result(&self, board: &Board<N, M>) -> Option<(Move, u16)> {
         let has_pawn = board_has_pawn(board);
         let (hash, sym) = hash(board, has_pawn);
         self.white_tablebase
             .get(&hash)
             .map(|e| (unflip_move(e.0, sym, N as i8, M as i8), e.1))
     }
-    pub fn black_result<const N: usize, const M: usize>(
-        &self,
-        board: &Board<N, M>,
-    ) -> Option<(Move, u16)> {
+    pub fn black_result(&self, board: &Board<N, M>) -> Option<(Move, u16)> {
         let has_pawn = board_has_pawn(board);
         let (hash, sym) = hash(board, has_pawn);
         self.black_tablebase
             .get(&hash)
             .map(|e| (unflip_move(e.0, sym, N as i8, M as i8), e.1))
     }
-    fn white_add_impl<const N: usize, const M: usize>(
-        &mut self,
-        board: &Board<N, M>,
-        m: Move,
-        depth: u16,
-        has_pawn: bool,
-    ) {
+    fn white_add_impl(&mut self, board: &Board<N, M>, m: Move, depth: u16, has_pawn: bool) {
         let (hash, sym) = hash(board, has_pawn);
         self.white_tablebase
             .insert(hash, (flip_move(m, sym, N as i8, M as i8), depth));
     }
-    fn white_contains_impl<const N: usize, const M: usize>(
-        &self,
-        board: &Board<N, M>,
-        has_pawn: bool,
-    ) -> bool {
+    fn white_contains_impl(&self, board: &Board<N, M>, has_pawn: bool) -> bool {
         self.white_tablebase.contains_key(&hash(board, has_pawn).0)
     }
-    fn white_depth_impl<const N: usize, const M: usize>(
-        &self,
-        board: &Board<N, M>,
-        has_pawn: bool,
-    ) -> Option<u16> {
+    fn white_depth_impl(&self, board: &Board<N, M>, has_pawn: bool) -> Option<u16> {
         self.white_tablebase
             .get(&hash(board, has_pawn).0)
             .map(|e| e.1)
     }
-    fn black_add_impl<const N: usize, const M: usize>(
-        &mut self,
-        board: &Board<N, M>,
-        m: Move,
-        depth: u16,
-        has_pawn: bool,
-    ) {
+    fn black_add_impl(&mut self, board: &Board<N, M>, m: Move, depth: u16, has_pawn: bool) {
         let (hash, sym) = hash(board, has_pawn);
         self.black_tablebase
             .insert(hash, (flip_move(m, sym, N as i8, M as i8), depth));
     }
-    fn black_contains_impl<const N: usize, const M: usize>(
-        &self,
-        board: &Board<N, M>,
-        has_pawn: bool,
-    ) -> bool {
+    fn black_contains_impl(&self, board: &Board<N, M>, has_pawn: bool) -> bool {
         self.black_tablebase.contains_key(&hash(board, has_pawn).0)
     }
-    fn black_depth_impl<const N: usize, const M: usize>(
-        &self,
-        board: &Board<N, M>,
-        has_pawn: bool,
-    ) -> Option<u16> {
+    fn black_depth_impl(&self, board: &Board<N, M>, has_pawn: bool) -> Option<u16> {
         self.black_tablebase
             .get(&hash(board, has_pawn).0)
             .map(|e| e.1)
@@ -285,8 +251,6 @@ fn hash_one_board<const N: usize, const M: usize>(board: &Board<N, M>, sym: Symm
         o => o,
     });
     let mut hasher = DefaultHasher::new();
-    N.hash(&mut hasher);
-    M.hash(&mut hasher);
     for (c, p) in pieces {
         c.hash(&mut hasher);
         p.hash(&mut hasher);
@@ -521,7 +485,7 @@ fn test_generate_all_boards() {
 }
 
 fn populate_initial_wins<const N: usize, const M: usize>(
-    tablebase: &mut Tablebase,
+    tablebase: &mut Tablebase<N, M>,
     boards: &[Board<N, M>],
     has_pawn: bool,
 ) -> Vec<Board<N, M>> {
@@ -621,7 +585,7 @@ fn test_populate_initial_tablebases_stalemate() {
 }
 
 fn iterate_black<const N: usize, const M: usize>(
-    tablebase: &mut Tablebase,
+    tablebase: &mut Tablebase<N, M>,
     boards: &[Board<N, M>],
     has_pawn: bool,
 ) -> Vec<Board<N, M>> {
@@ -715,7 +679,7 @@ fn test_iterate_black() {
 }
 
 fn iterate_white<const N: usize, const M: usize>(
-    tablebase: &mut Tablebase,
+    tablebase: &mut Tablebase<N, M>,
     boards: &[Board<N, M>],
     has_pawn: bool,
 ) -> Vec<Board<N, M>> {
@@ -859,7 +823,9 @@ fn reachable_positions<const N: usize, const M: usize>(
     ret
 }
 
-pub fn generate_tablebase<const N: usize, const M: usize>(piece_sets: &[&[Piece]]) -> Tablebase {
+pub fn generate_tablebase<const N: usize, const M: usize>(
+    piece_sets: &[&[Piece]],
+) -> Tablebase<N, M> {
     let mut tablebase = Tablebase::default();
 
     for set in piece_sets {

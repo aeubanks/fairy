@@ -20,7 +20,7 @@ fn black_king_exists<const N: usize, const M: usize>(board: &Board<N, M>) -> boo
 
 fn verify_board_tablebase<const N: usize, const M: usize>(
     board: &Board<N, M>,
-    tablebase: &Tablebase,
+    tablebase: &Tablebase<N, M>,
 ) {
     let mut board = board.clone();
     let (_, mut expected_depth) = tablebase.white_result(&board).unwrap();
