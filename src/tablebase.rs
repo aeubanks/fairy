@@ -271,7 +271,7 @@ fn test_generate_flip_unflip_move() {
 
 fn hash_one_board<const N: usize, const M: usize>(board: &Board<N, M>, sym: Symmetry) -> u64 {
     // need to visit in consistent order across symmetries
-    let mut pieces = Vec::new();
+    let mut pieces = ArrayVec::<(Coord, Piece), 6>::new();
     for y in 0..M as i8 {
         for x in 0..N as i8 {
             if let Some(p) = board[(x, y)] {
