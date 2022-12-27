@@ -5,6 +5,7 @@ use crate::piece::Piece;
 use crate::piece::Type::*;
 use crate::player::Player::*;
 use arrayvec::ArrayVec;
+use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -29,118 +30,6 @@ struct Symmetry {
     flip_x: bool,
     flip_y: bool,
     flip_diagonally: bool,
-}
-
-fn flip_x<const N: usize, const M: usize>((board, sym): &mut (Board<N, M>, Symmetry)) {
-    for y in 0..M as i8 {
-        for x in 0..(N as i8 / 2) {
-            let c = Coord::new(x, y);
-            let c2 = Coord::new(N as i8 - 1 - x, y);
-            board.swap(c, c2);
-        }
-    }
-    debug_assert!(!sym.flip_x);
-    sym.flip_x = true;
-}
-
-#[test]
-fn test_flip_x() {
-    let n = Piece::new(White, Knight);
-    let b = Piece::new(White, Bishop);
-    let mut bs = (
-        Board::<3, 2>::with_pieces(&[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
-        Symmetry::default(),
-    );
-
-    flip_x(&mut bs);
-
-    assert_eq!(
-        bs.1,
-        Symmetry {
-            flip_x: true,
-            flip_y: false,
-            flip_diagonally: false
-        }
-    );
-    assert_eq!(
-        bs.0,
-        Board::<3, 2>::with_pieces(&[(Coord::new(2, 0), n), (Coord::new(1, 0), b)])
-    );
-}
-
-fn flip_y<const N: usize, const M: usize>((board, sym): &mut (Board<N, M>, Symmetry)) {
-    for y in 0..(M as i8 / 2) {
-        for x in 0..N as i8 {
-            let c = Coord::new(x, y);
-            let c2 = Coord::new(x, M as i8 - 1 - y);
-            board.swap(c, c2);
-        }
-    }
-    debug_assert!(!sym.flip_y);
-    sym.flip_y = true;
-}
-
-#[test]
-fn test_flip_y() {
-    let n = Piece::new(White, Knight);
-    let b = Piece::new(White, Bishop);
-    let mut bs = (
-        Board::<3, 2>::with_pieces(&[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
-        Symmetry::default(),
-    );
-
-    flip_y(&mut bs);
-
-    assert_eq!(
-        bs.1,
-        Symmetry {
-            flip_x: false,
-            flip_y: true,
-            flip_diagonally: false
-        }
-    );
-    assert_eq!(
-        bs.0,
-        Board::<3, 2>::with_pieces(&[(Coord::new(0, 1), n), (Coord::new(1, 1), b)])
-    );
-}
-
-fn flip_diagonal<const N: usize, const M: usize>((board, sym): &mut (Board<N, M>, Symmetry)) {
-    assert_eq!(N, M);
-    for y in 1..M as i8 {
-        for x in 0..y {
-            let c = Coord::new(x, y);
-            let c2 = Coord::new(y, x);
-            board.swap(c, c2);
-        }
-    }
-    debug_assert!(!sym.flip_diagonally);
-    sym.flip_diagonally = true;
-}
-
-#[test]
-fn test_flip_diagonal() {
-    let n = Piece::new(White, Knight);
-    let b = Piece::new(White, Bishop);
-    let mut bs = (
-        Board::<3, 3>::with_pieces(&[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]),
-        Symmetry::default(),
-    );
-
-    flip_diagonal(&mut bs);
-
-    assert_eq!(
-        bs.1,
-        Symmetry {
-            flip_x: false,
-            flip_y: false,
-            flip_diagonally: true
-        }
-    );
-    assert_eq!(
-        bs.0,
-        Board::<3, 3>::with_pieces(&[(Coord::new(0, 0), n), (Coord::new(0, 1), b)])
-    );
 }
 
 #[must_use]
@@ -380,18 +269,27 @@ fn test_generate_flip_unflip_move() {
     assert_eq!(tablebase.white_result(&board), Some((m, 1)));
 }
 
-fn hash_one_board<const N: usize, const M: usize>(board: &Board<N, M>) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    N.hash(&mut hasher);
-    M.hash(&mut hasher);
+fn hash_one_board<const N: usize, const M: usize>(board: &Board<N, M>, sym: Symmetry) -> u64 {
+    // need to visit in consistent order across symmetries
+    let mut pieces = Vec::new();
     for y in 0..M as i8 {
         for x in 0..N as i8 {
             if let Some(p) = board[(x, y)] {
-                x.hash(&mut hasher);
-                y.hash(&mut hasher);
-                p.hash(&mut hasher);
+                let c = flip_coord(Coord::new(x, y), sym, N as i8, M as i8);
+                pieces.push((c, p));
             }
         }
+    }
+    pieces.sort_unstable_by(|(c1, _), (c2, _)| match c1.x.cmp(&c2.x) {
+        Ordering::Equal => c1.y.cmp(&c2.y),
+        o => o,
+    });
+    let mut hasher = DefaultHasher::new();
+    N.hash(&mut hasher);
+    M.hash(&mut hasher);
+    for (c, p) in pieces {
+        c.hash(&mut hasher);
+        p.hash(&mut hasher);
     }
     hasher.finish()
 }
@@ -404,16 +302,16 @@ fn hash<const N: usize, const M: usize>(board: &Board<N, M>, has_pawn: bool) -> 
 
     debug_assert_eq!(has_pawn, board_has_pawn(board));
 
-    let mut boards_to_check = ArrayVec::<(Board<N, M>, Symmetry), 8>::new();
-    boards_to_check.push((board.clone(), Symmetry::default()));
+    let mut symmetries_to_check = ArrayVec::<Symmetry, 8>::new();
+    symmetries_to_check.push(Symmetry::default());
 
     let mut bk_coord = king_coord(board, Black);
 
     if N % 2 == 1 && bk_coord.x == N as i8 / 2 {
-        let boards_copy = boards_to_check.clone();
-        for mut c in boards_copy {
-            flip_x(&mut c);
-            boards_to_check.push(c);
+        let symmetries_copy = symmetries_to_check.clone();
+        for mut s in symmetries_copy {
+            s.flip_x = true;
+            symmetries_to_check.push(s);
         }
     } else if bk_coord.x >= N as i8 / 2 {
         bk_coord = flip_coord(
@@ -426,17 +324,17 @@ fn hash<const N: usize, const M: usize>(board: &Board<N, M>, has_pawn: bool) -> 
             N as i8,
             M as i8,
         );
-        for b in boards_to_check.as_mut() {
-            flip_x(b);
+        for s in symmetries_to_check.as_mut() {
+            s.flip_x = true;
         }
     }
     // pawns are not symmetrical on the y axis or diagonally
     if !has_pawn {
         if M % 2 == 1 && bk_coord.y == M as i8 / 2 {
-            let boards_copy = boards_to_check.clone();
-            for mut c in boards_copy {
-                flip_y(&mut c);
-                boards_to_check.push(c);
+            let symmetries_copy = symmetries_to_check.clone();
+            for mut s in symmetries_copy {
+                s.flip_y = true;
+                symmetries_to_check.push(s);
             }
         } else if bk_coord.y >= M as i8 / 2 {
             bk_coord = flip_coord(
@@ -449,30 +347,30 @@ fn hash<const N: usize, const M: usize>(board: &Board<N, M>, has_pawn: bool) -> 
                 N as i8,
                 M as i8,
             );
-            for b in boards_to_check.as_mut() {
-                flip_y(b);
+            for s in symmetries_to_check.as_mut() {
+                s.flip_y = true;
             }
         }
 
         if N == M {
             if bk_coord.x == bk_coord.y {
-                let boards_copy = boards_to_check.clone();
-                for mut c in boards_copy {
-                    flip_diagonal(&mut c);
-                    boards_to_check.push(c);
+                let symmetries_copy = symmetries_to_check.clone();
+                for mut s in symmetries_copy {
+                    s.flip_diagonally = true;
+                    symmetries_to_check.push(s);
                 }
             } else if bk_coord.x > bk_coord.y {
-                for b in boards_to_check.as_mut() {
-                    flip_diagonal(b);
+                for s in symmetries_to_check.as_mut() {
+                    s.flip_diagonally = true;
                 }
             }
         }
     }
 
-    let mut min_hash = hash_one_board(&boards_to_check[0].0);
-    let mut sym = boards_to_check[0].1;
-    for (b, s) in boards_to_check.into_iter().skip(1) {
-        let try_hash = hash_one_board(&b);
+    let mut min_hash = hash_one_board(board, symmetries_to_check[0]);
+    let mut sym = symmetries_to_check[0];
+    for s in symmetries_to_check.into_iter().skip(1) {
+        let try_hash = hash_one_board(board, s);
         if try_hash < min_hash {
             min_hash = try_hash;
             sym = s;
