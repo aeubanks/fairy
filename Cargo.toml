@@ -10,7 +10,7 @@ panic = "abort"
 
 [dependencies]
 derive_rand = { path = "derive_rand" }
-arrayvec = "*"
+arrayvec = "0.7"
 rand = "0.8"
 static_assertions = "1.1"
 num-traits = "0.2"
