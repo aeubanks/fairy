@@ -8,7 +8,7 @@ use arrayvec::ArrayVec;
 use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
+use std::hash::{BuildHasherDefault, Hash, Hasher};
 
 // TODO: factor out coord visiting
 fn board_has_pawn<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
@@ -166,7 +166,22 @@ fn test_flip_move() {
     );
 }
 
-type MapTy = HashMap<u64, (Move, u16)>;
+#[derive(Default)]
+struct IdentityHasher(u64);
+
+impl Hasher for IdentityHasher {
+    fn write(&mut self, _bytes: &[u8]) {
+        unimplemented!()
+    }
+    fn write_u64(&mut self, i: u64) {
+        self.0 = i;
+    }
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+type MapTy = HashMap<u64, (Move, u16), BuildHasherDefault<IdentityHasher>>;
 
 #[derive(Default, Clone)]
 pub struct Tablebase<const W: usize, const H: usize> {
