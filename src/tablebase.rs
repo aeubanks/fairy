@@ -5,8 +5,8 @@ use crate::piece::Piece;
 use crate::piece::Type::*;
 use crate::player::{Player, Player::*};
 use arrayvec::ArrayVec;
+use rustc_hash::FxHasher;
 use std::cmp::Ordering;
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hash, Hasher};
 
@@ -282,7 +282,7 @@ fn hash_one_board<const W: usize, const H: usize>(board: &Board<W, H>, sym: Symm
         Ordering::Equal => c1.y.cmp(&c2.y),
         o => o,
     });
-    let mut hasher = DefaultHasher::new();
+    let mut hasher = FxHasher::default();
     for (c, p) in pieces {
         c.hash(&mut hasher);
         p.hash(&mut hasher);
