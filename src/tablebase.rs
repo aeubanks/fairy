@@ -836,42 +836,34 @@ fn reachable_positions<const W: usize, const H: usize>(
 }
 
 pub fn generate_tablebase<const W: usize, const H: usize>(
-    piece_sets: &[&[Piece]],
-) -> Tablebase<W, H> {
-    let mut tablebase = Tablebase::default();
-
-    for set in piece_sets {
-        print!("generating tablebase for ");
-        for p in set.iter() {
-            print!("{}", p.char());
+    tablebase: &mut Tablebase<W, H>,
+    pieces: &[Piece],
+) {
+    let has_pawn = pieces.iter().any(|p| p.ty() == Pawn);
+    verify_piece_set(pieces);
+    let mut boards_to_check = generate_all_boards::<W, H>(pieces);
+    boards_to_check = populate_initial_wins(tablebase, &boards_to_check, has_pawn);
+    loop {
+        boards_to_check = iterate_black(tablebase, &boards_to_check, has_pawn);
+        if boards_to_check.is_empty() {
+            break;
         }
-        println!();
-        let has_pawn = set.iter().any(|p| p.ty() == Pawn);
-        verify_piece_set(set);
-        let mut boards_to_check = generate_all_boards::<W, H>(set);
-        boards_to_check = populate_initial_wins(&mut tablebase, &boards_to_check, has_pawn);
-        loop {
-            boards_to_check = iterate_black(&mut tablebase, &boards_to_check, has_pawn);
-            if boards_to_check.is_empty() {
-                break;
-            }
-            boards_to_check = reachable_positions(&boards_to_check, White);
+        boards_to_check = reachable_positions(&boards_to_check, White);
 
-            boards_to_check = iterate_white(&mut tablebase, &boards_to_check, has_pawn);
-            if boards_to_check.is_empty() {
-                break;
-            }
-            boards_to_check = reachable_positions(&boards_to_check, Black);
+        boards_to_check = iterate_white(tablebase, &boards_to_check, has_pawn);
+        if boards_to_check.is_empty() {
+            break;
         }
+        boards_to_check = reachable_positions(&boards_to_check, Black);
     }
-    tablebase
 }
 
 #[test]
 fn test_generate_king_king_tablebase() {
     fn test<const W: usize, const H: usize>() {
         let pieces = [Piece::new(White, King), Piece::new(Black, King)];
-        let tablebase = generate_tablebase::<W, H>(&[&pieces]);
+        let mut tablebase = Tablebase::default();
+        generate_tablebase(&mut tablebase, &pieces);
         // If white king couldn't capture on first move, no forced win.
         assert!(tablebase.black_tablebase.is_empty());
         let all = generate_all_boards::<W, H>(&pieces);
@@ -897,7 +889,9 @@ fn test_tablebase_size() {
         Piece::new(White, Queen),
         Piece::new(Black, King),
     ];
-    let tablebase = generate_tablebase::<4, 4>(&[&pieces1, &pieces2]);
+    let mut tablebase = Tablebase::<4, 4>::default();
+    generate_tablebase(&mut tablebase, &pieces1);
+    generate_tablebase(&mut tablebase, &pieces2);
     let all1 = generate_all_boards::<4, 4>(&pieces1);
     let all2 = generate_all_boards::<4, 4>(&pieces2);
     // With symmetry, we should expect a little over 1/8 of positions to be in the tablebase.

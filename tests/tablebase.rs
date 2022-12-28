@@ -43,8 +43,10 @@ fn verify_board_tablebase<const W: usize, const H: usize>(
 
 fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
     assert_eq!(pieces.len(), 3);
+    let mut tablebase = Tablebase::<4, 4>::default();
     let kk = [Piece::new(White, King), Piece::new(Black, King)];
-    let tablebase = generate_tablebase::<4, 4>(&[&kk, &pieces]);
+    generate_tablebase(&mut tablebase, &kk);
+    generate_tablebase(&mut tablebase, &pieces);
     let all = generate_all_boards::<4, 4>(pieces);
 
     for b in all {
