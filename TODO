@@ -3,6 +3,4 @@ AI
 add tests for derive_rand (https://ferrous-systems.com/blog/testing-proc-macros/)
 use perf counters
 tablebase
-  use single int for coord
-  investigate caching king position/pawn existence (reference counting?)
-  
+  investigate caching king position
