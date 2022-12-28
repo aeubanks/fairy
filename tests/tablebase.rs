@@ -8,7 +8,7 @@ fn black_king_exists<const W: usize, const H: usize>(board: &Board<W, H>) -> boo
     for y in 0..H as i8 {
         for x in 0..W as i8 {
             let coord = Coord::new(x, y);
-            if let Some(piece) = board[coord].as_ref() {
+            if let Some(piece) = board[coord] {
                 if piece.player() == Black && piece.ty() == King {
                     return true;
                 }

@@ -24,7 +24,7 @@ fn perft_impl<const W: usize, const H: usize>(
             continue;
         }
         let next_player = next_player(player);
-        if board[m.from].as_ref().unwrap().ty() == Pawn && (m.to.y == 0 || m.to.y == H as i8 - 1) {
+        if board[m.from].unwrap().ty() == Pawn && (m.to.y == 0 || m.to.y == H as i8 - 1) {
             for ty in [Knight, Bishop, Rook] {
                 let mut promotion_copy = copy.clone();
                 promotion_copy.clear(m.to);
@@ -63,7 +63,7 @@ fn perft_all_impl<const W: usize, const H: usize>(
     let moves = all_moves(board, player);
     let mut sum = 0;
     for m in moves {
-        if let Some(p) = board[m.to].as_ref() {
+        if let Some(p) = board[m.to] {
             if p.ty() == King {
                 continue;
             }

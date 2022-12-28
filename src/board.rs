@@ -231,7 +231,7 @@ impl<const W: usize, const H: usize> std::fmt::Debug for Board<W, H> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for y in (0..H as i8).rev() {
             for x in 0..W as i8 {
-                let c = match self[(x, y)].as_ref() {
+                let c = match self[(x, y)] {
                     None => '.',
                     Some(p) => {
                         let c = p.ty().char();
@@ -286,7 +286,7 @@ impl<const W: usize, const H: usize> Board<W, H> {
                 self.existing_piece_result(opponent_pawn_coord, player)
                     == ExistingPieceResult::Opponent
             );
-            assert!(self[opponent_pawn_coord].as_ref().unwrap().ty() == Pawn);
+            assert!(self[opponent_pawn_coord].unwrap().ty() == Pawn);
             self.clear(opponent_pawn_coord);
         }
         // promotion
@@ -317,7 +317,7 @@ impl<const W: usize, const H: usize> Board<W, H> {
         // castling
         if piece.ty() == King && to_res == ExistingPieceResult::Friend {
             let rook = self.take(m.to);
-            assert_eq!(rook.as_ref().unwrap().ty(), Rook);
+            assert_eq!(rook.unwrap().ty(), Rook);
             // king moves to rook to castle with
             // king should always be between two rooks to castle with
             let (dest, rook_dest) = if m.from.x > m.to.x {
@@ -328,7 +328,7 @@ impl<const W: usize, const H: usize> Board<W, H> {
                     Coord::new(W as i8 - 3, m.from.y),
                 )
             };
-            assert!(self[rook_dest].as_ref().is_none());
+            assert!(self[rook_dest].is_none());
             self.set(rook_dest, rook);
             self.add_piece(dest, piece);
         } else {
@@ -407,7 +407,7 @@ fn test_en_promotion() {
         },
         White,
     );
-    assert!(board[(2, 6)].as_ref().unwrap().ty() == Pawn);
+    assert!(board[(2, 6)].unwrap().ty() == Pawn);
 
     board.make_move(
         Move {
@@ -416,7 +416,7 @@ fn test_en_promotion() {
         },
         Black,
     );
-    assert!(board[(3, 1)].as_ref().unwrap().ty() == Pawn);
+    assert!(board[(3, 1)].unwrap().ty() == Pawn);
 
     board.make_move(
         Move {
@@ -425,7 +425,7 @@ fn test_en_promotion() {
         },
         White,
     );
-    assert!(board[(2, 7)].as_ref().unwrap().ty() == Queen);
+    assert!(board[(2, 7)].unwrap().ty() == Queen);
 
     board.make_move(
         Move {
@@ -434,7 +434,7 @@ fn test_en_promotion() {
         },
         Black,
     );
-    assert!(board[(3, 0)].as_ref().unwrap().ty() == Queen);
+    assert!(board[(3, 0)].unwrap().ty() == Queen);
 }
 
 #[test]
@@ -534,9 +534,9 @@ fn test_castle() {
             },
             White,
         );
-        assert_eq!(board2[(2, 0)].as_ref().unwrap().ty(), King);
-        assert_eq!(board2[(3, 0)].as_ref().unwrap().ty(), Rook);
-        assert_eq!(board2[(7, 0)].as_ref().unwrap().ty(), Rook);
+        assert_eq!(board2[(2, 0)].unwrap().ty(), King);
+        assert_eq!(board2[(3, 0)].unwrap().ty(), Rook);
+        assert_eq!(board2[(7, 0)].unwrap().ty(), Rook);
         assert!(board2[(0, 0)].is_none());
         assert!(board2[(4, 0)].is_none());
     }
@@ -549,9 +549,9 @@ fn test_castle() {
             },
             White,
         );
-        assert_eq!(board2[(0, 0)].as_ref().unwrap().ty(), Rook);
-        assert_eq!(board2[(5, 0)].as_ref().unwrap().ty(), Rook);
-        assert_eq!(board2[(6, 0)].as_ref().unwrap().ty(), King);
+        assert_eq!(board2[(0, 0)].unwrap().ty(), Rook);
+        assert_eq!(board2[(5, 0)].unwrap().ty(), Rook);
+        assert_eq!(board2[(6, 0)].unwrap().ty(), King);
         assert!(board2[(4, 0)].is_none());
         assert!(board2[(7, 0)].is_none());
     }
@@ -564,9 +564,9 @@ fn test_castle() {
             },
             Black,
         );
-        assert_eq!(board2[(2, 7)].as_ref().unwrap().ty(), King);
-        assert_eq!(board2[(3, 7)].as_ref().unwrap().ty(), Rook);
-        assert_eq!(board2[(7, 7)].as_ref().unwrap().ty(), Rook);
+        assert_eq!(board2[(2, 7)].unwrap().ty(), King);
+        assert_eq!(board2[(3, 7)].unwrap().ty(), Rook);
+        assert_eq!(board2[(7, 7)].unwrap().ty(), Rook);
         assert!(board2[(0, 7)].is_none());
         assert!(board2[(4, 7)].is_none());
     }
@@ -579,9 +579,9 @@ fn test_castle() {
             },
             Black,
         );
-        assert_eq!(board2[(0, 7)].as_ref().unwrap().ty(), Rook);
-        assert_eq!(board2[(5, 7)].as_ref().unwrap().ty(), Rook);
-        assert_eq!(board2[(6, 7)].as_ref().unwrap().ty(), King);
+        assert_eq!(board2[(0, 7)].unwrap().ty(), Rook);
+        assert_eq!(board2[(5, 7)].unwrap().ty(), Rook);
+        assert_eq!(board2[(6, 7)].unwrap().ty(), King);
         assert!(board2[(4, 7)].is_none());
         assert!(board2[(7, 7)].is_none());
     }
@@ -598,9 +598,9 @@ fn test_castle() {
             },
             White,
         );
-        assert_eq!(board[(2, 0)].as_ref().unwrap().ty(), King);
-        assert_eq!(board[(3, 0)].as_ref().unwrap().ty(), Rook);
-        assert_eq!(board[(7, 0)].as_ref().unwrap().ty(), Rook);
+        assert_eq!(board[(2, 0)].unwrap().ty(), King);
+        assert_eq!(board[(3, 0)].unwrap().ty(), Rook);
+        assert_eq!(board[(7, 0)].unwrap().ty(), Rook);
         assert!(board[(0, 0)].is_none());
         assert!(board[(1, 0)].is_none());
     }
@@ -739,7 +739,7 @@ pub fn king_coord<const W: usize, const H: usize>(board: &Board<W, H>, player: P
     for y in 0..H as i8 {
         for x in 0..W as i8 {
             let coord = Coord::new(x, y);
-            if let Some(piece) = board[coord].as_ref() {
+            if let Some(piece) = board[coord] {
                 if piece.player() == player && piece.ty() == King {
                     return coord;
                 }

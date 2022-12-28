@@ -15,7 +15,7 @@ fn board_has_pawn<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
     for y in 0..H as i8 {
         for x in 0..W as i8 {
             let coord = Coord::new(x, y);
-            if let Some(piece) = board[coord].as_ref() {
+            if let Some(piece) = board[coord] {
                 if piece.ty() == Pawn {
                     return true;
                 }

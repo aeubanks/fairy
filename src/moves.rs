@@ -347,7 +347,7 @@ fn add_castling_moves<const W: usize, const H: usize>(
         if let Some(rook_coord) = rook_coord {
             {
                 assert_eq!(coord.y, rook_coord.y);
-                let piece = board[rook_coord].as_ref().unwrap();
+                let piece = board[rook_coord].unwrap();
                 assert_eq!(piece.ty(), Rook);
                 assert_eq!(piece.player(), player);
             }
@@ -813,11 +813,11 @@ pub fn all_moves<const W: usize, const H: usize>(board: &Board<W, H>, player: Pl
 
     for y in 0..H as i8 {
         for x in 0..W as i8 {
-            if let Some(piece) = board[(x, y)].as_ref() {
+            if let Some(piece) = board[(x, y)] {
                 if piece.player() == player {
                     let coord = Coord::new(x, y);
                     let mut piece_moves = Vec::new();
-                    add_moves_for_piece(&mut piece_moves, board, *piece, coord);
+                    add_moves_for_piece(&mut piece_moves, board, piece, coord);
                     moves.append(
                         &mut piece_moves
                             .iter()
@@ -843,7 +843,7 @@ fn enemy_piece_rider<const W: usize, const H: usize>(
 ) -> Option<Coord> {
     let mut try_coord = coord + offset;
     while board.in_bounds(try_coord) {
-        if let Some(p) = board[try_coord].as_ref() {
+        if let Some(p) = board[try_coord] {
             if p.player() != player {
                 return Some(try_coord);
             } else {
@@ -863,7 +863,7 @@ fn enemy_piece_leaper<const W: usize, const H: usize>(
 ) -> Option<Coord> {
     let try_coord = coord + offset;
     if board.in_bounds(try_coord) {
-        if let Some(p) = board[try_coord].as_ref() {
+        if let Some(p) = board[try_coord] {
             if p.player() != player {
                 return Some(try_coord);
             } else {
@@ -887,7 +887,7 @@ pub fn under_attack_from_coord<const W: usize, const H: usize>(
     coord: Coord,
     player: Player,
 ) -> Option<Coord> {
-    if let Some(p) = board[coord].as_ref() {
+    if let Some(p) = board[coord] {
         assert_eq!(p.player(), player);
     }
     for o in offsets(Coord::new(1, 0)) {
@@ -936,7 +936,7 @@ pub fn under_attack_from_coord<const W: usize, const H: usize>(
         player: Player,
     ) -> bool {
         if board.in_bounds(coord) {
-            if let Some(p) = board[coord].as_ref() {
+            if let Some(p) = board[coord] {
                 return p.player() != player && p.ty() == Pawn;
             }
         }
@@ -1449,7 +1449,7 @@ pub fn all_moves_to_end_at_board_no_captures<const W: usize, const H: usize>(
     for y in 0..H as i8 {
         for x in 0..W as i8 {
             let coord = Coord::new(x, y);
-            if let Some(piece) = board[coord].as_ref() {
+            if let Some(piece) = board[coord] {
                 if piece.player() != player {
                     continue;
                 }
@@ -1457,7 +1457,7 @@ pub fn all_moves_to_end_at_board_no_captures<const W: usize, const H: usize>(
                 add_moves_for_piece_to_end_at_board_no_captures(
                     &mut piece_moves,
                     board,
-                    *piece,
+                    piece,
                     coord,
                 );
                 moves.append(
