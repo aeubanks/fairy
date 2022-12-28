@@ -6,6 +6,7 @@ edition = "2021"
 [profile.release]
 debug = 1
 panic = "abort"
+#lto = "thin"
 
 [dependencies]
 derive_rand = { path = "derive_rand" }
