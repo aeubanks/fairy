@@ -2,7 +2,7 @@ use fairy::board::Board;
 use fairy::coord::Coord;
 use fairy::piece::{Piece, Type::*};
 use fairy::player::{next_player, Player::*};
-use fairy::tablebase::{generate_all_boards, generate_tablebase, Tablebase};
+use fairy::tablebase::{generate_tablebase, GenerateAllBoards, Tablebase};
 
 fn black_king_exists<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
     for y in 0..H as i8 {
@@ -47,9 +47,8 @@ fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
     let kk = [Piece::new(White, King), Piece::new(Black, King)];
     generate_tablebase(&mut tablebase, &kk);
     generate_tablebase(&mut tablebase, &pieces);
-    let all = generate_all_boards::<4, 4>(pieces);
 
-    for b in all {
+    for b in GenerateAllBoards::<4, 4>::new(pieces) {
         let wd = tablebase.white_result(&b);
         let bd = tablebase.black_result(&b);
         assert!(wd.unwrap().1 % 2 == 1);

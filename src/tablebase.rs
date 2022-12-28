@@ -449,47 +449,94 @@ fn test_hash() {
     );
 }
 
-fn generate_all_boards_impl<const W: usize, const H: usize>(
-    ret: &mut Vec<Board<W, H>>,
-    board: &Board<W, H>,
-    pieces: &[Piece],
-) {
-    match pieces {
-        [p, rest @ ..] => {
-            for y in 0..H as i8 {
-                for x in 0..W as i8 {
-                    if p.ty() == Pawn && (y == 0 || y == H as i8 - 1) {
-                        continue;
-                    }
-                    let coord = Coord::new(x, y);
-                    if board[coord].is_none() {
-                        let mut clone = board.clone();
-                        clone.add_piece(coord, *p);
-                        generate_all_boards_impl(ret, &clone, rest);
-                    }
-                }
-            }
+pub struct GenerateAllBoards<const W: usize, const H: usize> {
+    pieces: ArrayVec<Piece, 6>,
+    stack: ArrayVec<Coord, 6>,
+    board: Board<W, H>,
+}
+
+impl<const W: usize, const H: usize> GenerateAllBoards<W, H> {
+    fn next_coord(mut c: Coord) -> Coord {
+        c.x += 1;
+        if c.x == W as i8 {
+            c.x = 0;
+            c.y += 1;
         }
-        [] => ret.push(board.clone()),
+        c
+    }
+    fn first_empty_coord_from(&self, mut c: Coord, piece: Piece) -> Option<Coord> {
+        while c.y != H as i8 {
+            if self.board[c].is_none() && (piece.ty() != Pawn || (c.y != 0 && c.y != H as i8 - 1)) {
+                return Some(c);
+            }
+            c = Self::next_coord(c);
+        }
+        None
+    }
+    pub fn new(pieces: &[Piece]) -> Self {
+        let mut ret = Self {
+            pieces: pieces.iter().map(|p| *p).collect(),
+            stack: Default::default(),
+            board: Default::default(),
+        };
+        for p in pieces {
+            let c = ret.first_empty_coord_from(Coord::new(0, 0), *p).unwrap();
+            ret.stack.push(c);
+            ret.board.add_piece(c, *p);
+        }
+        ret
     }
 }
 
-pub fn generate_all_boards<const W: usize, const H: usize>(pieces: &[Piece]) -> Vec<Board<W, H>> {
-    let board = Board::<W, H>::default();
-    let mut ret = Vec::new();
-    generate_all_boards_impl(&mut ret, &board, pieces);
-    ret
+impl<const W: usize, const H: usize> Iterator for GenerateAllBoards<W, H> {
+    type Item = Board<W, H>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.stack.is_empty() {
+            return None;
+        }
+        let ret = self.board.clone();
+        let mut done = false;
+        let mut add_from_idx = self.stack.len();
+        for i in (0..self.stack.len()).rev() {
+            assert_eq!(self.board[self.stack[i]], Some(self.pieces[i]));
+            self.board.clear(self.stack[i]);
+            if let Some(c) =
+                self.first_empty_coord_from(Self::next_coord(self.stack[i]), self.pieces[i])
+            {
+                self.board.add_piece(c, self.pieces[i]);
+                self.stack[i] = c;
+                break;
+            }
+            add_from_idx = i;
+            if i == 0 {
+                done = true;
+            }
+        }
+        if done {
+            self.stack.clear();
+        } else {
+            for i in add_from_idx..self.stack.len() {
+                self.stack[i] = self
+                    .first_empty_coord_from(Coord::new(0, 0), self.pieces[i])
+                    .unwrap();
+                self.board.add_piece(self.stack[i], self.pieces[i]);
+            }
+        }
+        Some(ret)
+    }
 }
 
 #[test]
 fn test_generate_all_boards() {
     {
-        let boards = generate_all_boards::<8, 8>(&[Piece::new(White, King)]);
-        assert_eq!(boards.len(), 64);
+        let boards = GenerateAllBoards::<8, 8>::new(&[Piece::new(White, King)]);
+        assert_eq!(boards.count(), 64);
     }
     {
         let boards =
-            generate_all_boards::<8, 8>(&[Piece::new(White, King), Piece::new(White, Queen)]);
+            GenerateAllBoards::<8, 8>::new(&[Piece::new(White, King), Piece::new(White, Queen)])
+                .collect::<Vec<_>>();
         assert_eq!(boards.len(), 64 * 63);
         assert_eq!(boards[0][(0, 0)], Some(Piece::new(White, King)));
         assert_eq!(boards[0][(1, 0)], Some(Piece::new(White, Queen)));
@@ -500,12 +547,11 @@ fn test_generate_all_boards() {
         assert_eq!(boards[1][(2, 0)], Some(Piece::new(White, Queen)));
     }
     {
-        let boards = generate_all_boards::<4, 4>(&[
+        for b in GenerateAllBoards::<4, 4>::new(&[
             Piece::new(White, King),
             Piece::new(White, Pawn),
             Piece::new(White, Pawn),
-        ]);
-        for b in boards {
+        ]) {
             for y in 0..4 as i8 {
                 for x in 0..4 as i8 {
                     if let Some(p) = b[(x, y)] {
@@ -522,17 +568,17 @@ fn test_generate_all_boards() {
 
 fn populate_initial_wins<const W: usize, const H: usize>(
     tablebase: &mut Tablebase<W, H>,
-    boards: &[Board<W, H>],
+    pieces: &[Piece],
     has_pawn: bool,
 ) -> Vec<Board<W, H>> {
     let mut ret = Vec::new();
-    for b in boards {
+    for b in GenerateAllBoards::new(pieces) {
         // white can capture black's king
-        if !tablebase.white_contains_impl(b, has_pawn) {
-            let opponent_king_coord = king_coord(b, Black);
-            if let Some(c) = under_attack_from_coord(b, opponent_king_coord, Black) {
+        if !tablebase.white_contains_impl(&b, has_pawn) {
+            let opponent_king_coord = king_coord(&b, Black);
+            if let Some(c) = under_attack_from_coord(&b, opponent_king_coord, Black) {
                 tablebase.white_add_impl(
-                    b,
+                    &b,
                     Move {
                         from: c,
                         to: opponent_king_coord,
@@ -544,7 +590,7 @@ fn populate_initial_wins<const W: usize, const H: usize>(
             }
         }
         // don't support stalemate for now, it doesn't really happen on normal boards with few pieces, and takes up a noticeable chunk of tablebase generation time
-        debug_assert!(!all_moves(b, Black).is_empty());
+        debug_assert!(!all_moves(&b, Black).is_empty());
         // if !tablebase.black_contains_impl(b, has_pawn) {
         //     // stalemate is a win
         //     if all_moves(b, Black).is_empty() {
@@ -567,22 +613,18 @@ fn populate_initial_wins<const W: usize, const H: usize>(
 #[test]
 fn test_populate_initial_tablebases() {
     let mut tablebase = Tablebase::default();
-    let boards = [
-        Board::<8, 8>::with_pieces(&[
-            (Coord::new(0, 0), Piece::new(White, King)),
-            (Coord::new(0, 1), Piece::new(Black, King)),
-        ]),
-        Board::<8, 8>::with_pieces(&[
-            (Coord::new(0, 0), Piece::new(White, King)),
-            (Coord::new(0, 2), Piece::new(Black, King)),
-        ]),
-    ];
-    assert_eq!(
-        populate_initial_wins(&mut tablebase, &boards, false).len(),
-        1
+    let ret = populate_initial_wins::<4, 4>(
+        &mut tablebase,
+        &[Piece::new(White, King), Piece::new(Black, King)],
+        false,
     );
+    assert_ne!(ret.len(), 0);
+
     assert_eq!(
-        tablebase.white_result(&boards[0]),
+        tablebase.white_result(&Board::with_pieces(&[
+            (Coord::new(0, 0), Piece::new(White, King)),
+            (Coord::new(0, 1), Piece::new(Black, King))
+        ])),
         Some((
             Move {
                 from: Coord::new(0, 0),
@@ -591,9 +633,12 @@ fn test_populate_initial_tablebases() {
             1
         ))
     );
-    assert!(!tablebase.white_contains_impl(&boards[1], false));
-    assert!(!tablebase.black_contains_impl(&boards[0], false));
-    assert!(!tablebase.black_contains_impl(&boards[1], false));
+    for board in ret {
+        let wk_coord = king_coord(&board, White);
+        let bk_coord = king_coord(&board, Black);
+        assert!((wk_coord.x - bk_coord.x).abs() <= 1);
+        assert!((wk_coord.y - bk_coord.y).abs() <= 1);
+    }
 }
 
 #[test]
@@ -602,11 +647,11 @@ fn test_populate_initial_tablebases_stalemate() {
     let mut tablebase = Tablebase::default();
     populate_initial_wins(
         &mut tablebase,
-        &generate_all_boards::<1, 8>(&[
+        &[
             Piece::new(White, King),
             Piece::new(Black, Pawn),
             Piece::new(Black, King),
-        ]),
+        ],
         true,
     );
     assert_eq!(
@@ -875,8 +920,7 @@ pub fn generate_tablebase<const W: usize, const H: usize>(
 ) {
     let has_pawn = pieces.iter().any(|p| p.ty() == Pawn);
     verify_piece_set(pieces);
-    let mut boards_to_check = generate_all_boards::<W, H>(pieces);
-    boards_to_check = populate_initial_wins(tablebase, &boards_to_check, has_pawn);
+    let mut boards_to_check = populate_initial_wins(tablebase, pieces, has_pawn);
     loop {
         boards_to_check = iterate_black(tablebase, &boards_to_check, has_pawn);
         if boards_to_check.is_empty() {
@@ -896,12 +940,11 @@ pub fn generate_tablebase<const W: usize, const H: usize>(
 fn test_generate_king_king_tablebase() {
     fn test<const W: usize, const H: usize>() {
         let pieces = [Piece::new(White, King), Piece::new(Black, King)];
-        let mut tablebase = Tablebase::default();
+        let mut tablebase = Tablebase::<W, H>::default();
         generate_tablebase(&mut tablebase, &pieces);
         // If white king couldn't capture on first move, no forced win.
         assert!(tablebase.black_tablebase.is_empty());
-        let all = generate_all_boards::<W, H>(&pieces);
-        for b in all {
+        for b in GenerateAllBoards::new(&pieces) {
             if crate::moves::is_under_attack(&b, king_coord(&b, Black), Black) {
                 assert_eq!(tablebase.white_depth_impl(&b, false), Some(1));
             } else {
@@ -926,10 +969,10 @@ fn test_tablebase_size() {
     let mut tablebase = Tablebase::<4, 4>::default();
     generate_tablebase(&mut tablebase, &pieces1);
     generate_tablebase(&mut tablebase, &pieces2);
-    let all1 = generate_all_boards::<4, 4>(&pieces1);
-    let all2 = generate_all_boards::<4, 4>(&pieces2);
+    let all1_count = GenerateAllBoards::<4, 4>::new(&pieces1).count();
+    let all2_count = GenerateAllBoards::<4, 4>::new(&pieces2).count();
     // With symmetry, we should expect a little over 1/8 of positions to be in the tablebase.
-    assert!(tablebase.white_tablebase.len() < all1.len() + all2.len() / 6);
+    assert!(tablebase.white_tablebase.len() < all1_count + all2_count / 6);
 }
 
 pub fn generate_tablebase_parallel<const W: usize, const H: usize>(
