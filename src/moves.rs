@@ -815,7 +815,7 @@ pub fn all_moves<const W: usize, const H: usize>(board: &Board<W, H>, player: Pl
         for x in 0..W as i8 {
             if let Some(piece) = board[(x, y)].as_ref() {
                 if piece.player() == player {
-                    let coord = (x, y).into();
+                    let coord = Coord::new(x, y);
                     let mut piece_moves = Vec::new();
                     add_moves_for_piece(&mut piece_moves, board, *piece, coord);
                     moves.append(

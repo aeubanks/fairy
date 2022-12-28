@@ -21,12 +21,6 @@ impl std::ops::Add for Coord {
     }
 }
 
-impl std::convert::From<(i8, i8)> for Coord {
-    fn from((x, y): (i8, i8)) -> Self {
-        Self { x, y }
-    }
-}
-
 #[test]
 fn test_coord_add() {
     assert_eq!(
