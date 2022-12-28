@@ -509,21 +509,23 @@ fn populate_initial_wins<const W: usize, const H: usize>(
                 ret.push(b.clone());
             }
         }
-        if !tablebase.black_contains_impl(b, has_pawn) {
-            // stalemate is a win
-            if all_moves(b, Black).is_empty() {
-                tablebase.black_add_impl(
-                    b,
-                    // arbitrary move
-                    Move {
-                        from: Coord::new(0, 0),
-                        to: Coord::new(0, 0),
-                    },
-                    0,
-                    has_pawn,
-                );
-            }
-        }
+        // don't support stalemate for now, it doesn't really happen on normal boards with few pieces, and takes up a noticeable chunk of tablebase generation time
+        debug_assert!(!all_moves(b, Black).is_empty());
+        // if !tablebase.black_contains_impl(b, has_pawn) {
+        //     // stalemate is a win
+        //     if all_moves(b, Black).is_empty() {
+        //         tablebase.black_add_impl(
+        //             b,
+        //             // arbitrary move
+        //             Move {
+        //                 from: Coord::new(0, 0),
+        //                 to: Coord::new(0, 0),
+        //             },
+        //             0,
+        //             has_pawn,
+        //         );
+        //     }
+        // }
     }
     ret
 }
@@ -561,6 +563,7 @@ fn test_populate_initial_tablebases() {
 }
 
 #[test]
+#[ignore]
 fn test_populate_initial_tablebases_stalemate() {
     let mut tablebase = Tablebase::default();
     populate_initial_wins(
