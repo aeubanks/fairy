@@ -936,14 +936,40 @@ pub fn generate_tablebase<const W: usize, const H: usize>(
     let has_pawn = pieces.iter().any(|p| p.ty() == Pawn);
     verify_piece_set(pieces);
     let mut boards_to_check = populate_initial_wins(tablebase, pieces, has_pawn);
+    boards_to_check = reachable_positions(&boards_to_check, Black);
     loop {
+        // check that starting from all possible boards gives the same result as starting from all boards reachable from previous boards
+        #[cfg(debug_assertions)]
+        let all_black_count = iterate_black(
+            &mut tablebase.clone(),
+            &GenerateAllBoards::new(pieces).collect::<Vec<_>>(),
+            has_pawn,
+        )
+        .len();
+
         boards_to_check = iterate_black(tablebase, &boards_to_check, has_pawn);
+
+        #[cfg(debug_assertions)]
+        debug_assert_eq!(all_black_count, boards_to_check.len());
+
         if boards_to_check.is_empty() {
             break;
         }
+
+        #[cfg(debug_assertions)]
+        let all_white_count = iterate_white(
+            &mut tablebase.clone(),
+            &GenerateAllBoards::new(pieces).collect::<Vec<_>>(),
+            has_pawn,
+        )
+        .len();
         boards_to_check = reachable_positions(&boards_to_check, White);
 
         boards_to_check = iterate_white(tablebase, &boards_to_check, has_pawn);
+
+        #[cfg(debug_assertions)]
+        debug_assert_eq!(all_white_count, boards_to_check.len());
+
         if boards_to_check.is_empty() {
             break;
         }
