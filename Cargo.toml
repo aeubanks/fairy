@@ -19,6 +19,7 @@ rustc-hash = { version = "1.1", default-features = false }
 
 [dev-dependencies]
 criterion = "0.4"
+perfcnt = "0.8"
 
 [[bench]]
 name = "tablebase"

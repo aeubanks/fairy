@@ -1,3 +1,6 @@
+mod common;
+
+use common::Perf;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use fairy::piece::{Type::*, *};
@@ -13,7 +16,7 @@ fn three_piece_tablebase<const W: usize, const H: usize>(pieces: &[Piece]) -> Ta
     tablebase
 }
 
-fn kqk(c: &mut Criterion) {
+fn kqk(c: &mut Criterion<Perf>) {
     let pieces = [
         Piece::new(White, King),
         Piece::new(White, Queen),
@@ -24,5 +27,9 @@ fn kqk(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, kqk);
+criterion_group!(
+    name = benches;
+    config = Criterion::default().with_measurement(Perf);
+    targets = kqk
+);
 criterion_main!(benches);
