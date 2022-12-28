@@ -841,6 +841,11 @@ pub fn generate_tablebase<const W: usize, const H: usize>(
     let mut tablebase = Tablebase::default();
 
     for set in piece_sets {
+        print!("generating tablebase for ");
+        for p in set.iter() {
+            print!("{}", p.char());
+        }
+        println!();
         let has_pawn = set.iter().any(|p| p.ty() == Pawn);
         verify_piece_set(set);
         let mut boards_to_check = generate_all_boards::<W, H>(set);
