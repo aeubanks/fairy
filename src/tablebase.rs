@@ -499,6 +499,25 @@ fn test_generate_all_boards() {
         assert_eq!(boards[1][(1, 0)], None);
         assert_eq!(boards[1][(2, 0)], Some(Piece::new(White, Queen)));
     }
+    {
+        let boards = generate_all_boards::<4, 4>(&[
+            Piece::new(White, King),
+            Piece::new(White, Pawn),
+            Piece::new(White, Pawn),
+        ]);
+        for b in boards {
+            for y in 0..4 as i8 {
+                for x in 0..4 as i8 {
+                    if let Some(p) = b[(x, y)] {
+                        if p.ty() == Pawn {
+                            assert_ne!(0, y);
+                            assert_ne!(3, y);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn populate_initial_wins<const W: usize, const H: usize>(
