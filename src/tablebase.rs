@@ -1082,3 +1082,29 @@ fn test_generate_tablebase_parallel() {
         tablebase2.black_tablebase.len()
     );
 }
+
+#[test]
+fn test_hash_collision() {
+    let mut hashes = std::collections::HashSet::new();
+    let kk = [Piece::new(White, King), Piece::new(Black, King)];
+    let kqk = [
+        Piece::new(White, King),
+        Piece::new(White, Queen),
+        Piece::new(Black, King),
+    ];
+    let _krkr = [
+        Piece::new(White, King),
+        Piece::new(White, Rook),
+        Piece::new(Black, King),
+        Piece::new(Black, Rook),
+    ];
+    #[cfg(debug_assertions)]
+    let sets = [kk.as_slice(), kqk.as_slice()];
+    #[cfg(not(debug_assertions))]
+    let sets = [kk.as_slice(), kqk.as_slice(), _krkr.as_slice()];
+    for pieces in &sets {
+        for b in GenerateAllBoards::<6, 6>::new(pieces) {
+            assert!(hashes.insert(hash_one_board(&b, Symmetry::default())));
+        }
+    }
+}
