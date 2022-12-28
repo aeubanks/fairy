@@ -168,7 +168,7 @@ fn test_flip_move() {
 
 type MapTy = HashMap<u64, (Move, u16)>;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Tablebase<const W: usize, const H: usize> {
     // table of best move to play on white's turn to force a win
     white_tablebase: MapTy,
@@ -218,6 +218,21 @@ impl<const W: usize, const H: usize> Tablebase<W, H> {
         self.black_tablebase
             .get(&hash(board, has_pawn).0)
             .map(|e| e.1)
+    }
+    fn merge(&mut self, other: &Self) {
+        self.white_tablebase.extend(&other.white_tablebase);
+        self.black_tablebase.extend(&other.black_tablebase);
+    }
+    pub fn dump_stats(&self) {
+        println!("white positions: {}", self.white_tablebase.len());
+        println!("black positions: {}", self.black_tablebase.len());
+        let mut max_depth = 0;
+        for v in self.white_tablebase.values() {
+            if v.1 > max_depth {
+                max_depth = v.1;
+            }
+        }
+        println!("max depth: {}", max_depth);
     }
 }
 
@@ -896,4 +911,71 @@ fn test_tablebase_size() {
     let all2 = generate_all_boards::<4, 4>(&pieces2);
     // With symmetry, we should expect a little over 1/8 of positions to be in the tablebase.
     assert!(tablebase.white_tablebase.len() < all1.len() + all2.len() / 6);
+}
+
+pub fn generate_tablebase_parallel<const W: usize, const H: usize>(
+    tablebase: &mut Tablebase<W, H>,
+    piece_sets: &[&[Piece]],
+    parallelism: Option<usize>,
+) {
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+    let sets = Arc::new(Mutex::new(
+        piece_sets
+            .iter()
+            .map(|s| s.iter().map(|p| *p).collect::<Vec<_>>())
+            .collect::<Vec<_>>(),
+    ));
+    let mut handles = Vec::new();
+    for _ in 0..parallelism.unwrap_or_else(|| thread::available_parallelism().unwrap().get()) {
+        let sets = sets.clone();
+        let mut clone = tablebase.clone();
+        handles.push(thread::spawn(move || {
+            loop {
+                let set = { sets.lock().unwrap().pop() };
+                if let Some(set) = set {
+                    generate_tablebase(&mut clone, &set);
+                } else {
+                    break;
+                }
+            }
+            clone
+        }))
+    }
+    for handle in handles {
+        let res = handle.join().unwrap();
+        tablebase.merge(&res);
+    }
+}
+
+#[test]
+fn test_generate_tablebase_parallel() {
+    let mut tablebase1 = Tablebase::<4, 4>::default();
+    let mut tablebase2 = Tablebase::<4, 4>::default();
+    let kk = [Piece::new(White, King), Piece::new(Black, King)];
+    let kqk = [
+        Piece::new(White, King),
+        Piece::new(White, Queen),
+        Piece::new(Black, King),
+    ];
+    let krk = [
+        Piece::new(White, King),
+        Piece::new(White, Rook),
+        Piece::new(Black, King),
+    ];
+    generate_tablebase(&mut tablebase1, &kk);
+    generate_tablebase(&mut tablebase1, &kqk);
+    generate_tablebase(&mut tablebase1, &krk);
+
+    generate_tablebase(&mut tablebase2, &kk);
+    generate_tablebase_parallel(&mut tablebase2, &[&kqk, &krk], Some(2));
+
+    assert_eq!(
+        tablebase1.white_tablebase.len(),
+        tablebase2.white_tablebase.len()
+    );
+    assert_eq!(
+        tablebase1.black_tablebase.len(),
+        tablebase2.black_tablebase.len()
+    );
 }
