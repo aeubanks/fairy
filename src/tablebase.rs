@@ -1051,22 +1051,22 @@ fn test_generate_tablebase_parallel() {
     let mut tablebase1 = Tablebase::<4, 4>::default();
     let mut tablebase2 = Tablebase::<4, 4>::default();
     let kk = [Piece::new(White, King), Piece::new(Black, King)];
-    let kqk = [
+    let kzk = [
         Piece::new(White, King),
-        Piece::new(White, Queen),
+        Piece::new(White, Amazon),
         Piece::new(Black, King),
     ];
-    let krk = [
+    let kkz = [
         Piece::new(White, King),
-        Piece::new(White, Rook),
         Piece::new(Black, King),
+        Piece::new(Black, Amazon),
     ];
     generate_tablebase(&mut tablebase1, &kk);
-    generate_tablebase(&mut tablebase1, &kqk);
-    generate_tablebase(&mut tablebase1, &krk);
+    generate_tablebase(&mut tablebase1, &kzk);
+    generate_tablebase(&mut tablebase1, &kkz);
 
     generate_tablebase(&mut tablebase2, &kk);
-    generate_tablebase_parallel(&mut tablebase2, &[&kqk, &krk], Some(2));
+    generate_tablebase_parallel(&mut tablebase2, &[&kzk, &kkz], Some(2));
 
     assert_eq!(
         tablebase1.white_tablebase.len(),
