@@ -696,15 +696,15 @@ fn iterate_black<const W: usize, const H: usize>(
     has_pawn: bool,
 ) -> Vec<Board<W, H>> {
     let mut next_boards = Vec::new();
-    for b in boards {
-        if tablebase.black_contains_impl(b, has_pawn) {
+    for b in ReachablePositions::new(boards, Black) {
+        if tablebase.black_contains_impl(&b, has_pawn) {
             continue;
         }
         // None means no forced loss
         // Some(depth) means forced loss in depth moves
         let mut max_depth = Some(0);
         let mut best_move = None;
-        let black_moves = all_moves(b, Black);
+        let black_moves = all_moves(&b, Black);
         if black_moves.is_empty() {
             // loss?
             continue;
@@ -735,53 +735,11 @@ fn iterate_black<const W: usize, const H: usize>(
             }
         }
         if let Some(max_depth) = max_depth {
-            tablebase.black_add_impl(b, best_move.unwrap(), max_depth + 1, has_pawn);
+            tablebase.black_add_impl(&b, best_move.unwrap(), max_depth + 1, has_pawn);
             next_boards.push(b.clone());
         }
     }
     next_boards
-}
-
-#[test]
-fn test_iterate_black() {
-    let wk = Piece::new(White, King);
-    let bk = Piece::new(Black, King);
-    let board = Board::<4, 1>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(2, 0), bk)]);
-    let mut tablebase = Tablebase::default();
-    tablebase.white_add_impl(
-        &Board::<4, 1>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
-        Move {
-            from: Coord::new(0, 0),
-            to: Coord::new(0, 0),
-        },
-        1,
-        false,
-    );
-    assert!(iterate_black(&mut tablebase, &[board.clone()], false).is_empty());
-    assert!(tablebase.black_tablebase.is_empty());
-    tablebase.white_add_impl(
-        &Board::<4, 1>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(3, 0), bk)]),
-        Move {
-            from: Coord::new(0, 0),
-            to: Coord::new(0, 0),
-        },
-        3,
-        false,
-    );
-    assert_eq!(
-        iterate_black(&mut tablebase, &[board.clone()], false).len(),
-        1
-    );
-    assert_eq!(
-        tablebase.black_result(&board),
-        Some((
-            Move {
-                from: Coord::new(2, 0),
-                to: Coord::new(3, 0)
-            },
-            4
-        ))
-    );
 }
 
 fn iterate_white<const W: usize, const H: usize>(
@@ -790,15 +748,15 @@ fn iterate_white<const W: usize, const H: usize>(
     has_pawn: bool,
 ) -> Vec<Board<W, H>> {
     let mut next_boards = Vec::new();
-    for b in boards {
-        if tablebase.white_contains_impl(b, has_pawn) {
+    for b in ReachablePositions::new(boards, White) {
+        if tablebase.white_contains_impl(&b, has_pawn) {
             continue;
         }
         // None means no forced win
         // Some(depth) means forced win in depth moves
         let mut min_depth: Option<u16> = None;
         let mut best_move = None;
-        let white_moves = all_moves(b, White);
+        let white_moves = all_moves(&b, White);
         if white_moves.is_empty() {
             // loss?
             continue;
@@ -826,69 +784,11 @@ fn iterate_white<const W: usize, const H: usize>(
             }
         }
         if let Some(min_depth) = min_depth {
-            tablebase.white_add_impl(b, best_move.unwrap(), min_depth + 1, has_pawn);
+            tablebase.white_add_impl(&b, best_move.unwrap(), min_depth + 1, has_pawn);
             next_boards.push(b.clone());
         }
     }
     next_boards
-}
-
-#[test]
-fn test_iterate_white() {
-    let wk = Piece::new(White, King);
-    let bk = Piece::new(Black, King);
-    let board = Board::<5, 1>::with_pieces(&[(Coord::new(1, 0), wk), (Coord::new(4, 0), bk)]);
-    let mut tablebase = Tablebase::default();
-    assert!(iterate_white(&mut tablebase, &[board.clone()], false).is_empty());
-    assert!(tablebase.white_tablebase.is_empty());
-
-    tablebase.black_add_impl(
-        &Board::<5, 1>::with_pieces(&[(Coord::new(2, 0), wk), (Coord::new(4, 0), bk)]),
-        Move {
-            from: Coord::new(0, 0),
-            to: Coord::new(0, 0),
-        },
-        2,
-        false,
-    );
-    assert_eq!(
-        iterate_white(&mut tablebase, &[board.clone()], false).len(),
-        1
-    );
-    assert_eq!(
-        tablebase.white_result(&board),
-        Some((
-            Move {
-                from: Coord::new(1, 0),
-                to: Coord::new(2, 0)
-            },
-            3
-        ))
-    );
-    tablebase.white_tablebase.clear();
-    tablebase.black_add_impl(
-        &Board::<5, 1>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(4, 0), bk)]),
-        Move {
-            from: Coord::new(0, 0),
-            to: Coord::new(0, 0),
-        },
-        4,
-        false,
-    );
-    assert_eq!(
-        iterate_white(&mut tablebase, &[board.clone()], false).len(),
-        1
-    );
-    assert_eq!(
-        tablebase.white_result(&board),
-        Some((
-            Move {
-                from: Coord::new(1, 0),
-                to: Coord::new(2, 0)
-            },
-            3
-        ))
-    );
 }
 
 fn verify_piece_set(pieces: &[Piece]) {
@@ -906,27 +806,51 @@ fn verify_piece_set(pieces: &[Piece]) {
     assert_eq!(bk_count, 1);
 }
 
-fn reachable_positions<const W: usize, const H: usize>(
-    boards: &[Board<W, H>],
+struct ReachablePositions<'a, const W: usize, const H: usize> {
+    boards: &'a [Board<W, H>],
     player: Player,
-) -> Vec<Board<W, H>> {
-    let mut ret = Vec::new();
-    for board in boards {
-        for m in all_moves_to_end_at_board_no_captures(board, player) {
+    idx: usize,
+    cur_board_moves: Vec<Move>,
+}
+
+impl<'a, const W: usize, const H: usize> ReachablePositions<'a, W, H> {
+    fn new(boards: &'a [Board<W, H>], player: Player) -> Self {
+        Self {
+            boards,
+            player,
+            idx: 0,
+            cur_board_moves: Vec::new(),
+        }
+    }
+}
+
+impl<'a, const W: usize, const H: usize> Iterator for ReachablePositions<'a, W, H> {
+    type Item = Board<W, H>;
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.cur_board_moves.is_empty() && self.idx != self.boards.len() {
+            self.cur_board_moves
+                .extend(all_moves_to_end_at_board_no_captures(
+                    &self.boards[self.idx],
+                    self.player,
+                ));
+            self.idx += 1;
+        }
+        if let Some(m) = self.cur_board_moves.pop() {
+            let board = &self.boards[self.idx - 1];
             assert_eq!(
-                board.existing_piece_result(m.from, player),
+                board.existing_piece_result(m.from, self.player),
                 ExistingPieceResult::Empty
             );
             assert_eq!(
-                board.existing_piece_result(m.to, player),
+                board.existing_piece_result(m.to, self.player),
                 ExistingPieceResult::Friend
             );
             let mut clone = board.clone();
             clone.swap(m.from, m.to);
-            ret.push(clone);
+            return Some(clone);
         }
+        None
     }
-    ret
 }
 
 pub fn generate_tablebase<const W: usize, const H: usize>(
@@ -936,9 +860,8 @@ pub fn generate_tablebase<const W: usize, const H: usize>(
     let has_pawn = pieces.iter().any(|p| p.ty() == Pawn);
     verify_piece_set(pieces);
     let mut boards_to_check = populate_initial_wins(tablebase, pieces, has_pawn);
-    boards_to_check = reachable_positions(&boards_to_check, Black);
     loop {
-        // check that starting from all possible boards gives the same result as starting from all boards reachable from previous boards
+        // check that starting from all possible boards gives the same result as starting from all boards returned by previous step
         #[cfg(debug_assertions)]
         let all_black_count = iterate_black(
             &mut tablebase.clone(),
@@ -963,7 +886,6 @@ pub fn generate_tablebase<const W: usize, const H: usize>(
             has_pawn,
         )
         .len();
-        boards_to_check = reachable_positions(&boards_to_check, White);
 
         boards_to_check = iterate_white(tablebase, &boards_to_check, has_pawn);
 
@@ -973,8 +895,81 @@ pub fn generate_tablebase<const W: usize, const H: usize>(
         if boards_to_check.is_empty() {
             break;
         }
-        boards_to_check = reachable_positions(&boards_to_check, Black);
     }
+}
+
+#[test]
+fn test_generate_king_king_5_1_tablebase() {
+    let wk = Piece::new(White, King);
+    let bk = Piece::new(Black, King);
+    let mut tablebase = Tablebase::<5, 1>::default();
+    generate_tablebase(&mut tablebase, &[wk, bk]);
+
+    assert_eq!(
+        tablebase.white_result(&Board::<5, 1>::with_pieces(&[
+            (Coord::new(0, 0), wk),
+            (Coord::new(3, 0), bk)
+        ])),
+        Some((
+            Move {
+                from: Coord::new(0, 0),
+                to: Coord::new(1, 0)
+            },
+            5
+        ))
+    );
+    assert_eq!(
+        tablebase.black_result(&Board::<5, 1>::with_pieces(&[
+            (Coord::new(1, 0), wk),
+            (Coord::new(3, 0), bk)
+        ])),
+        Some((
+            Move {
+                from: Coord::new(3, 0),
+                to: Coord::new(4, 0)
+            },
+            4
+        ))
+    );
+    assert_eq!(
+        tablebase.white_result(&Board::<5, 1>::with_pieces(&[
+            (Coord::new(1, 0), wk),
+            (Coord::new(4, 0), bk)
+        ])),
+        Some((
+            Move {
+                from: Coord::new(1, 0),
+                to: Coord::new(2, 0)
+            },
+            3
+        ))
+    );
+    assert_eq!(
+        tablebase.black_result(&Board::<5, 1>::with_pieces(&[
+            (Coord::new(2, 0), wk),
+            (Coord::new(4, 0), bk)
+        ])),
+        Some((
+            Move {
+                from: Coord::new(4, 0),
+                to: Coord::new(3, 0)
+            },
+            2
+        ))
+    );
+    assert_eq!(
+        tablebase.white_result(&Board::<5, 1>::with_pieces(&[
+            (Coord::new(2, 0), wk),
+            (Coord::new(3, 0), bk)
+        ])),
+        Some((
+            Move {
+                from: Coord::new(2, 0),
+                to: Coord::new(3, 0)
+            },
+            1
+        ))
+    );
 }
 
 #[test]
