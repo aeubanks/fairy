@@ -49,11 +49,6 @@ impl PieceWatcher for TablebasePieceWatcher {
 
 pub type Board<const W: usize, const H: usize> = crate::board::Board<W, H, TablebasePieceWatcher>;
 
-// TODO: factor out coord visiting
-fn board_has_pawn<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
-    board.piece_coord(|piece| piece.ty() == Pawn).is_some()
-}
-
 #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
 struct Symmetry {
     flip_x: bool,
@@ -222,46 +217,40 @@ pub struct Tablebase<const W: usize, const H: usize> {
 
 impl<const W: usize, const H: usize> Tablebase<W, H> {
     pub fn white_result(&self, board: &Board<W, H>) -> Option<(Move, u16)> {
-        let has_pawn = board_has_pawn(board);
-        let (hash, sym) = hash(board, has_pawn);
+        let (hash, sym) = hash(board);
         self.white_tablebase
             .get(&hash)
             .map(|e| (unflip_move(e.0, sym, W as i8, H as i8), e.1))
     }
     pub fn black_result(&self, board: &Board<W, H>) -> Option<(Move, u16)> {
-        let has_pawn = board_has_pawn(board);
-        let (hash, sym) = hash(board, has_pawn);
+        let (hash, sym) = hash(board);
         self.black_tablebase
             .get(&hash)
             .map(|e| (unflip_move(e.0, sym, W as i8, H as i8), e.1))
     }
-    fn white_add_impl(&mut self, board: &Board<W, H>, m: Move, depth: u16, has_pawn: bool) {
-        let (hash, sym) = hash(board, has_pawn);
+    fn white_add_impl(&mut self, board: &Board<W, H>, m: Move, depth: u16) {
+        let (hash, sym) = hash(board);
         debug_assert!(!self.white_tablebase.contains_key(&hash));
         self.white_tablebase
             .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
     }
-    fn white_contains_impl(&self, board: &Board<W, H>, has_pawn: bool) -> bool {
-        self.white_tablebase.contains_key(&hash(board, has_pawn).0)
+    fn white_contains_impl(&self, board: &Board<W, H>) -> bool {
+        self.white_tablebase.contains_key(&hash(board).0)
     }
-    fn white_depth_impl(&self, board: &Board<W, H>, has_pawn: bool) -> Option<u16> {
-        self.white_tablebase
-            .get(&hash(board, has_pawn).0)
-            .map(|e| e.1)
+    fn white_depth_impl(&self, board: &Board<W, H>) -> Option<u16> {
+        self.white_tablebase.get(&hash(board).0).map(|e| e.1)
     }
-    fn black_add_impl(&mut self, board: &Board<W, H>, m: Move, depth: u16, has_pawn: bool) {
-        let (hash, sym) = hash(board, has_pawn);
+    fn black_add_impl(&mut self, board: &Board<W, H>, m: Move, depth: u16) {
+        let (hash, sym) = hash(board);
         debug_assert!(!self.black_tablebase.contains_key(&hash));
         self.black_tablebase
             .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
     }
-    fn black_contains_impl(&self, board: &Board<W, H>, has_pawn: bool) -> bool {
-        self.black_tablebase.contains_key(&hash(board, has_pawn).0)
+    fn black_contains_impl(&self, board: &Board<W, H>) -> bool {
+        self.black_tablebase.contains_key(&hash(board).0)
     }
-    fn black_depth_impl(&self, board: &Board<W, H>, has_pawn: bool) -> Option<u16> {
-        self.black_tablebase
-            .get(&hash(board, has_pawn).0)
-            .map(|e| e.1)
+    fn black_depth_impl(&self, board: &Board<W, H>) -> Option<u16> {
+        self.black_tablebase.get(&hash(board).0).map(|e| e.1)
     }
     fn merge(&mut self, other: &Self) {
         self.white_tablebase.extend(&other.white_tablebase);
@@ -292,7 +281,7 @@ fn test_generate_flip_unflip_move() {
         to: Coord::new(2, 0),
     };
     let mut tablebase = Tablebase::default();
-    tablebase.white_add_impl(&board, m, 1, false);
+    tablebase.white_add_impl(&board, m, 1);
     assert_eq!(tablebase.white_result(&board), Some((m, 1)));
 }
 
@@ -316,9 +305,7 @@ fn hash_one_board<const W: usize, const H: usize>(board: &Board<W, H>, sym: Symm
     hasher.finish()
 }
 
-fn hash<const W: usize, const H: usize>(board: &Board<W, H>, has_pawn: bool) -> (u64, Symmetry) {
-    debug_assert_eq!(has_pawn, board_has_pawn(board));
-
+fn hash<const W: usize, const H: usize>(board: &Board<W, H>) -> (u64, Symmetry) {
     let mut symmetries_to_check = ArrayVec::<Symmetry, 8>::new();
     symmetries_to_check.push(Symmetry::default());
 
@@ -346,6 +333,7 @@ fn hash<const W: usize, const H: usize>(board: &Board<W, H>, has_pawn: bool) -> 
         }
     }
     // pawns are not symmetrical on the y axis or diagonally
+    let has_pawn = board.piece_coord(|piece| piece.ty() == Pawn).is_some();
     if !has_pawn {
         if H % 2 == 1 && bk_coord.y == H as i8 / 2 {
             let symmetries_copy = symmetries_to_check.clone();
@@ -406,16 +394,10 @@ fn test_hash() {
     let board2 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
 
     fn assert_hash_eq<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
-        assert_eq!(
-            hash(&b1, board_has_pawn(&b1)).0,
-            hash(&b2, board_has_pawn(&b2)).0
-        );
+        assert_eq!(hash(&b1).0, hash(&b2).0);
     }
     fn assert_hash_ne<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
-        assert_ne!(
-            hash(&b1, board_has_pawn(&b1)).0,
-            hash(&b2, board_has_pawn(&b2)).0
-        );
+        assert_ne!(hash(&b1).0, hash(&b2).0);
     }
     assert_hash_eq(&board1, &board1);
     assert_hash_eq(&board2, &board2);
@@ -610,12 +592,11 @@ fn test_generate_all_boards() {
 fn populate_initial_wins<const W: usize, const H: usize>(
     tablebase: &mut Tablebase<W, H>,
     pieces: &[Piece],
-    has_pawn: bool,
 ) -> Vec<Board<W, H>> {
     let mut ret = Vec::new();
     for b in GenerateAllBoards::new(pieces) {
         // white can capture black's king
-        if !tablebase.white_contains_impl(&b, has_pawn) {
+        if !tablebase.white_contains_impl(&b) {
             let opponent_king_coord = b.king_coord(Black);
             if let Some(c) = under_attack_from_coord(&b, opponent_king_coord, Black) {
                 tablebase.white_add_impl(
@@ -625,14 +606,13 @@ fn populate_initial_wins<const W: usize, const H: usize>(
                         to: opponent_king_coord,
                     },
                     1,
-                    has_pawn,
                 );
                 ret.push(b.clone());
             }
         }
         // don't support stalemate for now, it doesn't really happen on normal boards with few pieces, and takes up a noticeable chunk of tablebase generation time
         debug_assert!(!all_moves(&b, Black).is_empty());
-        // if !tablebase.black_contains_impl(b, has_pawn) {
+        // if !tablebase.black_contains_impl(b) {
         //     // stalemate is a win
         //     if all_moves(b, Black).is_empty() {
         //         tablebase.black_add_impl(
@@ -643,7 +623,6 @@ fn populate_initial_wins<const W: usize, const H: usize>(
         //                 to: Coord::new(0, 0),
         //             },
         //             0,
-        //             has_pawn,
         //         );
         //     }
         // }
@@ -657,7 +636,6 @@ fn test_populate_initial_tablebases() {
     let ret = populate_initial_wins::<4, 4>(
         &mut tablebase,
         &[Piece::new(White, King), Piece::new(Black, King)],
-        false,
     );
     assert_ne!(ret.len(), 0);
 
@@ -693,37 +671,31 @@ fn test_populate_initial_tablebases_stalemate() {
             Piece::new(Black, Pawn),
             Piece::new(Black, King),
         ],
-        true,
     );
     assert_eq!(
-        tablebase.black_depth_impl(
-            &Board::<1, 8>::with_pieces(&[
-                (Coord::new(0, 7), Piece::new(White, King,)),
-                (Coord::new(0, 1), Piece::new(Black, Pawn,)),
-                (Coord::new(0, 0), Piece::new(Black, King,)),
-            ]),
-            true
-        ),
+        tablebase.black_depth_impl(&Board::<1, 8>::with_pieces(&[
+            (Coord::new(0, 7), Piece::new(White, King)),
+            (Coord::new(0, 1), Piece::new(Black, Pawn)),
+            (Coord::new(0, 0), Piece::new(Black, King)),
+        ])),
         Some(0)
     );
-    assert!(!tablebase.black_contains_impl(
-        &Board::<1, 8>::with_pieces(&[
-            (Coord::new(0, 7), Piece::new(White, King,)),
-            (Coord::new(0, 2), Piece::new(Black, Pawn,)),
-            (Coord::new(0, 0), Piece::new(Black, King,)),
-        ]),
-        true
-    ));
+    assert!(
+        !tablebase.black_contains_impl(&Board::<1, 8>::with_pieces(&[
+            (Coord::new(0, 7), Piece::new(White, King)),
+            (Coord::new(0, 2), Piece::new(Black, Pawn)),
+            (Coord::new(0, 0), Piece::new(Black, King)),
+        ]))
+    );
 }
 
 fn iterate_black<const W: usize, const H: usize>(
     tablebase: &mut Tablebase<W, H>,
     boards: &[Board<W, H>],
-    has_pawn: bool,
 ) -> Vec<Board<W, H>> {
     let mut next_boards = Vec::new();
     for b in ReachablePositions::new(boards, Black) {
-        if tablebase.black_contains_impl(&b, has_pawn) {
+        if tablebase.black_contains_impl(&b) {
             continue;
         }
         // None means no forced loss
@@ -739,7 +711,7 @@ fn iterate_black<const W: usize, const H: usize>(
             let mut clone = b.clone();
             clone.make_move(black_move, Black);
 
-            if let Some(depth) = tablebase.white_depth_impl(&clone, has_pawn) {
+            if let Some(depth) = tablebase.white_depth_impl(&clone) {
                 max_depth = Some(match max_depth {
                     Some(md) => {
                         // use move that prolongs checkmate as long as possible
@@ -761,7 +733,7 @@ fn iterate_black<const W: usize, const H: usize>(
             }
         }
         if let Some(max_depth) = max_depth {
-            tablebase.black_add_impl(&b, best_move.unwrap(), max_depth + 1, has_pawn);
+            tablebase.black_add_impl(&b, best_move.unwrap(), max_depth + 1);
             next_boards.push(b.clone());
         }
     }
@@ -771,11 +743,10 @@ fn iterate_black<const W: usize, const H: usize>(
 fn iterate_white<const W: usize, const H: usize>(
     tablebase: &mut Tablebase<W, H>,
     boards: &[Board<W, H>],
-    has_pawn: bool,
 ) -> Vec<Board<W, H>> {
     let mut next_boards = Vec::new();
     for b in ReachablePositions::new(boards, White) {
-        if tablebase.white_contains_impl(&b, has_pawn) {
+        if tablebase.white_contains_impl(&b) {
             continue;
         }
         // None means no forced win
@@ -791,7 +762,7 @@ fn iterate_white<const W: usize, const H: usize>(
             let mut clone = b.clone();
             clone.make_move(white_move, White);
 
-            if let Some(depth) = tablebase.black_depth_impl(&clone, has_pawn) {
+            if let Some(depth) = tablebase.black_depth_impl(&clone) {
                 min_depth = Some(match min_depth {
                     Some(md) => {
                         // use move that forces checkmate as quickly as possible
@@ -810,7 +781,7 @@ fn iterate_white<const W: usize, const H: usize>(
             }
         }
         if let Some(min_depth) = min_depth {
-            tablebase.white_add_impl(&b, best_move.unwrap(), min_depth + 1, has_pawn);
+            tablebase.white_add_impl(&b, best_move.unwrap(), min_depth + 1);
             next_boards.push(b.clone());
         }
     }
@@ -883,20 +854,18 @@ pub fn generate_tablebase<const W: usize, const H: usize>(
     tablebase: &mut Tablebase<W, H>,
     pieces: &[Piece],
 ) {
-    let has_pawn = pieces.iter().any(|p| p.ty() == Pawn);
     verify_piece_set(pieces);
-    let mut boards_to_check = populate_initial_wins(tablebase, pieces, has_pawn);
+    let mut boards_to_check = populate_initial_wins(tablebase, pieces);
     loop {
         // check that starting from all possible boards gives the same result as starting from all boards returned by previous step
         #[cfg(debug_assertions)]
         let all_black_count = iterate_black(
             &mut tablebase.clone(),
             &GenerateAllBoards::new(pieces).collect::<Vec<_>>(),
-            has_pawn,
         )
         .len();
 
-        boards_to_check = iterate_black(tablebase, &boards_to_check, has_pawn);
+        boards_to_check = iterate_black(tablebase, &boards_to_check);
 
         #[cfg(debug_assertions)]
         debug_assert_eq!(all_black_count, boards_to_check.len());
@@ -909,11 +878,10 @@ pub fn generate_tablebase<const W: usize, const H: usize>(
         let all_white_count = iterate_white(
             &mut tablebase.clone(),
             &GenerateAllBoards::new(pieces).collect::<Vec<_>>(),
-            has_pawn,
         )
         .len();
 
-        boards_to_check = iterate_white(tablebase, &boards_to_check, has_pawn);
+        boards_to_check = iterate_white(tablebase, &boards_to_check);
 
         #[cfg(debug_assertions)]
         debug_assert_eq!(all_white_count, boards_to_check.len());
@@ -1008,9 +976,9 @@ fn test_generate_king_king_tablebase() {
         assert!(tablebase.black_tablebase.is_empty());
         for b in GenerateAllBoards::new(&pieces) {
             if crate::moves::is_under_attack(&b, b.king_coord(Black), Black) {
-                assert_eq!(tablebase.white_depth_impl(&b, false), Some(1));
+                assert_eq!(tablebase.white_depth_impl(&b), Some(1));
             } else {
-                assert_eq!(tablebase.white_depth_impl(&b, false), None);
+                assert_eq!(tablebase.white_depth_impl(&b), None);
             }
         }
     }
