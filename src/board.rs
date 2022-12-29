@@ -119,7 +119,7 @@ impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
         }
     }
 
-    pub fn pieces_fn<F>(&self, mut f: F)
+    pub fn foreach_piece<F>(&self, mut f: F)
     where
         F: FnMut(Piece, Coord),
     {
@@ -132,7 +132,7 @@ impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
         }
     }
 
-    pub fn pieces_fn_first<F>(&self, mut f: F) -> Option<Coord>
+    pub fn piece_coord<F>(&self, mut f: F) -> Option<Coord>
     where
         F: FnMut(Piece) -> bool,
     {
@@ -150,7 +150,7 @@ impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
 
     pub fn king_coord(&self, player: Player) -> Coord {
         let ret = self.watcher.king_coord(player).unwrap_or_else(|| {
-            self.pieces_fn_first(|piece| piece.player() == player && piece.ty() == King)
+            self.piece_coord(|piece| piece.player() == player && piece.ty() == King)
                 .unwrap()
         });
         debug_assert_eq!(self[ret].unwrap().ty(), King);

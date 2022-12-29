@@ -35,7 +35,7 @@ pub type Board<const W: usize, const H: usize> = crate::board::Board<W, H, Table
 
 // TODO: factor out coord visiting
 fn board_has_pawn<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
-    board.pieces_fn_first(|piece| piece.ty() == Pawn).is_some()
+    board.piece_coord(|piece| piece.ty() == Pawn).is_some()
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
@@ -283,7 +283,7 @@ fn test_generate_flip_unflip_move() {
 fn hash_one_board<const W: usize, const H: usize>(board: &Board<W, H>, sym: Symmetry) -> u64 {
     // need to visit in consistent order across symmetries
     let mut pieces = ArrayVec::<(Coord, Piece), 6>::new();
-    board.pieces_fn(|piece, coord| {
+    board.foreach_piece(|piece, coord| {
         let c = flip_coord(coord, sym, W as i8, H as i8);
         pieces.push((c, piece));
     });

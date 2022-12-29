@@ -4,7 +4,7 @@ use fairy::tablebase::{generate_tablebase, Board, GenerateAllBoards, Tablebase};
 
 fn black_king_exists<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
     board
-        .pieces_fn_first(|piece| piece.player() == Black && piece.ty() == King)
+        .piece_coord(|piece| piece.player() == Black && piece.ty() == King)
         .is_some()
 }
 

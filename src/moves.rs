@@ -812,7 +812,7 @@ pub fn all_moves<const W: usize, const H: usize, PW: PieceWatcher>(
 ) -> Vec<Move> {
     let mut moves = Vec::new();
 
-    board.pieces_fn(|piece, coord| {
+    board.foreach_piece(|piece, coord| {
         if piece.player() == player {
             let mut piece_moves = Vec::new();
             add_moves_for_piece(&mut piece_moves, board, piece, coord);
@@ -1454,7 +1454,7 @@ pub fn all_moves_to_end_at_board_no_captures<const W: usize, const H: usize, PW:
     player: Player,
 ) -> Vec<Move> {
     let mut moves = Vec::new();
-    board.pieces_fn(|piece, coord| {
+    board.foreach_piece(|piece, coord| {
         if piece.player() != player {
             return;
         }
