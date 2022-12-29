@@ -9,6 +9,12 @@ panic = "abort"
 codegen-units = 1
 lto = "thin"
 
+[profile.test]
+inherits = "dev"
+debug = 1
+opt-level = 1
+debug-assertions = true
+
 [dependencies]
 derive_rand = { path = "derive_rand" }
 arrayvec = "0.7"
