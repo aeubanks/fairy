@@ -11,40 +11,39 @@ use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hash, Hasher};
 
 #[derive(Clone, Default)]
-pub struct TablebasePieceWatcher(Coord, Coord, ArrayVec<(Coord, Piece), 4>);
+pub struct TablebasePieceWatcher(ArrayVec<(Coord, Piece), 4>);
 
 impl PieceWatcher for TablebasePieceWatcher {
     fn add_piece(&mut self, piece: Piece, coord: Coord) {
-        if piece.ty() == King {
-            match piece.player() {
-                White => self.0 = coord,
-                Black => self.1 = coord,
-            }
-        }
-        self.2.push((coord, piece));
+        self.0.push((coord, piece));
     }
     fn remove_piece(&mut self, piece: Piece, coord: Coord) {
         let idx = self
-            .2
+            .0
             .iter()
             .position(|(c, p)| *c == coord && *p == piece)
             .unwrap();
-        self.2.swap_remove(idx);
-    }
-    fn king_coord(&self, player: Player) -> Option<Coord> {
-        Some(match player {
-            White => self.0,
-            Black => self.1,
-        })
+        self.0.swap_remove(idx);
     }
     fn foreach_piece<F>(&self, mut f: F) -> bool
     where
         F: FnMut(Piece, Coord),
     {
-        for (c, p) in &self.2 {
+        for (c, p) in &self.0 {
             f(*p, *c);
         }
         true
+    }
+    fn piece_coord<F>(&self, mut f: F) -> Option<Option<Coord>>
+    where
+        F: FnMut(Piece) -> bool,
+    {
+        for (c, p) in &self.0 {
+            if f(*p) {
+                return Some(Some(*c));
+            }
+        }
+        Some(None)
     }
 }
 

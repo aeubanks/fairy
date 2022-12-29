@@ -8,15 +8,18 @@ use std::ops::Index;
 pub trait PieceWatcher: Default + Clone {
     fn add_piece(&mut self, piece: Piece, coord: Coord);
     fn remove_piece(&mut self, piece: Piece, coord: Coord);
-    fn king_coord(&self, _player: Player) -> Option<Coord> {
-        None
-    }
-
     fn foreach_piece<F>(&self, _f: F) -> bool
     where
         F: FnMut(Piece, Coord),
     {
         false
+    }
+
+    fn piece_coord<F>(&self, _f: F) -> Option<Option<Coord>>
+    where
+        F: FnMut(Piece) -> bool,
+    {
+        None
     }
 }
 
@@ -146,6 +149,9 @@ impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
     where
         F: FnMut(Piece) -> bool,
     {
+        if let Some(o) = self.watcher.piece_coord(&mut f) {
+            return o;
+        }
         for (x, ps) in self.pieces.iter().enumerate() {
             for (y, p) in ps.iter().enumerate() {
                 if let Some(p) = p {
@@ -159,10 +165,9 @@ impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
     }
 
     pub fn king_coord(&self, player: Player) -> Coord {
-        let ret = self.watcher.king_coord(player).unwrap_or_else(|| {
-            self.piece_coord(|piece| piece.player() == player && piece.ty() == King)
-                .unwrap()
-        });
+        let ret = self
+            .piece_coord(|piece| piece.player() == player && piece.ty() == King)
+            .unwrap();
         debug_assert_eq!(self[ret].unwrap().ty(), King);
         ret
     }
