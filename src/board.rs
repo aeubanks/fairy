@@ -59,15 +59,12 @@ impl<const W: usize, const H: usize> Board<W, H> {
     }
 
     pub fn set(&mut self, coord: Coord, piece: Option<Piece>) {
-        assert!(self.in_bounds(coord));
         assert!(self[coord].is_none());
 
         self.pieces[coord.x as usize][coord.y as usize] = piece;
     }
 
     pub fn take(&mut self, coord: Coord) -> Option<Piece> {
-        assert!(self.in_bounds(coord));
-
         self.pieces[coord.x as usize][coord.y as usize].take()
     }
 
@@ -148,7 +145,6 @@ impl<const W: usize, const H: usize> Index<Coord> for Board<W, H> {
     type Output = Option<Piece>;
 
     fn index(&self, coord: Coord) -> &Self::Output {
-        assert!(self.in_bounds(coord));
         &self.pieces[coord.x as usize][coord.y as usize]
     }
 }

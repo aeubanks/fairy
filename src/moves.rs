@@ -11,7 +11,6 @@ fn add_move_if_result<const W: usize, const H: usize>(
     player: Player,
     result: ExistingPieceResult,
 ) -> bool {
-    assert!(board.in_bounds(coord));
     if board.existing_piece_result(coord, player) == result {
         moves.push(coord);
         return true;
@@ -642,7 +641,6 @@ fn add_pawn_moves<const W: usize, const H: usize>(
     add_move_if_in_bounds_and_result(moves, board, right, player, ExistingPieceResult::Opponent);
 
     let front = coord + Coord { x: 0, y: dy };
-    assert!(board.in_bounds(front));
     let front_empty = add_move_if_result(moves, board, front, player, ExistingPieceResult::Empty);
 
     if front_empty {
