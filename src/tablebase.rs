@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hash, Hasher};
 
 #[derive(Clone, Default)]
-pub struct TablebasePieceWatcher(Coord, Coord);
+pub struct TablebasePieceWatcher(Coord, Coord, ArrayVec<(Coord, Piece), 4>);
 
 impl PieceWatcher for TablebasePieceWatcher {
     fn add_piece(&mut self, piece: Piece, coord: Coord) {
@@ -21,13 +21,30 @@ impl PieceWatcher for TablebasePieceWatcher {
                 Black => self.1 = coord,
             }
         }
+        self.2.push((coord, piece));
     }
-    fn remove_piece(&mut self, _piece: Piece, _coord: Coord) {}
+    fn remove_piece(&mut self, piece: Piece, coord: Coord) {
+        let idx = self
+            .2
+            .iter()
+            .position(|(c, p)| *c == coord && *p == piece)
+            .unwrap();
+        self.2.swap_remove(idx);
+    }
     fn king_coord(&self, player: Player) -> Option<Coord> {
         Some(match player {
             White => self.0,
             Black => self.1,
         })
+    }
+    fn foreach_piece<F>(&self, mut f: F) -> bool
+    where
+        F: FnMut(Piece, Coord),
+    {
+        for (c, p) in &self.2 {
+            f(*p, *c);
+        }
+        true
     }
 }
 

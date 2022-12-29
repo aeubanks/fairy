@@ -11,6 +11,13 @@ pub trait PieceWatcher: Default + Clone {
     fn king_coord(&self, _player: Player) -> Option<Coord> {
         None
     }
+
+    fn foreach_piece<F>(&self, _f: F) -> bool
+    where
+        F: FnMut(Piece, Coord),
+    {
+        false
+    }
 }
 
 #[derive(Default, Clone)]
@@ -123,6 +130,9 @@ impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
     where
         F: FnMut(Piece, Coord),
     {
+        if self.watcher.foreach_piece(&mut f) {
+            return;
+        }
         for (x, ps) in self.pieces.iter().enumerate() {
             for (y, p) in ps.iter().enumerate() {
                 if let Some(p) = p {
