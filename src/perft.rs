@@ -1,12 +1,11 @@
-use crate::board::{king_coord, Board};
+use crate::board::Board;
 use crate::coord::Coord;
 use crate::moves::*;
 use crate::piece::{Piece, Type::*};
 use crate::player::{next_player, Player, Player::*};
 
 pub fn is_in_check<const W: usize, const H: usize>(board: &Board<W, H>, player: Player) -> bool {
-    let king_coord = king_coord(board, player);
-    is_under_attack(board, king_coord, player)
+    is_under_attack(board, board.king_coord(player), player)
 }
 
 fn perft_impl<const W: usize, const H: usize>(
@@ -149,7 +148,7 @@ pub fn fen(fen: &str) -> Position<8, 8> {
                     _ => panic!(),
                 };
                 let player = if c.is_uppercase() { White } else { Black };
-                let king_coord = king_coord(&board, player);
+                let king_coord = board.king_coord(player);
                 let y = if player == White { 0 } else { 7 };
                 let color_idx = if player == White { 0 } else { 2 };
                 let idx = color_idx + if x < king_coord.x { 0 } else { 1 };

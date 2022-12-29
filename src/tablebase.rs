@@ -1,4 +1,4 @@
-use crate::board::{king_coord, ExistingPieceResult, Move, PieceWatcher};
+use crate::board::{ExistingPieceResult, Move, PieceWatcher};
 use crate::coord::Coord;
 use crate::moves::{all_moves, all_moves_to_end_at_board_no_captures, under_attack_from_coord};
 use crate::piece::Piece;
@@ -306,7 +306,7 @@ fn hash<const W: usize, const H: usize>(board: &Board<W, H>, has_pawn: bool) -> 
     let mut symmetries_to_check = ArrayVec::<Symmetry, 8>::new();
     symmetries_to_check.push(Symmetry::default());
 
-    let mut bk_coord = king_coord(board, Black);
+    let mut bk_coord = board.king_coord(Black);
 
     if W % 2 == 1 && bk_coord.x == W as i8 / 2 {
         let symmetries_copy = symmetries_to_check.clone();
@@ -600,7 +600,7 @@ fn populate_initial_wins<const W: usize, const H: usize>(
     for b in GenerateAllBoards::new(pieces) {
         // white can capture black's king
         if !tablebase.white_contains_impl(&b, has_pawn) {
-            let opponent_king_coord = king_coord(&b, Black);
+            let opponent_king_coord = b.king_coord(Black);
             if let Some(c) = under_attack_from_coord(&b, opponent_king_coord, Black) {
                 tablebase.white_add_impl(
                     &b,
@@ -659,8 +659,8 @@ fn test_populate_initial_tablebases() {
         ))
     );
     for board in ret {
-        let wk_coord = king_coord(&board, White);
-        let bk_coord = king_coord(&board, Black);
+        let wk_coord = board.king_coord(White);
+        let bk_coord = board.king_coord(Black);
         assert!((wk_coord.x - bk_coord.x).abs() <= 1);
         assert!((wk_coord.y - bk_coord.y).abs() <= 1);
     }
@@ -991,7 +991,7 @@ fn test_generate_king_king_tablebase() {
         // If white king couldn't capture on first move, no forced win.
         assert!(tablebase.black_tablebase.is_empty());
         for b in GenerateAllBoards::new(&pieces) {
-            if crate::moves::is_under_attack(&b, king_coord(&b, Black), Black) {
+            if crate::moves::is_under_attack(&b, b.king_coord(Black), Black) {
                 assert_eq!(tablebase.white_depth_impl(&b, false), Some(1));
             } else {
                 assert_eq!(tablebase.white_depth_impl(&b, false), None);

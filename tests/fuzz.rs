@@ -1,4 +1,4 @@
-use fairy::board::{king_coord, Board};
+use fairy::board::Board;
 use fairy::coord::Coord;
 use fairy::moves::all_moves;
 use fairy::perft::is_in_check;
@@ -87,7 +87,7 @@ fn rand_board<const W: usize, const H: usize, R: Rng + ?Sized>(rng: &mut R) -> B
 }
 
 fn check_is_in_check<const W: usize, const H: usize>(board: &Board<W, H>, player: Player) {
-    let king_coord = king_coord(board, player);
+    let king_coord = board.king_coord(player);
     let is_check = all_moves(board, next_player(player))
         .into_iter()
         .any(|om| om.to == king_coord);

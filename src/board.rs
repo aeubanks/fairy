@@ -147,6 +147,15 @@ impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
         }
         None
     }
+
+    pub fn king_coord(&self, player: Player) -> Coord {
+        let ret = self.watcher.king_coord(player).unwrap_or_else(|| {
+            self.pieces_fn_first(|piece| piece.player() == player && piece.ty() == King)
+                .unwrap()
+        });
+        debug_assert_eq!(self[ret].unwrap().ty(), King);
+        ret
+    }
 }
 
 #[test]
@@ -769,17 +778,4 @@ fn test_premade_boards() {
         Presets::chess960(&mut rng);
         Presets::capablanca_random(&mut rng);
     }
-}
-
-pub fn king_coord<const W: usize, const H: usize, PW: PieceWatcher>(
-    board: &Board<W, H, PW>,
-    player: Player,
-) -> Coord {
-    let ret = board.watcher.king_coord(player).unwrap_or_else(|| {
-        board
-            .pieces_fn_first(|piece| piece.player() == player && piece.ty() == King)
-            .unwrap()
-    });
-    debug_assert_eq!(board[ret].unwrap().ty(), King);
-    ret
 }
