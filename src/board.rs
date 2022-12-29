@@ -92,6 +92,35 @@ impl<const W: usize, const H: usize> Board<W, H> {
         self.set(c1, p2);
         self.set(c2, p1);
     }
+
+    pub fn pieces_fn<F>(&self, mut f: F)
+    where
+        F: FnMut(Piece, Coord),
+    {
+        for (x, ps) in self.pieces.iter().enumerate() {
+            for (y, p) in ps.iter().enumerate() {
+                if let Some(p) = p {
+                    f(*p, Coord::new(x as i8, y as i8));
+                }
+            }
+        }
+    }
+
+    pub fn pieces_fn_first<F>(&self, mut f: F) -> Option<Coord>
+    where
+        F: FnMut(Piece) -> bool,
+    {
+        for (x, ps) in self.pieces.iter().enumerate() {
+            for (y, p) in ps.iter().enumerate() {
+                if let Some(p) = p {
+                    if f(*p) {
+                        return Some(Coord::new(x as i8, y as i8));
+                    }
+                }
+            }
+        }
+        None
+    }
 }
 
 #[test]
@@ -736,15 +765,7 @@ fn test_premade_boards() {
 }
 
 pub fn king_coord<const W: usize, const H: usize>(board: &Board<W, H>, player: Player) -> Coord {
-    for y in 0..H as i8 {
-        for x in 0..W as i8 {
-            let coord = Coord::new(x, y);
-            if let Some(piece) = board[coord] {
-                if piece.player() == player && piece.ty() == King {
-                    return coord;
-                }
-            }
-        }
-    }
-    panic!()
+    board
+        .pieces_fn_first(|piece| piece.player() == player && piece.ty() == King)
+        .unwrap()
 }

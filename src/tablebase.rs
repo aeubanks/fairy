@@ -12,17 +12,7 @@ use std::hash::{BuildHasherDefault, Hash, Hasher};
 
 // TODO: factor out coord visiting
 fn board_has_pawn<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
-    for y in 0..H as i8 {
-        for x in 0..W as i8 {
-            let coord = Coord::new(x, y);
-            if let Some(piece) = board[coord] {
-                if piece.ty() == Pawn {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+    board.pieces_fn_first(|piece| piece.ty() == Pawn).is_some()
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
@@ -270,14 +260,11 @@ fn test_generate_flip_unflip_move() {
 fn hash_one_board<const W: usize, const H: usize>(board: &Board<W, H>, sym: Symmetry) -> u64 {
     // need to visit in consistent order across symmetries
     let mut pieces = ArrayVec::<(Coord, Piece), 6>::new();
-    for y in 0..H as i8 {
-        for x in 0..W as i8 {
-            if let Some(p) = board[(x, y)] {
-                let c = flip_coord(Coord::new(x, y), sym, W as i8, H as i8);
-                pieces.push((c, p));
-            }
-        }
-    }
+    board.pieces_fn(|piece, coord| {
+        let c = flip_coord(coord, sym, W as i8, H as i8);
+        pieces.push((c, piece));
+    });
+
     pieces.sort_unstable_by(|(c1, _), (c2, _)| match c1.x.cmp(&c2.x) {
         Ordering::Equal => c1.y.cmp(&c2.y),
         o => o,

@@ -811,26 +811,21 @@ fn add_moves_for_piece<const W: usize, const H: usize>(
 pub fn all_moves<const W: usize, const H: usize>(board: &Board<W, H>, player: Player) -> Vec<Move> {
     let mut moves = Vec::new();
 
-    for y in 0..H as i8 {
-        for x in 0..W as i8 {
-            if let Some(piece) = board[(x, y)] {
-                if piece.player() == player {
-                    let coord = Coord::new(x, y);
-                    let mut piece_moves = Vec::new();
-                    add_moves_for_piece(&mut piece_moves, board, piece, coord);
-                    moves.append(
-                        &mut piece_moves
-                            .iter()
-                            .map(|c| Move {
-                                from: coord,
-                                to: *c,
-                            })
-                            .collect(),
-                    );
-                }
-            }
+    board.pieces_fn(|piece, coord| {
+        if piece.player() == player {
+            let mut piece_moves = Vec::new();
+            add_moves_for_piece(&mut piece_moves, board, piece, coord);
+            moves.append(
+                &mut piece_moves
+                    .iter()
+                    .map(|c| Move {
+                        from: coord,
+                        to: *c,
+                    })
+                    .collect(),
+            );
         }
-    }
+    });
 
     moves
 }
@@ -1446,31 +1441,21 @@ pub fn all_moves_to_end_at_board_no_captures<const W: usize, const H: usize>(
     player: Player,
 ) -> Vec<Move> {
     let mut moves = Vec::new();
-    for y in 0..H as i8 {
-        for x in 0..W as i8 {
-            let coord = Coord::new(x, y);
-            if let Some(piece) = board[coord] {
-                if piece.player() != player {
-                    continue;
-                }
-                let mut piece_moves = Vec::new();
-                add_moves_for_piece_to_end_at_board_no_captures(
-                    &mut piece_moves,
-                    board,
-                    piece,
-                    coord,
-                );
-                moves.append(
-                    &mut piece_moves
-                        .iter()
-                        .map(|c| Move {
-                            from: *c,
-                            to: coord,
-                        })
-                        .collect(),
-                );
-            }
+    board.pieces_fn(|piece, coord| {
+        if piece.player() != player {
+            return;
         }
-    }
+        let mut piece_moves = Vec::new();
+        add_moves_for_piece_to_end_at_board_no_captures(&mut piece_moves, board, piece, coord);
+        moves.append(
+            &mut piece_moves
+                .iter()
+                .map(|c| Move {
+                    from: *c,
+                    to: coord,
+                })
+                .collect(),
+        );
+    });
     moves
 }

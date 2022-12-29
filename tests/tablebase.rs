@@ -1,21 +1,12 @@
 use fairy::board::Board;
-use fairy::coord::Coord;
 use fairy::piece::{Piece, Type::*};
 use fairy::player::{next_player, Player::*};
 use fairy::tablebase::{generate_tablebase, GenerateAllBoards, Tablebase};
 
 fn black_king_exists<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
-    for y in 0..H as i8 {
-        for x in 0..W as i8 {
-            let coord = Coord::new(x, y);
-            if let Some(piece) = board[coord] {
-                if piece.player() == Black && piece.ty() == King {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+    board
+        .pieces_fn_first(|piece| piece.player() == Black && piece.ty() == King)
+        .is_some()
 }
 
 fn verify_board_tablebase<const W: usize, const H: usize>(
