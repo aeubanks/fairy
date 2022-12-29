@@ -133,8 +133,7 @@ pub fn fen(fen: &str) -> Position<8, 8> {
     {
         let castling = space_split[2];
         if castling != "-" {
-            assert!(castling.len() > 0);
-            assert!(castling.len() <= 4);
+            assert!((0..=4).contains(&castling.len()));
             for c in castling.chars() {
                 let x = match c.to_lowercase().next().unwrap() {
                     'a' | 'q' => 0,
@@ -162,7 +161,7 @@ pub fn fen(fen: &str) -> Position<8, 8> {
         if en_passant != "-" {
             assert_eq!(en_passant.len(), 2);
             let x = en_passant.chars().next().unwrap() as i32 - 'a' as i32;
-            assert!(x >= 0 && x < 8);
+            assert!((0..8).contains(&x));
             let rank = en_passant.chars().nth(1).unwrap().to_digit(10).unwrap();
             assert!(rank == 3 || rank == 6);
             let y = if rank == 3 { 3 } else { 4 };

@@ -27,7 +27,7 @@ fn run<const W: usize, const H: usize>() -> Tablebase<W, H> {
 }
 
 fn tb(c: &mut Criterion<Perf>) {
-    c.bench_function("kk/kqk/krk", |b| b.iter(|| run::<5, 5>()));
+    c.bench_function("kk/kqk/krk", |b| b.iter(run::<5, 5>));
 }
 
 criterion_group!(

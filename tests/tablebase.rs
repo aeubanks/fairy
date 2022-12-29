@@ -36,7 +36,7 @@ fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
     let mut tablebase = Tablebase::<4, 4>::default();
     let kk = [Piece::new(White, King), Piece::new(Black, King)];
     generate_tablebase(&mut tablebase, &kk);
-    generate_tablebase(&mut tablebase, &pieces);
+    generate_tablebase(&mut tablebase, pieces);
 
     for b in GenerateAllBoards::<4, 4>::new(pieces) {
         let wd = tablebase.white_result(&b);

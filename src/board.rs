@@ -69,7 +69,7 @@ impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
     pub fn with_pieces(pieces: &[(Coord, Piece)]) -> Self {
         let mut board = Self::default();
         for (c, p) in pieces {
-            board.add_piece(*c, p.clone());
+            board.add_piece(*c, *p);
         }
         board
     }

@@ -567,10 +567,7 @@ pub fn generate_tablebase_parallel<const W: usize, const H: usize>(
     use std::sync::{Arc, Mutex};
     use std::thread;
     let sets = Arc::new(Mutex::new(
-        piece_sets
-            .iter()
-            .map(|s| s.iter().copied().collect::<Vec<_>>())
-            .collect::<Vec<_>>(),
+        piece_sets.iter().map(|s| s.to_vec()).collect::<Vec<_>>(),
     ));
     let mut handles = Vec::new();
     for _ in 0..parallelism.unwrap_or_else(|| thread::available_parallelism().unwrap().get()) {
@@ -712,10 +709,10 @@ mod tests {
         let board2 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
 
         fn assert_hash_eq<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
-            assert_eq!(hash(&b1).0, hash(&b2).0);
+            assert_eq!(hash(b1).0, hash(b2).0);
         }
         fn assert_hash_ne<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
-            assert_ne!(hash(&b1).0, hash(&b2).0);
+            assert_ne!(hash(b1).0, hash(b2).0);
         }
         assert_hash_eq(&board1, &board1);
         assert_hash_eq(&board2, &board2);
@@ -816,8 +813,8 @@ mod tests {
                 Piece::new(White, Pawn),
                 Piece::new(White, Pawn),
             ]) {
-                for y in 0..4 as i8 {
-                    for x in 0..4 as i8 {
+                for y in 0..4_i8 {
+                    for x in 0..4_i8 {
                         if let Some(p) = b[(x, y)] {
                             if p.ty() == Pawn {
                                 assert_ne!(0, y);
