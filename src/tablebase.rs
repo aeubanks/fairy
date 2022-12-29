@@ -498,7 +498,7 @@ impl<const W: usize, const H: usize> GenerateAllBoards<W, H> {
     }
     pub fn new(pieces: &[Piece]) -> Self {
         let mut ret = Self {
-            pieces: pieces.iter().map(|p| *p).collect(),
+            pieces: pieces.iter().copied().collect(),
             stack: Default::default(),
             board: Default::default(),
         };
@@ -976,7 +976,7 @@ pub fn generate_tablebase_parallel<const W: usize, const H: usize>(
     let sets = Arc::new(Mutex::new(
         piece_sets
             .iter()
-            .map(|s| s.iter().map(|p| *p).collect::<Vec<_>>())
+            .map(|s| s.iter().copied().collect::<Vec<_>>())
             .collect::<Vec<_>>(),
     ));
     let mut handles = Vec::new();

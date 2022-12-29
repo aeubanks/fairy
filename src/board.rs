@@ -760,7 +760,7 @@ impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
             board.add_piece(Coord::new(i, H as i8 - 2), Piece::new(Black, Pawn));
         }
         assert!(pieces.len() == W);
-        for (i, ty) in pieces.into_iter().enumerate() {
+        for (i, ty) in pieces.iter().enumerate() {
             let white_coord = Coord::new(i as i8, 0);
             board.add_piece(white_coord, Piece::new(White, *ty));
             let black_coord = Coord::new(i as i8, H as i8 - 1);
