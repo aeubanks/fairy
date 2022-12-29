@@ -1,7 +1,6 @@
-use fairy::board::Board;
 use fairy::piece::{Piece, Type::*};
 use fairy::player::{next_player, Player::*};
-use fairy::tablebase::{generate_tablebase, GenerateAllBoards, Tablebase};
+use fairy::tablebase::{generate_tablebase, Board, GenerateAllBoards, Tablebase};
 
 fn black_king_exists<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
     board

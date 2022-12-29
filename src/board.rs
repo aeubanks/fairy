@@ -8,6 +8,9 @@ use std::ops::Index;
 pub trait PieceWatcher: Default + Clone {
     fn add_piece(&mut self, piece: Piece, coord: Coord);
     fn remove_piece(&mut self, piece: Piece, coord: Coord);
+    fn king_coord(&self, _player: Player) -> Option<Coord> {
+        None
+    }
 }
 
 #[derive(Default, Clone)]
@@ -34,7 +37,7 @@ pub enum ExistingPieceResult {
 }
 
 // This really should be derivable...
-impl<const W: usize, const H: usize> Default for Board<W, H> {
+impl<const W: usize, const H: usize, PW: PieceWatcher> Default for Board<W, H, PW> {
     fn default() -> Self {
         assert!(W > 0);
         assert!(W < i8::MAX as usize);
@@ -51,7 +54,7 @@ impl<const W: usize, const H: usize> Default for Board<W, H> {
 
 const_assert_eq!(79, std::mem::size_of::<Board<8, 8>>());
 
-impl<const W: usize, const H: usize> Board<W, H> {
+impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
     #[cfg(test)]
     pub fn with_pieces(pieces: &[(Coord, Piece)]) -> Self {
         let mut board = Self::default();
@@ -167,7 +170,7 @@ fn test_board_swap() {
     assert_eq!(board[(2, 0)], Some(b));
 }
 
-impl<const W: usize, const H: usize> Index<Coord> for Board<W, H> {
+impl<const W: usize, const H: usize, PW: PieceWatcher> Index<Coord> for Board<W, H, PW> {
     type Output = Option<Piece>;
 
     fn index(&self, coord: Coord) -> &Self::Output {
@@ -175,7 +178,7 @@ impl<const W: usize, const H: usize> Index<Coord> for Board<W, H> {
     }
 }
 
-impl<const W: usize, const H: usize> Index<(i8, i8)> for Board<W, H> {
+impl<const W: usize, const H: usize, PW: PieceWatcher> Index<(i8, i8)> for Board<W, H, PW> {
     type Output = Option<Piece>;
 
     fn index(&self, (x, y): (i8, i8)) -> &Self::Output {
@@ -262,7 +265,7 @@ fn test_board_set_existing_piece_panic() {
     b.add_piece(Coord::new(1, 1), Piece::new(White, King));
 }
 
-impl<const W: usize, const H: usize> std::fmt::Debug for Board<W, H> {
+impl<const W: usize, const H: usize, PW: PieceWatcher> std::fmt::Debug for Board<W, H, PW> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for y in (0..H as i8).rev() {
             for x in 0..W as i8 {
@@ -302,7 +305,7 @@ pub struct Move {
     pub to: Coord,
 }
 
-impl<const W: usize, const H: usize> Board<W, H> {
+impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
     pub fn make_move(&mut self, m: Move, player: Player) {
         assert_ne!(m.from, m.to);
         assert!(self.existing_piece_result(m.from, player) == ExistingPieceResult::Friend);
@@ -725,7 +728,7 @@ impl Presets {
     }
 }
 
-impl<const W: usize, const H: usize> Board<W, H> {
+impl<const W: usize, const H: usize, PW: PieceWatcher> Board<W, H, PW> {
     fn setup_with_pawns(castling: bool, pieces: &[Type]) -> Self {
         let mut board = Self::default();
         for i in 0..W as i8 {
@@ -768,8 +771,15 @@ fn test_premade_boards() {
     }
 }
 
-pub fn king_coord<const W: usize, const H: usize>(board: &Board<W, H>, player: Player) -> Coord {
-    board
-        .pieces_fn_first(|piece| piece.player() == player && piece.ty() == King)
-        .unwrap()
+pub fn king_coord<const W: usize, const H: usize, PW: PieceWatcher>(
+    board: &Board<W, H, PW>,
+    player: Player,
+) -> Coord {
+    let ret = board.watcher.king_coord(player).unwrap_or_else(|| {
+        board
+            .pieces_fn_first(|piece| piece.player() == player && piece.ty() == King)
+            .unwrap()
+    });
+    debug_assert_eq!(board[ret].unwrap().ty(), King);
+    ret
 }

@@ -1,12 +1,12 @@
-use crate::board::{Board, ExistingPieceResult, Move};
+use crate::board::{Board, ExistingPieceResult, Move, PieceWatcher};
 use crate::coord::Coord;
 use crate::piece::{Piece, Type::*};
 use crate::player::{Player, Player::*};
 use arrayvec::ArrayVec;
 
-fn add_move_if_result<const W: usize, const H: usize>(
+fn add_move_if_result<const W: usize, const H: usize, PW: PieceWatcher>(
     moves: &mut Vec<Coord>,
-    board: &Board<W, H>,
+    board: &Board<W, H, PW>,
     coord: Coord,
     player: Player,
     result: ExistingPieceResult,
@@ -18,9 +18,9 @@ fn add_move_if_result<const W: usize, const H: usize>(
     false
 }
 
-fn add_move_if_in_bounds_and_result<const W: usize, const H: usize>(
+fn add_move_if_in_bounds_and_result<const W: usize, const H: usize, PW: PieceWatcher>(
     moves: &mut Vec<Coord>,
-    board: &Board<W, H>,
+    board: &Board<W, H, PW>,
     coord: Coord,
     player: Player,
     result: ExistingPieceResult,
@@ -30,9 +30,9 @@ fn add_move_if_in_bounds_and_result<const W: usize, const H: usize>(
     }
 }
 
-fn add_moves_for_rider<const W: usize, const H: usize>(
+fn add_moves_for_rider<const W: usize, const H: usize, PW: PieceWatcher>(
     moves: &mut Vec<Coord>,
-    board: &Board<W, H>,
+    board: &Board<W, H, PW>,
     coord: Coord,
     player: Player,
     rider_offset: Coord,
@@ -57,9 +57,9 @@ fn add_moves_for_rider<const W: usize, const H: usize>(
     }
 }
 
-fn add_moves_for_leaper<const W: usize, const H: usize>(
+fn add_moves_for_leaper<const W: usize, const H: usize, PW: PieceWatcher>(
     moves: &mut Vec<Coord>,
-    board: &Board<W, H>,
+    board: &Board<W, H, PW>,
     coord: Coord,
     player: Player,
     offset: Coord,
@@ -281,16 +281,16 @@ fn test_knight() {
     }
 }
 
-fn add_castling_moves<const W: usize, const H: usize>(
+fn add_castling_moves<const W: usize, const H: usize, PW: PieceWatcher>(
     moves: &mut Vec<Coord>,
-    board: &Board<W, H>,
+    board: &Board<W, H, PW>,
     coord: Coord,
     player: Player,
 ) {
     // castling
 
-    fn no_pieces_between_inc<const W: usize, const H: usize>(
-        board: &Board<W, H>,
+    fn no_pieces_between_inc<const W: usize, const H: usize, PW: PieceWatcher>(
+        board: &Board<W, H, PW>,
         player: Player,
         y: i8,
         x1: i8,
@@ -311,8 +311,8 @@ fn add_castling_moves<const W: usize, const H: usize>(
         true
     }
 
-    fn no_checks_between_inc<const W: usize, const H: usize>(
-        board: &Board<W, H>,
+    fn no_checks_between_inc<const W: usize, const H: usize, PW: PieceWatcher>(
+        board: &Board<W, H, PW>,
         player: Player,
         y: i8,
         x1: i8,
@@ -624,9 +624,9 @@ fn test_king() {
     }
 }
 
-fn add_pawn_moves<const W: usize, const H: usize>(
+fn add_pawn_moves<const W: usize, const H: usize, PW: PieceWatcher>(
     moves: &mut Vec<Coord>,
-    board: &Board<W, H>,
+    board: &Board<W, H, PW>,
     coord: Coord,
     player: Player,
 ) {
@@ -783,9 +783,9 @@ fn test_pawn() {
     }
 }
 
-fn add_moves_for_piece<const W: usize, const H: usize>(
+fn add_moves_for_piece<const W: usize, const H: usize, PW: PieceWatcher>(
     moves: &mut Vec<Coord>,
-    board: &Board<W, H>,
+    board: &Board<W, H, PW>,
     piece: Piece,
     coord: Coord,
 ) {
@@ -806,7 +806,10 @@ fn add_moves_for_piece<const W: usize, const H: usize>(
 }
 
 #[must_use]
-pub fn all_moves<const W: usize, const H: usize>(board: &Board<W, H>, player: Player) -> Vec<Move> {
+pub fn all_moves<const W: usize, const H: usize, PW: PieceWatcher>(
+    board: &Board<W, H, PW>,
+    player: Player,
+) -> Vec<Move> {
     let mut moves = Vec::new();
 
     board.pieces_fn(|piece, coord| {
@@ -828,8 +831,8 @@ pub fn all_moves<const W: usize, const H: usize>(board: &Board<W, H>, player: Pl
     moves
 }
 
-fn enemy_piece_rider<const W: usize, const H: usize>(
-    board: &Board<W, H>,
+fn enemy_piece_rider<const W: usize, const H: usize, PW: PieceWatcher>(
+    board: &Board<W, H, PW>,
     coord: Coord,
     offset: Coord,
     player: Player,
@@ -848,8 +851,8 @@ fn enemy_piece_rider<const W: usize, const H: usize>(
     None
 }
 
-fn enemy_piece_leaper<const W: usize, const H: usize>(
-    board: &Board<W, H>,
+fn enemy_piece_leaper<const W: usize, const H: usize, PW: PieceWatcher>(
+    board: &Board<W, H, PW>,
     coord: Coord,
     offset: Coord,
     player: Player,
@@ -867,16 +870,16 @@ fn enemy_piece_leaper<const W: usize, const H: usize>(
     None
 }
 
-pub fn is_under_attack<const W: usize, const H: usize>(
-    board: &Board<W, H>,
+pub fn is_under_attack<const W: usize, const H: usize, PW: PieceWatcher>(
+    board: &Board<W, H, PW>,
     coord: Coord,
     player: Player,
 ) -> bool {
     under_attack_from_coord(board, coord, player).is_some()
 }
 
-pub fn under_attack_from_coord<const W: usize, const H: usize>(
-    board: &Board<W, H>,
+pub fn under_attack_from_coord<const W: usize, const H: usize, PW: PieceWatcher>(
+    board: &Board<W, H, PW>,
     coord: Coord,
     player: Player,
 ) -> Option<Coord> {
@@ -923,8 +926,8 @@ pub fn under_attack_from_coord<const W: usize, const H: usize>(
             }
         }
     }
-    fn has_enemy_pawn<const W: usize, const H: usize>(
-        board: &Board<W, H>,
+    fn has_enemy_pawn<const W: usize, const H: usize, PW: PieceWatcher>(
+        board: &Board<W, H, PW>,
         coord: Coord,
         player: Player,
     ) -> bool {
@@ -1347,9 +1350,13 @@ fn test_under_attack() {
     }
 }
 
-fn add_moves_for_rider_to_end_at_board_no_captures<const W: usize, const H: usize>(
+fn add_moves_for_rider_to_end_at_board_no_captures<
+    const W: usize,
+    const H: usize,
+    PW: PieceWatcher,
+>(
     moves: &mut Vec<Coord>,
-    board: &Board<W, H>,
+    board: &Board<W, H, PW>,
     coord: Coord,
     rider_offset: Coord,
 ) {
@@ -1362,9 +1369,13 @@ fn add_moves_for_rider_to_end_at_board_no_captures<const W: usize, const H: usiz
     }
 }
 
-fn add_moves_for_leaper_to_end_at_board_no_captures<const W: usize, const H: usize>(
+fn add_moves_for_leaper_to_end_at_board_no_captures<
+    const W: usize,
+    const H: usize,
+    PW: PieceWatcher,
+>(
     moves: &mut Vec<Coord>,
-    board: &Board<W, H>,
+    board: &Board<W, H, PW>,
     coord: Coord,
     offset: Coord,
 ) {
@@ -1376,9 +1387,13 @@ fn add_moves_for_leaper_to_end_at_board_no_captures<const W: usize, const H: usi
     }
 }
 
-fn add_moves_for_piece_to_end_at_board_no_captures<const W: usize, const H: usize>(
+fn add_moves_for_piece_to_end_at_board_no_captures<
+    const W: usize,
+    const H: usize,
+    PW: PieceWatcher,
+>(
     moves: &mut Vec<Coord>,
-    board: &Board<W, H>,
+    board: &Board<W, H, PW>,
     piece: Piece,
     coord: Coord,
 ) {
@@ -1434,8 +1449,8 @@ fn test_add_moves_for_piece_to_end_at_board_no_captures() {
 }
 
 #[must_use]
-pub fn all_moves_to_end_at_board_no_captures<const W: usize, const H: usize>(
-    board: &Board<W, H>,
+pub fn all_moves_to_end_at_board_no_captures<const W: usize, const H: usize, PW: PieceWatcher>(
+    board: &Board<W, H, PW>,
     player: Player,
 ) -> Vec<Move> {
     let mut moves = Vec::new();

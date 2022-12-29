@@ -1,4 +1,4 @@
-use crate::board::{king_coord, Board, ExistingPieceResult, Move};
+use crate::board::{king_coord, ExistingPieceResult, Move, PieceWatcher};
 use crate::coord::Coord;
 use crate::moves::{all_moves, all_moves_to_end_at_board_no_captures, under_attack_from_coord};
 use crate::piece::Piece;
@@ -9,6 +9,29 @@ use rustc_hash::FxHasher;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hash, Hasher};
+
+#[derive(Clone, Default)]
+pub struct TablebasePieceWatcher(Coord, Coord);
+
+impl PieceWatcher for TablebasePieceWatcher {
+    fn add_piece(&mut self, piece: Piece, coord: Coord) {
+        if piece.ty() == King {
+            match piece.player() {
+                White => self.0 = coord,
+                Black => self.1 = coord,
+            }
+        }
+    }
+    fn remove_piece(&mut self, _piece: Piece, _coord: Coord) {}
+    fn king_coord(&self, player: Player) -> Option<Coord> {
+        Some(match player {
+            White => self.0,
+            Black => self.1,
+        })
+    }
+}
+
+pub type Board<const W: usize, const H: usize> = crate::board::Board<W, H, TablebasePieceWatcher>;
 
 // TODO: factor out coord visiting
 fn board_has_pawn<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
