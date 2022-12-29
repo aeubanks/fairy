@@ -70,75 +70,6 @@ fn flip_coord(mut c: Coord, sym: Symmetry, width: i8, height: i8) -> Coord {
     c
 }
 
-#[test]
-fn test_flip_coord() {
-    assert_eq!(
-        flip_coord(
-            Coord::new(1, 2),
-            Symmetry {
-                flip_x: false,
-                flip_y: false,
-                flip_diagonally: false
-            },
-            4,
-            4
-        ),
-        Coord::new(1, 2)
-    );
-    assert_eq!(
-        flip_coord(
-            Coord::new(1, 2),
-            Symmetry {
-                flip_x: true,
-                flip_y: false,
-                flip_diagonally: false
-            },
-            4,
-            4
-        ),
-        Coord::new(2, 2)
-    );
-    assert_eq!(
-        flip_coord(
-            Coord::new(1, 2),
-            Symmetry {
-                flip_x: false,
-                flip_y: true,
-                flip_diagonally: false
-            },
-            4,
-            4
-        ),
-        Coord::new(1, 1)
-    );
-    assert_eq!(
-        flip_coord(
-            Coord::new(1, 2),
-            Symmetry {
-                flip_x: false,
-                flip_y: false,
-                flip_diagonally: true
-            },
-            4,
-            4
-        ),
-        Coord::new(2, 1)
-    );
-    assert_eq!(
-        flip_coord(
-            Coord::new(0, 2),
-            Symmetry {
-                flip_x: true,
-                flip_y: true,
-                flip_diagonally: true
-            },
-            4,
-            4
-        ),
-        Coord::new(1, 3)
-    );
-}
-
 #[must_use]
 fn flip_move(mut m: Move, sym: Symmetry, width: i8, height: i8) -> Move {
     m.from = flip_coord(m.from, sym, width, height);
@@ -165,29 +96,6 @@ fn unflip_move(mut m: Move, sym: Symmetry, width: i8, height: i8) -> Move {
     m.from = unflip_coord(m.from, sym, width, height);
     m.to = unflip_coord(m.to, sym, width, height);
     m
-}
-
-#[test]
-fn test_flip_move() {
-    assert_eq!(
-        flip_move(
-            Move {
-                from: Coord::new(1, 0),
-                to: Coord::new(3, 2)
-            },
-            Symmetry {
-                flip_x: false,
-                flip_y: true,
-                flip_diagonally: false
-            },
-            4,
-            4
-        ),
-        Move {
-            from: Coord::new(1, 3),
-            to: Coord::new(3, 1)
-        },
-    );
 }
 
 #[derive(Default)]
@@ -267,22 +175,6 @@ impl<const W: usize, const H: usize> Tablebase<W, H> {
         }
         println!("max depth: {}", max_depth);
     }
-}
-
-#[test]
-fn test_generate_flip_unflip_move() {
-    let board = Board::<4, 4>::with_pieces(&[
-        (Coord::new(0, 0), Piece::new(White, King)),
-        (Coord::new(1, 0), Piece::new(White, Queen)),
-        (Coord::new(2, 0), Piece::new(Black, King)),
-    ]);
-    let m = Move {
-        from: Coord::new(1, 0),
-        to: Coord::new(2, 0),
-    };
-    let mut tablebase = Tablebase::default();
-    tablebase.white_add_impl(&board, m, 1);
-    assert_eq!(tablebase.white_result(&board), Some((m, 1)));
 }
 
 fn hash_one_board<const W: usize, const H: usize>(board: &Board<W, H>, sym: Symmetry) -> u64 {
@@ -384,94 +276,6 @@ fn hash<const W: usize, const H: usize>(board: &Board<W, H>) -> (u64, Symmetry) 
     (min_hash, sym)
 }
 
-#[test]
-fn test_hash() {
-    let wk = Piece::new(White, King);
-    let bk = Piece::new(Black, King);
-    let wp = Piece::new(White, Pawn);
-    let bp = Piece::new(Black, Pawn);
-    let board1 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
-    let board2 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
-
-    fn assert_hash_eq<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
-        assert_eq!(hash(&b1).0, hash(&b2).0);
-    }
-    fn assert_hash_ne<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
-        assert_ne!(hash(&b1).0, hash(&b2).0);
-    }
-    assert_hash_eq(&board1, &board1);
-    assert_hash_eq(&board2, &board2);
-    assert_hash_ne(&board1, &board2);
-    assert_hash_eq(
-        &board1,
-        &Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
-    );
-    assert_hash_eq(
-        &board1,
-        &Board::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(7, 6), bk)]),
-    );
-    assert_hash_eq(
-        &board1,
-        &Board::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(6, 7), bk)]),
-    );
-    assert_hash_eq(
-        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-        &Board::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
-    );
-    assert_hash_eq(
-        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-        &Board::<5, 5>::with_pieces(&[(Coord::new(2, 1), wk), (Coord::new(2, 2), bk)]),
-    );
-    assert_hash_eq(
-        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-        &Board::<5, 5>::with_pieces(&[(Coord::new(2, 3), wk), (Coord::new(2, 2), bk)]),
-    );
-    assert_hash_eq(
-        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 1), wk), (Coord::new(2, 2), bk)]),
-    );
-    assert_hash_eq(
-        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-        &Board::<5, 5>::with_pieces(&[(Coord::new(1, 1), wk), (Coord::new(2, 2), bk)]),
-    );
-    assert_hash_eq(
-        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-        &Board::<5, 5>::with_pieces(&[(Coord::new(1, 3), wk), (Coord::new(2, 2), bk)]),
-    );
-    assert_hash_ne(
-        &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-        &Board::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
-    );
-    assert_hash_eq(
-        &Board::<8, 8>::with_pieces(&[
-            (Coord::new(1, 0), wk),
-            (Coord::new(1, 1), wp),
-            (Coord::new(1, 7), bk),
-            (Coord::new(1, 6), bp),
-        ]),
-        &Board::<8, 8>::with_pieces(&[
-            (Coord::new(6, 0), wk),
-            (Coord::new(6, 1), wp),
-            (Coord::new(6, 7), bk),
-            (Coord::new(6, 6), bp),
-        ]),
-    );
-    assert_hash_ne(
-        &Board::<8, 8>::with_pieces(&[
-            (Coord::new(1, 0), wk),
-            (Coord::new(1, 1), wp),
-            (Coord::new(1, 7), bk),
-            (Coord::new(1, 6), bp),
-        ]),
-        &Board::<8, 8>::with_pieces(&[
-            (Coord::new(1, 7), wk),
-            (Coord::new(1, 6), wp),
-            (Coord::new(1, 0), bk),
-            (Coord::new(1, 1), bp),
-        ]),
-    );
-}
-
 pub struct GenerateAllBoards<const W: usize, const H: usize> {
     pieces: ArrayVec<Piece, 6>,
     stack: ArrayVec<Coord, 6>,
@@ -550,45 +354,6 @@ impl<const W: usize, const H: usize> Iterator for GenerateAllBoards<W, H> {
     }
 }
 
-#[test]
-fn test_generate_all_boards() {
-    {
-        let boards = GenerateAllBoards::<8, 8>::new(&[Piece::new(White, King)]);
-        assert_eq!(boards.count(), 64);
-    }
-    {
-        let boards =
-            GenerateAllBoards::<8, 8>::new(&[Piece::new(White, King), Piece::new(White, Queen)])
-                .collect::<Vec<_>>();
-        assert_eq!(boards.len(), 64 * 63);
-        assert_eq!(boards[0][(0, 0)], Some(Piece::new(White, King)));
-        assert_eq!(boards[0][(1, 0)], Some(Piece::new(White, Queen)));
-        assert_eq!(boards[0][(2, 0)], None);
-
-        assert_eq!(boards[1][(0, 0)], Some(Piece::new(White, King)));
-        assert_eq!(boards[1][(1, 0)], None);
-        assert_eq!(boards[1][(2, 0)], Some(Piece::new(White, Queen)));
-    }
-    {
-        for b in GenerateAllBoards::<4, 4>::new(&[
-            Piece::new(White, King),
-            Piece::new(White, Pawn),
-            Piece::new(White, Pawn),
-        ]) {
-            for y in 0..4 as i8 {
-                for x in 0..4 as i8 {
-                    if let Some(p) = b[(x, y)] {
-                        if p.ty() == Pawn {
-                            assert_ne!(0, y);
-                            assert_ne!(3, y);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 fn populate_initial_wins<const W: usize, const H: usize>(
     tablebase: &mut Tablebase<W, H>,
     pieces: &[Piece],
@@ -628,65 +393,6 @@ fn populate_initial_wins<const W: usize, const H: usize>(
         // }
     }
     ret
-}
-
-#[test]
-fn test_populate_initial_tablebases() {
-    let mut tablebase = Tablebase::default();
-    let ret = populate_initial_wins::<4, 4>(
-        &mut tablebase,
-        &[Piece::new(White, King), Piece::new(Black, King)],
-    );
-    assert_ne!(ret.len(), 0);
-
-    assert_eq!(
-        tablebase.white_result(&Board::with_pieces(&[
-            (Coord::new(0, 0), Piece::new(White, King)),
-            (Coord::new(0, 1), Piece::new(Black, King))
-        ])),
-        Some((
-            Move {
-                from: Coord::new(0, 0),
-                to: Coord::new(0, 1)
-            },
-            1
-        ))
-    );
-    for board in ret {
-        let wk_coord = board.king_coord(White);
-        let bk_coord = board.king_coord(Black);
-        assert!((wk_coord.x - bk_coord.x).abs() <= 1);
-        assert!((wk_coord.y - bk_coord.y).abs() <= 1);
-    }
-}
-
-#[test]
-#[ignore]
-fn test_populate_initial_tablebases_stalemate() {
-    let mut tablebase = Tablebase::default();
-    populate_initial_wins(
-        &mut tablebase,
-        &[
-            Piece::new(White, King),
-            Piece::new(Black, Pawn),
-            Piece::new(Black, King),
-        ],
-    );
-    assert_eq!(
-        tablebase.black_depth_impl(&Board::<1, 8>::with_pieces(&[
-            (Coord::new(0, 7), Piece::new(White, King)),
-            (Coord::new(0, 1), Piece::new(Black, Pawn)),
-            (Coord::new(0, 0), Piece::new(Black, King)),
-        ])),
-        Some(0)
-    );
-    assert!(
-        !tablebase.black_contains_impl(&Board::<1, 8>::with_pieces(&[
-            (Coord::new(0, 7), Piece::new(White, King)),
-            (Coord::new(0, 2), Piece::new(Black, Pawn)),
-            (Coord::new(0, 0), Piece::new(Black, King)),
-        ]))
-    );
 }
 
 fn iterate_black<const W: usize, const H: usize>(
@@ -853,119 +559,6 @@ pub fn generate_tablebase<const W: usize, const H: usize>(
     }
 }
 
-#[test]
-fn test_generate_king_king_5_1_tablebase() {
-    let wk = Piece::new(White, King);
-    let bk = Piece::new(Black, King);
-    let mut tablebase = Tablebase::<5, 1>::default();
-    generate_tablebase(&mut tablebase, &[wk, bk]);
-
-    assert_eq!(
-        tablebase.white_result(&Board::<5, 1>::with_pieces(&[
-            (Coord::new(0, 0), wk),
-            (Coord::new(3, 0), bk)
-        ])),
-        Some((
-            Move {
-                from: Coord::new(0, 0),
-                to: Coord::new(1, 0)
-            },
-            5
-        ))
-    );
-    assert_eq!(
-        tablebase.black_result(&Board::<5, 1>::with_pieces(&[
-            (Coord::new(1, 0), wk),
-            (Coord::new(3, 0), bk)
-        ])),
-        Some((
-            Move {
-                from: Coord::new(3, 0),
-                to: Coord::new(4, 0)
-            },
-            4
-        ))
-    );
-    assert_eq!(
-        tablebase.white_result(&Board::<5, 1>::with_pieces(&[
-            (Coord::new(1, 0), wk),
-            (Coord::new(4, 0), bk)
-        ])),
-        Some((
-            Move {
-                from: Coord::new(1, 0),
-                to: Coord::new(2, 0)
-            },
-            3
-        ))
-    );
-    assert_eq!(
-        tablebase.black_result(&Board::<5, 1>::with_pieces(&[
-            (Coord::new(2, 0), wk),
-            (Coord::new(4, 0), bk)
-        ])),
-        Some((
-            Move {
-                from: Coord::new(4, 0),
-                to: Coord::new(3, 0)
-            },
-            2
-        ))
-    );
-    assert_eq!(
-        tablebase.white_result(&Board::<5, 1>::with_pieces(&[
-            (Coord::new(2, 0), wk),
-            (Coord::new(3, 0), bk)
-        ])),
-        Some((
-            Move {
-                from: Coord::new(2, 0),
-                to: Coord::new(3, 0)
-            },
-            1
-        ))
-    );
-}
-
-#[test]
-fn test_generate_king_king_tablebase() {
-    fn test<const W: usize, const H: usize>() {
-        let pieces = [Piece::new(White, King), Piece::new(Black, King)];
-        let mut tablebase = Tablebase::<W, H>::default();
-        generate_tablebase(&mut tablebase, &pieces);
-        // If white king couldn't capture on first move, no forced win.
-        assert!(tablebase.black_tablebase.is_empty());
-        for b in GenerateAllBoards::new(&pieces) {
-            if crate::moves::is_under_attack(&b, b.king_coord(Black), Black) {
-                assert_eq!(tablebase.white_depth_impl(&b), Some(1));
-            } else {
-                assert_eq!(tablebase.white_depth_impl(&b), None);
-            }
-        }
-    }
-    test::<6, 6>();
-    test::<5, 5>();
-    test::<4, 5>();
-    test::<4, 6>();
-}
-
-#[test]
-fn test_tablebase_size() {
-    let pieces1 = [Piece::new(White, King), Piece::new(Black, King)];
-    let pieces2 = [
-        Piece::new(White, King),
-        Piece::new(White, Queen),
-        Piece::new(Black, King),
-    ];
-    let mut tablebase = Tablebase::<4, 4>::default();
-    generate_tablebase(&mut tablebase, &pieces1);
-    generate_tablebase(&mut tablebase, &pieces2);
-    let all1_count = GenerateAllBoards::<4, 4>::new(&pieces1).count();
-    let all2_count = GenerateAllBoards::<4, 4>::new(&pieces2).count();
-    // With symmetry, we should expect a little over 1/8 of positions to be in the tablebase.
-    assert!(tablebase.white_tablebase.len() < all1_count + all2_count / 6);
-}
-
 pub fn generate_tablebase_parallel<const W: usize, const H: usize>(
     tablebase: &mut Tablebase<W, H>,
     piece_sets: &[&[Piece]],
@@ -1001,60 +594,467 @@ pub fn generate_tablebase_parallel<const W: usize, const H: usize>(
     }
 }
 
-#[test]
-fn test_generate_tablebase_parallel() {
-    let mut tablebase1 = Tablebase::<4, 4>::default();
-    let mut tablebase2 = Tablebase::<4, 4>::default();
-    let kk = [Piece::new(White, King), Piece::new(Black, King)];
-    let kzk = [
-        Piece::new(White, King),
-        Piece::new(White, Amazon),
-        Piece::new(Black, King),
-    ];
-    let kkz = [
-        Piece::new(White, King),
-        Piece::new(Black, King),
-        Piece::new(Black, Amazon),
-    ];
-    generate_tablebase(&mut tablebase1, &kk);
-    generate_tablebase(&mut tablebase1, &kzk);
-    generate_tablebase(&mut tablebase1, &kkz);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_flip_coord() {
+        assert_eq!(
+            flip_coord(
+                Coord::new(1, 2),
+                Symmetry {
+                    flip_x: false,
+                    flip_y: false,
+                    flip_diagonally: false
+                },
+                4,
+                4
+            ),
+            Coord::new(1, 2)
+        );
+        assert_eq!(
+            flip_coord(
+                Coord::new(1, 2),
+                Symmetry {
+                    flip_x: true,
+                    flip_y: false,
+                    flip_diagonally: false
+                },
+                4,
+                4
+            ),
+            Coord::new(2, 2)
+        );
+        assert_eq!(
+            flip_coord(
+                Coord::new(1, 2),
+                Symmetry {
+                    flip_x: false,
+                    flip_y: true,
+                    flip_diagonally: false
+                },
+                4,
+                4
+            ),
+            Coord::new(1, 1)
+        );
+        assert_eq!(
+            flip_coord(
+                Coord::new(1, 2),
+                Symmetry {
+                    flip_x: false,
+                    flip_y: false,
+                    flip_diagonally: true
+                },
+                4,
+                4
+            ),
+            Coord::new(2, 1)
+        );
+        assert_eq!(
+            flip_coord(
+                Coord::new(0, 2),
+                Symmetry {
+                    flip_x: true,
+                    flip_y: true,
+                    flip_diagonally: true
+                },
+                4,
+                4
+            ),
+            Coord::new(1, 3)
+        );
+    }
+    #[test]
+    fn test_flip_move() {
+        assert_eq!(
+            flip_move(
+                Move {
+                    from: Coord::new(1, 0),
+                    to: Coord::new(3, 2)
+                },
+                Symmetry {
+                    flip_x: false,
+                    flip_y: true,
+                    flip_diagonally: false
+                },
+                4,
+                4
+            ),
+            Move {
+                from: Coord::new(1, 3),
+                to: Coord::new(3, 1)
+            },
+        );
+    }
+    #[test]
+    fn test_generate_flip_unflip_move() {
+        let board = Board::<4, 4>::with_pieces(&[
+            (Coord::new(0, 0), Piece::new(White, King)),
+            (Coord::new(1, 0), Piece::new(White, Queen)),
+            (Coord::new(2, 0), Piece::new(Black, King)),
+        ]);
+        let m = Move {
+            from: Coord::new(1, 0),
+            to: Coord::new(2, 0),
+        };
+        let mut tablebase = Tablebase::default();
+        tablebase.white_add_impl(&board, m, 1);
+        assert_eq!(tablebase.white_result(&board), Some((m, 1)));
+    }
+    #[test]
+    fn test_hash() {
+        let wk = Piece::new(White, King);
+        let bk = Piece::new(Black, King);
+        let wp = Piece::new(White, Pawn);
+        let bp = Piece::new(Black, Pawn);
+        let board1 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
+        let board2 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
 
-    generate_tablebase(&mut tablebase2, &kk);
-    generate_tablebase_parallel(&mut tablebase2, &[&kzk, &kkz], Some(2));
+        fn assert_hash_eq<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
+            assert_eq!(hash(&b1).0, hash(&b2).0);
+        }
+        fn assert_hash_ne<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
+            assert_ne!(hash(&b1).0, hash(&b2).0);
+        }
+        assert_hash_eq(&board1, &board1);
+        assert_hash_eq(&board2, &board2);
+        assert_hash_ne(&board1, &board2);
+        assert_hash_eq(
+            &board1,
+            &Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
+        );
+        assert_hash_eq(
+            &board1,
+            &Board::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(7, 6), bk)]),
+        );
+        assert_hash_eq(
+            &board1,
+            &Board::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(6, 7), bk)]),
+        );
+        assert_hash_eq(
+            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+            &Board::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
+        );
+        assert_hash_eq(
+            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+            &Board::<5, 5>::with_pieces(&[(Coord::new(2, 1), wk), (Coord::new(2, 2), bk)]),
+        );
+        assert_hash_eq(
+            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+            &Board::<5, 5>::with_pieces(&[(Coord::new(2, 3), wk), (Coord::new(2, 2), bk)]),
+        );
+        assert_hash_eq(
+            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 1), wk), (Coord::new(2, 2), bk)]),
+        );
+        assert_hash_eq(
+            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+            &Board::<5, 5>::with_pieces(&[(Coord::new(1, 1), wk), (Coord::new(2, 2), bk)]),
+        );
+        assert_hash_eq(
+            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+            &Board::<5, 5>::with_pieces(&[(Coord::new(1, 3), wk), (Coord::new(2, 2), bk)]),
+        );
+        assert_hash_ne(
+            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+            &Board::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
+        );
+        assert_hash_eq(
+            &Board::<8, 8>::with_pieces(&[
+                (Coord::new(1, 0), wk),
+                (Coord::new(1, 1), wp),
+                (Coord::new(1, 7), bk),
+                (Coord::new(1, 6), bp),
+            ]),
+            &Board::<8, 8>::with_pieces(&[
+                (Coord::new(6, 0), wk),
+                (Coord::new(6, 1), wp),
+                (Coord::new(6, 7), bk),
+                (Coord::new(6, 6), bp),
+            ]),
+        );
+        assert_hash_ne(
+            &Board::<8, 8>::with_pieces(&[
+                (Coord::new(1, 0), wk),
+                (Coord::new(1, 1), wp),
+                (Coord::new(1, 7), bk),
+                (Coord::new(1, 6), bp),
+            ]),
+            &Board::<8, 8>::with_pieces(&[
+                (Coord::new(1, 7), wk),
+                (Coord::new(1, 6), wp),
+                (Coord::new(1, 0), bk),
+                (Coord::new(1, 1), bp),
+            ]),
+        );
+    }
+    #[test]
+    fn test_generate_all_boards() {
+        {
+            let boards = GenerateAllBoards::<8, 8>::new(&[Piece::new(White, King)]);
+            assert_eq!(boards.count(), 64);
+        }
+        {
+            let boards = GenerateAllBoards::<8, 8>::new(&[
+                Piece::new(White, King),
+                Piece::new(White, Queen),
+            ])
+            .collect::<Vec<_>>();
+            assert_eq!(boards.len(), 64 * 63);
+            assert_eq!(boards[0][(0, 0)], Some(Piece::new(White, King)));
+            assert_eq!(boards[0][(1, 0)], Some(Piece::new(White, Queen)));
+            assert_eq!(boards[0][(2, 0)], None);
 
-    assert_eq!(
-        tablebase1.white_tablebase.len(),
-        tablebase2.white_tablebase.len()
-    );
-    assert_eq!(
-        tablebase1.black_tablebase.len(),
-        tablebase2.black_tablebase.len()
-    );
-}
+            assert_eq!(boards[1][(0, 0)], Some(Piece::new(White, King)));
+            assert_eq!(boards[1][(1, 0)], None);
+            assert_eq!(boards[1][(2, 0)], Some(Piece::new(White, Queen)));
+        }
+        {
+            for b in GenerateAllBoards::<4, 4>::new(&[
+                Piece::new(White, King),
+                Piece::new(White, Pawn),
+                Piece::new(White, Pawn),
+            ]) {
+                for y in 0..4 as i8 {
+                    for x in 0..4 as i8 {
+                        if let Some(p) = b[(x, y)] {
+                            if p.ty() == Pawn {
+                                assert_ne!(0, y);
+                                assert_ne!(3, y);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn test_populate_initial_tablebases() {
+        let mut tablebase = Tablebase::default();
+        let ret = populate_initial_wins::<4, 4>(
+            &mut tablebase,
+            &[Piece::new(White, King), Piece::new(Black, King)],
+        );
+        assert_ne!(ret.len(), 0);
 
-#[test]
-fn test_hash_collision() {
-    let mut hashes = std::collections::HashSet::new();
-    let kk = [Piece::new(White, King), Piece::new(Black, King)];
-    let kqk = [
-        Piece::new(White, King),
-        Piece::new(White, Queen),
-        Piece::new(Black, King),
-    ];
-    let _krkr = [
-        Piece::new(White, King),
-        Piece::new(White, Rook),
-        Piece::new(Black, King),
-        Piece::new(Black, Rook),
-    ];
-    #[cfg(debug_assertions)]
-    let sets = [kk.as_slice(), kqk.as_slice()];
-    #[cfg(not(debug_assertions))]
-    let sets = [kk.as_slice(), kqk.as_slice(), _krkr.as_slice()];
-    for pieces in &sets {
-        for b in GenerateAllBoards::<6, 6>::new(pieces) {
-            assert!(hashes.insert(hash_one_board(&b, Symmetry::default())));
+        assert_eq!(
+            tablebase.white_result(&Board::with_pieces(&[
+                (Coord::new(0, 0), Piece::new(White, King)),
+                (Coord::new(0, 1), Piece::new(Black, King))
+            ])),
+            Some((
+                Move {
+                    from: Coord::new(0, 0),
+                    to: Coord::new(0, 1)
+                },
+                1
+            ))
+        );
+        for board in ret {
+            let wk_coord = board.king_coord(White);
+            let bk_coord = board.king_coord(Black);
+            assert!((wk_coord.x - bk_coord.x).abs() <= 1);
+            assert!((wk_coord.y - bk_coord.y).abs() <= 1);
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn test_populate_initial_tablebases_stalemate() {
+        let mut tablebase = Tablebase::default();
+        populate_initial_wins(
+            &mut tablebase,
+            &[
+                Piece::new(White, King),
+                Piece::new(Black, Pawn),
+                Piece::new(Black, King),
+            ],
+        );
+        assert_eq!(
+            tablebase.black_depth_impl(&Board::<1, 8>::with_pieces(&[
+                (Coord::new(0, 7), Piece::new(White, King)),
+                (Coord::new(0, 1), Piece::new(Black, Pawn)),
+                (Coord::new(0, 0), Piece::new(Black, King)),
+            ])),
+            Some(0)
+        );
+        assert!(
+            !tablebase.black_contains_impl(&Board::<1, 8>::with_pieces(&[
+                (Coord::new(0, 7), Piece::new(White, King)),
+                (Coord::new(0, 2), Piece::new(Black, Pawn)),
+                (Coord::new(0, 0), Piece::new(Black, King)),
+            ]))
+        );
+    }
+    #[test]
+    fn test_generate_king_king_5_1_tablebase() {
+        let wk = Piece::new(White, King);
+        let bk = Piece::new(Black, King);
+        let mut tablebase = Tablebase::<5, 1>::default();
+        generate_tablebase(&mut tablebase, &[wk, bk]);
+
+        assert_eq!(
+            tablebase.white_result(&Board::<5, 1>::with_pieces(&[
+                (Coord::new(0, 0), wk),
+                (Coord::new(3, 0), bk)
+            ])),
+            Some((
+                Move {
+                    from: Coord::new(0, 0),
+                    to: Coord::new(1, 0)
+                },
+                5
+            ))
+        );
+        assert_eq!(
+            tablebase.black_result(&Board::<5, 1>::with_pieces(&[
+                (Coord::new(1, 0), wk),
+                (Coord::new(3, 0), bk)
+            ])),
+            Some((
+                Move {
+                    from: Coord::new(3, 0),
+                    to: Coord::new(4, 0)
+                },
+                4
+            ))
+        );
+        assert_eq!(
+            tablebase.white_result(&Board::<5, 1>::with_pieces(&[
+                (Coord::new(1, 0), wk),
+                (Coord::new(4, 0), bk)
+            ])),
+            Some((
+                Move {
+                    from: Coord::new(1, 0),
+                    to: Coord::new(2, 0)
+                },
+                3
+            ))
+        );
+        assert_eq!(
+            tablebase.black_result(&Board::<5, 1>::with_pieces(&[
+                (Coord::new(2, 0), wk),
+                (Coord::new(4, 0), bk)
+            ])),
+            Some((
+                Move {
+                    from: Coord::new(4, 0),
+                    to: Coord::new(3, 0)
+                },
+                2
+            ))
+        );
+        assert_eq!(
+            tablebase.white_result(&Board::<5, 1>::with_pieces(&[
+                (Coord::new(2, 0), wk),
+                (Coord::new(3, 0), bk)
+            ])),
+            Some((
+                Move {
+                    from: Coord::new(2, 0),
+                    to: Coord::new(3, 0)
+                },
+                1
+            ))
+        );
+    }
+
+    #[test]
+    fn test_generate_king_king_tablebase() {
+        fn test<const W: usize, const H: usize>() {
+            let pieces = [Piece::new(White, King), Piece::new(Black, King)];
+            let mut tablebase = Tablebase::<W, H>::default();
+            generate_tablebase(&mut tablebase, &pieces);
+            // If white king couldn't capture on first move, no forced win.
+            assert!(tablebase.black_tablebase.is_empty());
+            for b in GenerateAllBoards::new(&pieces) {
+                if crate::moves::is_under_attack(&b, b.king_coord(Black), Black) {
+                    assert_eq!(tablebase.white_depth_impl(&b), Some(1));
+                } else {
+                    assert_eq!(tablebase.white_depth_impl(&b), None);
+                }
+            }
+        }
+        test::<6, 6>();
+        test::<5, 5>();
+        test::<4, 5>();
+        test::<4, 6>();
+    }
+
+    #[test]
+    fn test_tablebase_size() {
+        let pieces1 = [Piece::new(White, King), Piece::new(Black, King)];
+        let pieces2 = [
+            Piece::new(White, King),
+            Piece::new(White, Queen),
+            Piece::new(Black, King),
+        ];
+        let mut tablebase = Tablebase::<4, 4>::default();
+        generate_tablebase(&mut tablebase, &pieces1);
+        generate_tablebase(&mut tablebase, &pieces2);
+        let all1_count = GenerateAllBoards::<4, 4>::new(&pieces1).count();
+        let all2_count = GenerateAllBoards::<4, 4>::new(&pieces2).count();
+        // With symmetry, we should expect a little over 1/8 of positions to be in the tablebase.
+        assert!(tablebase.white_tablebase.len() < all1_count + all2_count / 6);
+    }
+
+    #[test]
+    fn test_generate_tablebase_parallel() {
+        let mut tablebase1 = Tablebase::<4, 4>::default();
+        let mut tablebase2 = Tablebase::<4, 4>::default();
+        let kk = [Piece::new(White, King), Piece::new(Black, King)];
+        let kzk = [
+            Piece::new(White, King),
+            Piece::new(White, Amazon),
+            Piece::new(Black, King),
+        ];
+        let kkz = [
+            Piece::new(White, King),
+            Piece::new(Black, King),
+            Piece::new(Black, Amazon),
+        ];
+        generate_tablebase(&mut tablebase1, &kk);
+        generate_tablebase(&mut tablebase1, &kzk);
+        generate_tablebase(&mut tablebase1, &kkz);
+
+        generate_tablebase(&mut tablebase2, &kk);
+        generate_tablebase_parallel(&mut tablebase2, &[&kzk, &kkz], Some(2));
+
+        assert_eq!(
+            tablebase1.white_tablebase.len(),
+            tablebase2.white_tablebase.len()
+        );
+        assert_eq!(
+            tablebase1.black_tablebase.len(),
+            tablebase2.black_tablebase.len()
+        );
+    }
+
+    #[test]
+    fn test_hash_collision() {
+        let mut hashes = std::collections::HashSet::new();
+        let kk = [Piece::new(White, King), Piece::new(Black, King)];
+        let kqk = [
+            Piece::new(White, King),
+            Piece::new(White, Queen),
+            Piece::new(Black, King),
+        ];
+        let _krkr = [
+            Piece::new(White, King),
+            Piece::new(White, Rook),
+            Piece::new(Black, King),
+            Piece::new(Black, Rook),
+        ];
+        #[cfg(debug_assertions)]
+        let sets = [kk.as_slice(), kqk.as_slice()];
+        #[cfg(not(debug_assertions))]
+        let sets = [kk.as_slice(), kqk.as_slice(), _krkr.as_slice()];
+        for pieces in &sets {
+            for b in GenerateAllBoards::<6, 6>::new(pieces) {
+                assert!(hashes.insert(hash_one_board(&b, Symmetry::default())));
+            }
         }
     }
 }

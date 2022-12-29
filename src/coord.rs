@@ -21,10 +21,15 @@ impl std::ops::Add for Coord {
     }
 }
 
-#[test]
-fn test_coord_add() {
-    assert_eq!(
-        Coord { x: 3, y: 4 } + Coord { x: 5, y: 6 },
-        Coord { x: 8, y: 10 }
-    );
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_coord_add() {
+        assert_eq!(
+            Coord { x: 3, y: 4 } + Coord { x: 5, y: 6 },
+            Coord { x: 8, y: 10 }
+        );
+    }
 }

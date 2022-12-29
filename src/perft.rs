@@ -178,68 +178,73 @@ pub fn fen(fen: &str) -> Position<8, 8> {
     Position { board, player }
 }
 
-#[test]
-fn test_fen() {
-    {
-        let Position { board, player } =
-            fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        let classical = crate::board::Presets::classical();
-        for y in 0..8 {
-            for x in 0..8 {
-                let coord = Coord::new(x, y);
-                assert_eq!(board[coord], classical[coord]);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-                assert_eq!(
-                    board.castling_rights,
-                    [
-                        Some(Coord::new(0, 0)),
-                        Some(Coord::new(7, 0)),
-                        Some(Coord::new(0, 7)),
-                        Some(Coord::new(7, 7))
-                    ]
-                );
+    #[test]
+    fn test_fen() {
+        {
+            let Position { board, player } =
+                fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+            let classical = crate::board::Presets::classical();
+            for y in 0..8 {
+                for x in 0..8 {
+                    let coord = Coord::new(x, y);
+                    assert_eq!(board[coord], classical[coord]);
+
+                    assert_eq!(
+                        board.castling_rights,
+                        [
+                            Some(Coord::new(0, 0)),
+                            Some(Coord::new(7, 0)),
+                            Some(Coord::new(0, 7)),
+                            Some(Coord::new(7, 7))
+                        ]
+                    );
+                }
             }
+            assert_eq!(player, White);
+            assert!(board.last_pawn_double_move.is_none());
         }
-        assert_eq!(player, White);
-        assert!(board.last_pawn_double_move.is_none());
-    }
-    {
-        let Position { board, player } =
-            fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 b kq - 0 1");
-        assert_eq!(board[(0, 2)], Some(Piece::new(Black, Queen)));
-        assert_eq!(board[(1, 2)], None);
-        assert_eq!(
-            board.castling_rights,
-            [None, None, Some(Coord::new(0, 7)), Some(Coord::new(7, 7))]
-        );
-        assert_eq!(player, Black);
-        assert!(board.last_pawn_double_move.is_none());
-    }
-    {
-        let Position { board, player: _ } =
-            fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 b qk - 0 1");
-        assert_eq!(
-            board.castling_rights,
-            [None, None, Some(Coord::new(0, 7)), Some(Coord::new(7, 7))]
-        );
-    }
-    {
-        let Position { board, player: _ } = fen("1r2k1r1/8/8/8/8/8/8/1R2K1R1 b Bg - 0 1");
-        assert_eq!(
-            board.castling_rights,
-            [Some(Coord::new(1, 0)), None, None, Some(Coord::new(6, 7))]
-        );
-    }
-    {
-        let Position { board, player: _ } = fen("1r2k1r1/8/8/8/8/8/8/1R2K1R1 b bG - 0 1");
-        assert_eq!(
-            board.castling_rights,
-            [None, Some(Coord::new(6, 0)), Some(Coord::new(1, 7)), None]
-        );
-    }
-    {
-        let Position { board, player: _ } =
-            fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2");
-        assert_eq!(board.last_pawn_double_move, Some(Coord::new(2, 4)));
+        {
+            let Position { board, player } =
+                fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 b kq - 0 1");
+            assert_eq!(board[(0, 2)], Some(Piece::new(Black, Queen)));
+            assert_eq!(board[(1, 2)], None);
+            assert_eq!(
+                board.castling_rights,
+                [None, None, Some(Coord::new(0, 7)), Some(Coord::new(7, 7))]
+            );
+            assert_eq!(player, Black);
+            assert!(board.last_pawn_double_move.is_none());
+        }
+        {
+            let Position { board, player: _ } =
+                fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 b qk - 0 1");
+            assert_eq!(
+                board.castling_rights,
+                [None, None, Some(Coord::new(0, 7)), Some(Coord::new(7, 7))]
+            );
+        }
+        {
+            let Position { board, player: _ } = fen("1r2k1r1/8/8/8/8/8/8/1R2K1R1 b Bg - 0 1");
+            assert_eq!(
+                board.castling_rights,
+                [Some(Coord::new(1, 0)), None, None, Some(Coord::new(6, 7))]
+            );
+        }
+        {
+            let Position { board, player: _ } = fen("1r2k1r1/8/8/8/8/8/8/1R2K1R1 b bG - 0 1");
+            assert_eq!(
+                board.castling_rights,
+                [None, Some(Coord::new(6, 0)), Some(Coord::new(1, 7)), None]
+            );
+        }
+        {
+            let Position { board, player: _ } =
+                fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2");
+            assert_eq!(board.last_pawn_double_move, Some(Coord::new(2, 4)));
+        }
     }
 }

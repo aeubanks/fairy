@@ -4,7 +4,6 @@ use arrayvec::ArrayVec;
 use derive_rand::Rand;
 use num_derive::FromPrimitive;
 use num_traits::cast::FromPrimitive;
-use static_assertions::const_assert_eq;
 use std::num::NonZeroU8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Rand, Hash, FromPrimitive)]
@@ -106,22 +105,28 @@ impl Piece {
     }
 }
 
-#[test]
-fn test_piece() {
-    use Player::*;
-    use Type::*;
-    let p = Piece::new(White, King);
-    assert_eq!(p.player(), White);
-    assert_eq!(p.ty(), King);
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use static_assertions::const_assert_eq;
 
-#[test]
-fn test_piece_char() {
-    use Player::*;
-    use Type::*;
-    assert_eq!(Piece::new(White, King).char(), 'K');
-    assert_eq!(Piece::new(Black, Queen).char(), 'q');
-}
+    #[test]
+    fn test_piece() {
+        use Player::*;
+        use Type::*;
+        let p = Piece::new(White, King);
+        assert_eq!(p.player(), White);
+        assert_eq!(p.ty(), King);
+    }
 
-const_assert_eq!(1, std::mem::size_of::<Piece>());
-const_assert_eq!(1, std::mem::size_of::<Option<Piece>>());
+    #[test]
+    fn test_piece_char() {
+        use Player::*;
+        use Type::*;
+        assert_eq!(Piece::new(White, King).char(), 'K');
+        assert_eq!(Piece::new(Black, Queen).char(), 'q');
+    }
+
+    const_assert_eq!(1, std::mem::size_of::<Piece>());
+    const_assert_eq!(1, std::mem::size_of::<Option<Piece>>());
+}
