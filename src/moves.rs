@@ -1469,6 +1469,17 @@ pub fn all_moves_to_end_at_board_no_captures<const W: usize, const H: usize, PW:
                 })
                 .collect(),
         );
+        #[cfg(debug_assertions)]
+        moves.iter().for_each(|m| {
+            assert_eq!(
+                board.existing_piece_result(m.from, player),
+                ExistingPieceResult::Empty
+            );
+            assert_eq!(
+                board.existing_piece_result(m.to, player),
+                ExistingPieceResult::Friend
+            );
+        });
     });
     moves
 }

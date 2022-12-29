@@ -1,9 +1,9 @@
-use crate::board::{ExistingPieceResult, Move, PieceWatcher};
+use crate::board::{Move, PieceWatcher};
 use crate::coord::Coord;
 use crate::moves::{all_moves, all_moves_to_end_at_board_no_captures, under_attack_from_coord};
 use crate::piece::Piece;
 use crate::piece::Type::*;
-use crate::player::{Player, Player::*};
+use crate::player::Player::*;
 use arrayvec::ArrayVec;
 use rustc_hash::FxHasher;
 use std::cmp::Ordering;
@@ -691,50 +691,54 @@ fn test_populate_initial_tablebases_stalemate() {
 
 fn iterate_black<const W: usize, const H: usize>(
     tablebase: &mut Tablebase<W, H>,
-    boards: &[Board<W, H>],
+    previous_boards: &[Board<W, H>],
 ) -> Vec<Board<W, H>> {
     let mut next_boards = Vec::new();
-    for b in ReachablePositions::new(boards, Black) {
-        if tablebase.black_contains_impl(&b) {
-            continue;
-        }
-        // None means no forced loss
-        // Some(depth) means forced loss in depth moves
-        let mut max_depth = Some(0);
-        let mut best_move = None;
-        let black_moves = all_moves(&b, Black);
-        if black_moves.is_empty() {
-            // loss?
-            continue;
-        }
-        for black_move in black_moves {
-            let mut clone = b.clone();
-            clone.make_move(black_move, Black);
+    for prev in previous_boards {
+        for m in all_moves_to_end_at_board_no_captures(prev, Black) {
+            let mut b = prev.clone();
+            b.swap(m.from, m.to);
+            if tablebase.black_contains_impl(&b) {
+                continue;
+            }
+            // None means no forced loss
+            // Some(depth) means forced loss in depth moves
+            let mut max_depth = Some(0);
+            let mut best_move = None;
+            let black_moves = all_moves(&b, Black);
+            if black_moves.is_empty() {
+                // loss?
+                continue;
+            }
+            for black_move in black_moves {
+                let mut clone = b.clone();
+                clone.make_move(black_move, Black);
 
-            if let Some(depth) = tablebase.white_depth_impl(&clone) {
-                max_depth = Some(match max_depth {
-                    Some(md) => {
-                        // use move that prolongs checkmate as long as possible
-                        if depth > md {
+                if let Some(depth) = tablebase.white_depth_impl(&clone) {
+                    max_depth = Some(match max_depth {
+                        Some(md) => {
+                            // use move that prolongs checkmate as long as possible
+                            if depth > md {
+                                best_move = Some(black_move);
+                                depth
+                            } else {
+                                md
+                            }
+                        }
+                        None => {
                             best_move = Some(black_move);
                             depth
-                        } else {
-                            md
                         }
-                    }
-                    None => {
-                        best_move = Some(black_move);
-                        depth
-                    }
-                });
-            } else {
-                max_depth = None;
-                break;
+                    });
+                } else {
+                    max_depth = None;
+                    break;
+                }
             }
-        }
-        if let Some(max_depth) = max_depth {
-            tablebase.black_add_impl(&b, best_move.unwrap(), max_depth + 1);
-            next_boards.push(b.clone());
+            if let Some(max_depth) = max_depth {
+                tablebase.black_add_impl(&b, best_move.unwrap(), max_depth + 1);
+                next_boards.push(b.clone());
+            }
         }
     }
     next_boards
@@ -742,47 +746,51 @@ fn iterate_black<const W: usize, const H: usize>(
 
 fn iterate_white<const W: usize, const H: usize>(
     tablebase: &mut Tablebase<W, H>,
-    boards: &[Board<W, H>],
+    previous_boards: &[Board<W, H>],
 ) -> Vec<Board<W, H>> {
     let mut next_boards = Vec::new();
-    for b in ReachablePositions::new(boards, White) {
-        if tablebase.white_contains_impl(&b) {
-            continue;
-        }
-        // None means no forced win
-        // Some(depth) means forced win in depth moves
-        let mut min_depth: Option<u16> = None;
-        let mut best_move = None;
-        let white_moves = all_moves(&b, White);
-        if white_moves.is_empty() {
-            // loss?
-            continue;
-        }
-        for white_move in white_moves {
-            let mut clone = b.clone();
-            clone.make_move(white_move, White);
+    for prev in previous_boards {
+        for m in all_moves_to_end_at_board_no_captures(prev, White) {
+            let mut b = prev.clone();
+            b.swap(m.from, m.to);
+            if tablebase.white_contains_impl(&b) {
+                continue;
+            }
+            // None means no forced win
+            // Some(depth) means forced win in depth moves
+            let mut min_depth: Option<u16> = None;
+            let mut best_move = None;
+            let white_moves = all_moves(&b, White);
+            if white_moves.is_empty() {
+                // loss?
+                continue;
+            }
+            for white_move in white_moves {
+                let mut clone = b.clone();
+                clone.make_move(white_move, White);
 
-            if let Some(depth) = tablebase.black_depth_impl(&clone) {
-                min_depth = Some(match min_depth {
-                    Some(md) => {
-                        // use move that forces checkmate as quickly as possible
-                        if depth < md {
+                if let Some(depth) = tablebase.black_depth_impl(&clone) {
+                    min_depth = Some(match min_depth {
+                        Some(md) => {
+                            // use move that forces checkmate as quickly as possible
+                            if depth < md {
+                                best_move = Some(white_move);
+                                depth
+                            } else {
+                                md
+                            }
+                        }
+                        None => {
                             best_move = Some(white_move);
                             depth
-                        } else {
-                            md
                         }
-                    }
-                    None => {
-                        best_move = Some(white_move);
-                        depth
-                    }
-                });
+                    });
+                }
             }
-        }
-        if let Some(min_depth) = min_depth {
-            tablebase.white_add_impl(&b, best_move.unwrap(), min_depth + 1);
-            next_boards.push(b.clone());
+            if let Some(min_depth) = min_depth {
+                tablebase.white_add_impl(&b, best_move.unwrap(), min_depth + 1);
+                next_boards.push(b.clone());
+            }
         }
     }
     next_boards
@@ -801,53 +809,6 @@ fn verify_piece_set(pieces: &[Piece]) {
     }
     assert_eq!(wk_count, 1);
     assert_eq!(bk_count, 1);
-}
-
-struct ReachablePositions<'a, const W: usize, const H: usize> {
-    boards: &'a [Board<W, H>],
-    player: Player,
-    idx: usize,
-    cur_board_moves: Vec<Move>,
-}
-
-impl<'a, const W: usize, const H: usize> ReachablePositions<'a, W, H> {
-    fn new(boards: &'a [Board<W, H>], player: Player) -> Self {
-        Self {
-            boards,
-            player,
-            idx: 0,
-            cur_board_moves: Vec::new(),
-        }
-    }
-}
-
-impl<'a, const W: usize, const H: usize> Iterator for ReachablePositions<'a, W, H> {
-    type Item = Board<W, H>;
-    fn next(&mut self) -> Option<Self::Item> {
-        while self.cur_board_moves.is_empty() && self.idx != self.boards.len() {
-            self.cur_board_moves
-                .extend(all_moves_to_end_at_board_no_captures(
-                    &self.boards[self.idx],
-                    self.player,
-                ));
-            self.idx += 1;
-        }
-        if let Some(m) = self.cur_board_moves.pop() {
-            let board = &self.boards[self.idx - 1];
-            assert_eq!(
-                board.existing_piece_result(m.from, self.player),
-                ExistingPieceResult::Empty
-            );
-            assert_eq!(
-                board.existing_piece_result(m.to, self.player),
-                ExistingPieceResult::Friend
-            );
-            let mut clone = board.clone();
-            clone.swap(m.from, m.to);
-            return Some(clone);
-        }
-        None
-    }
 }
 
 pub fn generate_tablebase<const W: usize, const H: usize>(
