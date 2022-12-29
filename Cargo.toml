@@ -14,6 +14,7 @@ inherits = "dev"
 debug = 1
 opt-level = 1
 debug-assertions = true
+incremental = false
 
 [dependencies]
 derive_rand = { path = "derive_rand" }
