@@ -5,11 +5,25 @@ use rand::Rng;
 use static_assertions::const_assert_eq;
 use std::ops::Index;
 
+pub trait PieceWatcher: Default + Clone {
+    fn add_piece(&mut self, piece: Piece, coord: Coord);
+    fn remove_piece(&mut self, piece: Piece, coord: Coord);
+}
+
+#[derive(Default, Clone)]
+pub struct NoOpPieceWatcher;
+
+impl PieceWatcher for NoOpPieceWatcher {
+    fn add_piece(&mut self, _piece: Piece, _coord: Coord) {}
+    fn remove_piece(&mut self, _piece: Piece, _coord: Coord) {}
+}
+
 #[derive(Clone, PartialEq, Eq)]
-pub struct Board<const W: usize, const H: usize> {
+pub struct Board<const W: usize, const H: usize, PW: PieceWatcher = NoOpPieceWatcher> {
     pieces: [[Option<Piece>; H]; W],
     pub castling_rights: [Option<Coord>; 4],
     pub last_pawn_double_move: Option<Coord>,
+    watcher: PW,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -30,6 +44,7 @@ impl<const W: usize, const H: usize> Default for Board<W, H> {
             pieces: [[None; H]; W],
             castling_rights: [None; 4],
             last_pawn_double_move: None,
+            watcher: Default::default(),
         }
     }
 }
@@ -50,22 +65,29 @@ impl<const W: usize, const H: usize> Board<W, H> {
         coord.x < W as i8 && coord.x >= 0 && coord.y < H as i8 && coord.y >= 0
     }
 
+    fn get_mut(&mut self, coord: Coord) -> &mut Option<Piece> {
+        &mut self.pieces[coord.x as usize][coord.y as usize]
+    }
+
     pub fn clear(&mut self, coord: Coord) {
-        self.pieces[coord.x as usize][coord.y as usize] = None;
+        if let Some(p) = self[coord] {
+            self.watcher.remove_piece(p, coord);
+        }
+        *self.get_mut(coord) = None;
     }
 
     pub fn add_piece(&mut self, coord: Coord, piece: Piece) {
-        self.set(coord, Some(piece));
-    }
-
-    pub fn set(&mut self, coord: Coord, piece: Option<Piece>) {
         assert!(self[coord].is_none());
 
-        self.pieces[coord.x as usize][coord.y as usize] = piece;
+        self.watcher.add_piece(piece, coord);
+        *self.get_mut(coord) = Some(piece);
     }
 
     pub fn take(&mut self, coord: Coord) -> Option<Piece> {
-        self.pieces[coord.x as usize][coord.y as usize].take()
+        if let Some(p) = self[coord] {
+            self.watcher.remove_piece(p, coord);
+        }
+        self.get_mut(coord).take()
     }
 
     pub fn existing_piece_result(&self, coord: Coord, player: Player) -> ExistingPieceResult {
@@ -86,8 +108,12 @@ impl<const W: usize, const H: usize> Board<W, H> {
         assert_ne!(c1, c2);
         let p1 = self.take(c1);
         let p2 = self.take(c2);
-        self.set(c1, p2);
-        self.set(c2, p1);
+        if let Some(p1) = p1 {
+            self.add_piece(c2, p1);
+        }
+        if let Some(p2) = p2 {
+            self.add_piece(c1, p2);
+        }
     }
 
     pub fn pieces_fn<F>(&self, mut f: F)
@@ -164,7 +190,7 @@ fn test_board() {
     let p1 = Piece::new(White, Bishop);
     let p2 = Piece::new(Black, Knight);
     b.add_piece(Coord::new(0, 0), p1);
-    b.set(Coord::new(3, 3), Some(p2));
+    b.add_piece(Coord::new(3, 3), p2);
     assert_eq!(b[(0, 0)], Some(p1));
     assert_eq!(b[(3, 3)], Some(p2));
     assert_eq!(b[(0, 3)], None);
@@ -204,52 +230,36 @@ fn test_board_panic_y_2() {
 #[should_panic]
 fn test_mut_board_panic_x_1() {
     let mut b = Board::<2, 3>::default();
-    b.set(Coord::new(2, 1), None);
+    b.clear(Coord::new(2, 1));
 }
 
 #[test]
 #[should_panic]
 fn test_mut_board_panic_x_2() {
     let mut b = Board::<2, 3>::default();
-    b.set(Coord::new(-1, 1), None);
+    b.clear(Coord::new(-1, 1));
 }
 
 #[test]
 #[should_panic]
 fn test_mut_board_panic_y_1() {
     let mut b = Board::<2, 3>::default();
-    b.set(Coord::new(1, 3), None);
+    b.clear(Coord::new(1, 3));
 }
 
 #[test]
 #[should_panic]
 fn test_mut_board_panic_y_2() {
     let mut b = Board::<2, 3>::default();
-    b.set(Coord::new(1, -1), None);
+    b.clear(Coord::new(1, -1));
 }
 
 #[test]
 #[should_panic]
-fn test_board_set_existing_piece_panic_1() {
+fn test_board_set_existing_piece_panic() {
     let mut b = Board::<2, 3>::default();
     b.add_piece(Coord::new(1, 1), Piece::new(White, King));
     b.add_piece(Coord::new(1, 1), Piece::new(White, King));
-}
-
-#[test]
-#[should_panic]
-fn test_board_set_existing_piece_panic_2() {
-    let mut b = Board::<2, 3>::default();
-    b.add_piece(Coord::new(1, 1), Piece::new(White, King));
-    b.set(Coord::new(1, 1), Some(Piece::new(White, King)));
-}
-
-#[test]
-#[should_panic]
-fn test_board_set_existing_piece_panic_3() {
-    let mut b = Board::<2, 3>::default();
-    b.add_piece(Coord::new(1, 1), Piece::new(White, King));
-    b.set(Coord::new(1, 1), None);
 }
 
 impl<const W: usize, const H: usize> std::fmt::Debug for Board<W, H> {
@@ -341,8 +351,7 @@ impl<const W: usize, const H: usize> Board<W, H> {
         }
         // castling
         if piece.ty() == King && to_res == ExistingPieceResult::Friend {
-            let rook = self.take(m.to);
-            assert_eq!(rook.unwrap().ty(), Rook);
+            let rook = self.take(m.to).unwrap();
             // king moves to rook to castle with
             // king should always be between two rooks to castle with
             let (dest, rook_dest) = if m.from.x > m.to.x {
@@ -353,8 +362,7 @@ impl<const W: usize, const H: usize> Board<W, H> {
                     Coord::new(W as i8 - 3, m.from.y),
                 )
             };
-            assert!(self[rook_dest].is_none());
-            self.set(rook_dest, rook);
+            self.add_piece(rook_dest, rook);
             self.add_piece(dest, piece);
         } else {
             assert!(to_res != ExistingPieceResult::Friend);
