@@ -1,35 +1,38 @@
 mod common;
 
 use common::Perf;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 
 use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
 use fairy::tablebase::*;
 
-fn three_piece_tablebase<const W: usize, const H: usize>(pieces: &[Piece]) -> Tablebase<W, H> {
-    assert_eq!(pieces.len(), 3);
+fn run<const W: usize, const H: usize>() -> Tablebase<W, H> {
     let mut tablebase = Tablebase::default();
     let kk = [Piece::new(White, King), Piece::new(Black, King)];
-    generate_tablebase(&mut tablebase, &kk);
-    generate_tablebase(&mut tablebase, &pieces);
-    tablebase
-}
-
-fn kqk(c: &mut Criterion<Perf>) {
-    let pieces = [
+    let kqk = [
         Piece::new(White, King),
         Piece::new(White, Queen),
         Piece::new(Black, King),
     ];
-    c.bench_function("kqk", |b| {
-        b.iter(|| three_piece_tablebase::<5, 5>(black_box(&pieces)))
-    });
+    let krk = [
+        Piece::new(White, King),
+        Piece::new(White, Rook),
+        Piece::new(Black, King),
+    ];
+    generate_tablebase(&mut tablebase, &kk);
+    generate_tablebase(&mut tablebase, &kqk);
+    generate_tablebase(&mut tablebase, &krk);
+    tablebase
+}
+
+fn tb(c: &mut Criterion<Perf>) {
+    c.bench_function("kk/kqk/krk", |b| b.iter(|| run::<5, 5>()));
 }
 
 criterion_group!(
     name = benches;
     config = Criterion::default().with_measurement(Perf);
-    targets = kqk
+    targets = tb
 );
 criterion_main!(benches);
