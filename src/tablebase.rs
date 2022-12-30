@@ -293,7 +293,7 @@ impl<const W: usize, const H: usize> GenerateAllBoards<W, H> {
     }
     fn first_empty_coord_from(&self, mut c: Coord, piece: Piece) -> Option<Coord> {
         while c.y != H as i8 {
-            if self.board[c].is_none() && (piece.ty() != Pawn || (c.y != 0 && c.y != H as i8 - 1)) {
+            if self.board.get(c).is_none() && (piece.ty() != Pawn || (c.y != 0 && c.y != H as i8 - 1)) {
                 return Some(c);
             }
             c = Self::next_coord(c);
@@ -326,7 +326,7 @@ impl<const W: usize, const H: usize> Iterator for GenerateAllBoards<W, H> {
         let mut done = false;
         let mut add_from_idx = self.stack.len();
         for i in (0..self.stack.len()).rev() {
-            assert_eq!(self.board[self.stack[i]], Some(self.pieces[i]));
+            assert_eq!(self.board.get(self.stack[i]), Some(self.pieces[i]));
             self.board.clear(self.stack[i]);
             if let Some(c) =
                 self.first_empty_coord_from(Self::next_coord(self.stack[i]), self.pieces[i])
@@ -801,13 +801,25 @@ mod tests {
             ])
             .collect::<Vec<_>>();
             assert_eq!(boards.len(), 64 * 63);
-            assert_eq!(boards[0][Coord::new(0, 0)], Some(Piece::new(White, King)));
-            assert_eq!(boards[0][Coord::new(1, 0)], Some(Piece::new(White, Queen)));
-            assert_eq!(boards[0][Coord::new(2, 0)], None);
+            assert_eq!(
+                boards[0].get(Coord::new(0, 0)),
+                Some(Piece::new(White, King))
+            );
+            assert_eq!(
+                boards[0].get(Coord::new(1, 0)),
+                Some(Piece::new(White, Queen))
+            );
+            assert_eq!(boards[0].get(Coord::new(2, 0)), None);
 
-            assert_eq!(boards[1][Coord::new(0, 0)], Some(Piece::new(White, King)));
-            assert_eq!(boards[1][Coord::new(1, 0)], None);
-            assert_eq!(boards[1][Coord::new(2, 0)], Some(Piece::new(White, Queen)));
+            assert_eq!(
+                boards[1].get(Coord::new(0, 0)),
+                Some(Piece::new(White, King))
+            );
+            assert_eq!(boards[1].get(Coord::new(1, 0)), None);
+            assert_eq!(
+                boards[1].get(Coord::new(2, 0)),
+                Some(Piece::new(White, Queen))
+            );
         }
         {
             for b in GenerateAllBoards::<4, 4>::new(&[
@@ -817,7 +829,7 @@ mod tests {
             ]) {
                 for y in 0..4_i8 {
                     for x in 0..4_i8 {
-                        if let Some(p) = b[Coord::new(x, y)] {
+                        if let Some(p) = b.get(Coord::new(x, y)) {
                             if p.ty() == Pawn {
                                 assert_ne!(0, y);
                                 assert_ne!(3, y);

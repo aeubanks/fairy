@@ -23,7 +23,7 @@ fn perft_impl<const W: usize, const H: usize>(
             continue;
         }
         let next_player = next_player(player);
-        if board[m.from].unwrap().ty() == Pawn && (m.to.y == 0 || m.to.y == H as i8 - 1) {
+        if board.get(m.from).unwrap().ty() == Pawn && (m.to.y == 0 || m.to.y == H as i8 - 1) {
             for ty in [Knight, Bishop, Rook] {
                 let mut promotion_copy = copy.clone();
                 promotion_copy.clear(m.to);
@@ -62,7 +62,7 @@ fn perft_all_impl<const W: usize, const H: usize>(
     let moves = all_moves(board, player);
     let mut sum = 0;
     for m in moves {
-        if let Some(p) = board[m.to] {
+        if let Some(p) = board.get(m.to) {
             if p.ty() == King {
                 continue;
             }
@@ -190,7 +190,7 @@ mod tests {
             for y in 0..8 {
                 for x in 0..8 {
                     let coord = Coord::new(x, y);
-                    assert_eq!(board[coord], classical[coord]);
+                    assert_eq!(board.get(coord), classical.get(coord));
 
                     assert_eq!(
                         board.castling_rights,
@@ -209,8 +209,8 @@ mod tests {
         {
             let Position { board, player } =
                 fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 b kq - 0 1");
-            assert_eq!(board[Coord::new(0, 2)], Some(Piece::new(Black, Queen)));
-            assert_eq!(board[Coord::new(1, 2)], None);
+            assert_eq!(board.get(Coord::new(0, 2)), Some(Piece::new(Black, Queen)));
+            assert_eq!(board.get(Coord::new(1, 2)), None);
             assert_eq!(
                 board.castling_rights,
                 [None, None, Some(Coord::new(0, 7)), Some(Coord::new(7, 7))]

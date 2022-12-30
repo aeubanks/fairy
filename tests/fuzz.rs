@@ -20,7 +20,7 @@ fn add_piece_to_rand_coord<R: Rng + ?Sized, const W: usize, const H: usize>(
 ) {
     loop {
         let coord = Coord::new(rng.gen_range(0..W as i8), rng.gen_range(0..H as i8));
-        if board[coord].is_some() {
+        if board.get(coord).is_some() {
             continue;
         }
         if !valid_piece_for_coord(piece, coord, H as i8) {
@@ -63,7 +63,7 @@ fn rand_board<const W: usize, const H: usize, R: Rng + ?Sized>(rng: &mut R) -> B
         for y in 0..H as i8 {
             for x in 0..W as i8 {
                 let coord = Coord::new(x, y);
-                if board[coord].is_some() {
+                if board.get(coord).is_some() {
                     continue;
                 }
                 if rng.gen_bool(1.0 / 8.0) {

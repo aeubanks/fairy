@@ -184,7 +184,7 @@ fn add_castling_moves<const W: usize, const H: usize, PW: PieceWatcher>(
         if let Some(rook_coord) = rook_coord {
             {
                 assert_eq!(coord.y, rook_coord.y);
-                let piece = board[rook_coord].unwrap();
+                let piece = board.get(rook_coord).unwrap();
                 assert_eq!(piece.ty(), Rook);
                 assert_eq!(piece.player(), player);
             }
@@ -314,7 +314,7 @@ fn enemy_piece_rider<const W: usize, const H: usize, PW: PieceWatcher>(
 ) -> Option<Coord> {
     let mut try_coord = coord + offset;
     while board.in_bounds(try_coord) {
-        if let Some(p) = board[try_coord] {
+        if let Some(p) = board.get(try_coord) {
             if p.player() != player {
                 return Some(try_coord);
             } else {
@@ -334,7 +334,7 @@ fn enemy_piece_leaper<const W: usize, const H: usize, PW: PieceWatcher>(
 ) -> Option<Coord> {
     let try_coord = coord + offset;
     if board.in_bounds(try_coord) {
-        if let Some(p) = board[try_coord] {
+        if let Some(p) = board.get(try_coord) {
             if p.player() != player {
                 return Some(try_coord);
             } else {
@@ -358,12 +358,12 @@ pub fn under_attack_from_coord<const W: usize, const H: usize, PW: PieceWatcher>
     coord: Coord,
     player: Player,
 ) -> Option<Coord> {
-    if let Some(p) = board[coord] {
+    if let Some(p) = board.get(coord) {
         assert_eq!(p.player(), player);
     }
     for o in offsets(Coord::new(1, 0)) {
         if let Some(c) = enemy_piece_rider(board, coord, o, player) {
-            let ty = board[c].unwrap().ty();
+            let ty = board.get(c).unwrap().ty();
             if ty != Pawn && ty.rider_offsets().contains(&Coord::new(1, 0)) {
                 return Some(c);
             }
@@ -371,7 +371,7 @@ pub fn under_attack_from_coord<const W: usize, const H: usize, PW: PieceWatcher>
     }
     for o in offsets(Coord::new(1, 1)) {
         if let Some(c) = enemy_piece_rider(board, coord, o, player) {
-            let ty = board[c].unwrap().ty();
+            let ty = board.get(c).unwrap().ty();
             if ty != Pawn && ty.rider_offsets().contains(&Coord::new(1, 1)) {
                 return Some(c);
             }
@@ -379,7 +379,7 @@ pub fn under_attack_from_coord<const W: usize, const H: usize, PW: PieceWatcher>
     }
     for o in offsets(Coord::new(2, 1)) {
         if let Some(c) = enemy_piece_leaper(board, coord, o, player) {
-            let ty = board[c].unwrap().ty();
+            let ty = board.get(c).unwrap().ty();
             if ty != Pawn && ty.leaper_offsets().contains(&Coord::new(2, 1)) {
                 return Some(c);
             }
@@ -387,7 +387,7 @@ pub fn under_attack_from_coord<const W: usize, const H: usize, PW: PieceWatcher>
     }
     for o in offsets(Coord::new(1, 1)) {
         if let Some(c) = enemy_piece_leaper(board, coord, o, player) {
-            let ty = board[c].unwrap().ty();
+            let ty = board.get(c).unwrap().ty();
             if ty != Pawn && ty.leaper_offsets().contains(&Coord::new(1, 1)) {
                 return Some(c);
             }
@@ -395,7 +395,7 @@ pub fn under_attack_from_coord<const W: usize, const H: usize, PW: PieceWatcher>
     }
     for o in offsets(Coord::new(1, 0)) {
         if let Some(c) = enemy_piece_leaper(board, coord, o, player) {
-            let ty = board[c].unwrap().ty();
+            let ty = board.get(c).unwrap().ty();
             if ty != Pawn && ty.leaper_offsets().contains(&Coord::new(1, 0)) {
                 return Some(c);
             }
@@ -407,7 +407,7 @@ pub fn under_attack_from_coord<const W: usize, const H: usize, PW: PieceWatcher>
         player: Player,
     ) -> bool {
         if board.in_bounds(coord) {
-            if let Some(p) = board[coord] {
+            if let Some(p) = board.get(coord) {
                 return p.player() != player && p.ty() == Pawn;
             }
         }
@@ -441,7 +441,7 @@ fn add_moves_for_rider_to_end_at_board_no_captures<
 ) {
     for offset in offsets(rider_offset) {
         let mut try_coord = coord + offset;
-        while board.in_bounds(try_coord) && board[try_coord].is_none() {
+        while board.in_bounds(try_coord) && board.get(try_coord).is_none() {
             moves.push(try_coord);
             try_coord = try_coord + offset;
         }
@@ -460,7 +460,7 @@ fn add_moves_for_leaper_to_end_at_board_no_captures<
 ) {
     for offset in offsets(offset) {
         let try_coord = coord + offset;
-        if board.in_bounds(try_coord) && board[try_coord].is_none() {
+        if board.in_bounds(try_coord) && board.get(try_coord).is_none() {
             moves.push(try_coord);
         }
     }
