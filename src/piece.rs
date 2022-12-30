@@ -75,7 +75,7 @@ impl Type {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Piece {
     val: NonZeroU8,
 }
@@ -105,15 +105,22 @@ impl Piece {
     }
 }
 
+impl std::fmt::Debug for Piece {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use std::fmt::Write;
+        f.write_char(self.char())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use static_assertions::const_assert_eq;
+    use Player::*;
+    use Type::*;
 
     #[test]
     fn test_piece() {
-        use Player::*;
-        use Type::*;
         let p = Piece::new(White, King);
         assert_eq!(p.player(), White);
         assert_eq!(p.ty(), King);
@@ -121,10 +128,13 @@ mod tests {
 
     #[test]
     fn test_piece_char() {
-        use Player::*;
-        use Type::*;
         assert_eq!(Piece::new(White, King).char(), 'K');
         assert_eq!(Piece::new(Black, Queen).char(), 'q');
+    }
+
+    #[test]
+    fn test_piece_fmt() {
+        assert_eq!(format!("{:?}", Piece::new(White, King)), "K");
     }
 
     const_assert_eq!(1, std::mem::size_of::<Piece>());
