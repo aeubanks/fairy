@@ -522,6 +522,19 @@ pub fn generate_tablebase<const W: i8, const H: i8>(
             break;
         }
 
+        #[cfg(debug_tablebase)]
+        {
+            for a in GenerateAllBoards::new(pieces) {
+                let mut c = boards_to_check.clone();
+                c.push(a.clone());
+                let c1 = iterate_white(&mut tablebase.clone(), &c).len();
+                let c2 = iterate_white(&mut tablebase.clone(), &boards_to_check).len();
+                if c1 != c2 {
+                    dbg!(a);
+                }
+            }
+        }
+
         #[cfg(debug_assertions)]
         let all_white_count = iterate_white(
             &mut tablebase.clone(),

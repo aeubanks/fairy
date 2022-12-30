@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 tablebase_stalemate_win = []
+debug_tablebase = []
 
 [profile.release]
 debug = 1
