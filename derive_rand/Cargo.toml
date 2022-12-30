@@ -8,5 +8,7 @@ proc-macro = true
 
 [dependencies]
 quote = "1"
-rand = "0.8"
 syn = "1"
+
+[dev-dependencies]
+rand = "0.8"
