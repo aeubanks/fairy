@@ -376,21 +376,23 @@ fn populate_initial_wins<const W: usize, const H: usize>(
             }
         }
         // don't support stalemate for now, it doesn't really happen on normal boards with few pieces, and takes up a noticeable chunk of tablebase generation time
+        #[cfg(not(tablebase_stalemate_win))]
         debug_assert!(!all_moves(&b, Black).is_empty());
-        // if !tablebase.black_contains_impl(b) {
-        //     // stalemate is a win
-        //     if all_moves(b, Black).is_empty() {
-        //         tablebase.black_add_impl(
-        //             b,
-        //             // arbitrary move
-        //             Move {
-        //                 from: Coord::new(0, 0),
-        //                 to: Coord::new(0, 0),
-        //             },
-        //             0,
-        //         );
-        //     }
-        // }
+        #[cfg(tablebase_stalemate_win)]
+        if !tablebase.black_contains_impl(&b) {
+            // stalemate is a win
+            if all_moves(&b, Black).is_empty() {
+                tablebase.black_add_impl(
+                    &b,
+                    // arbitrary move
+                    Move {
+                        from: Coord::new(0, 0),
+                        to: Coord::new(0, 0),
+                    },
+                    0,
+                );
+            }
+        }
     }
     ret
 }
@@ -856,33 +858,35 @@ mod tests {
         }
     }
 
-    #[test]
-    #[ignore]
-    fn test_populate_initial_tablebases_stalemate() {
-        let mut tablebase = Tablebase::default();
-        populate_initial_wins(
-            &mut tablebase,
-            &[
-                Piece::new(White, King),
-                Piece::new(Black, Pawn),
-                Piece::new(Black, King),
-            ],
-        );
-        assert_eq!(
-            tablebase.black_depth_impl(&Board::<1, 8>::with_pieces(&[
-                (Coord::new(0, 7), Piece::new(White, King)),
-                (Coord::new(0, 1), Piece::new(Black, Pawn)),
-                (Coord::new(0, 0), Piece::new(Black, King)),
-            ])),
-            Some(0)
-        );
-        assert!(
-            !tablebase.black_contains_impl(&Board::<1, 8>::with_pieces(&[
-                (Coord::new(0, 7), Piece::new(White, King)),
-                (Coord::new(0, 2), Piece::new(Black, Pawn)),
-                (Coord::new(0, 0), Piece::new(Black, King)),
-            ]))
-        );
+    #[cfg(tablebase_stalemate_win)]
+    mod stalemate {
+        #[test]
+        fn test_populate_initial_tablebases_stalemate() {
+            let mut tablebase = Tablebase::default();
+            populate_initial_wins(
+                &mut tablebase,
+                &[
+                    Piece::new(White, King),
+                    Piece::new(Black, Pawn),
+                    Piece::new(Black, King),
+                ],
+            );
+            assert_eq!(
+                tablebase.black_depth_impl(&Board::<1, 8>::with_pieces(&[
+                    (Coord::new(0, 7), Piece::new(White, King)),
+                    (Coord::new(0, 1), Piece::new(Black, Pawn)),
+                    (Coord::new(0, 0), Piece::new(Black, King)),
+                ])),
+                Some(0)
+            );
+            assert!(
+                !tablebase.black_contains_impl(&Board::<1, 8>::with_pieces(&[
+                    (Coord::new(0, 7), Piece::new(White, King)),
+                    (Coord::new(0, 2), Piece::new(Black, Pawn)),
+                    (Coord::new(0, 0), Piece::new(Black, King)),
+                ]))
+            );
+        }
     }
     #[test]
     fn test_generate_king_king_5_1_tablebase() {
