@@ -103,6 +103,10 @@ impl Piece {
             Player::Black => c.to_lowercase().next().unwrap(),
         }
     }
+
+    pub fn val(&self) -> u8 {
+        self.val.get()
+    }
 }
 
 impl std::fmt::Debug for Piece {

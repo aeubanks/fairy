@@ -5,10 +5,8 @@ use crate::piece::Piece;
 use crate::piece::Type::*;
 use crate::player::Player::*;
 use arrayvec::ArrayVec;
-use rustc_hash::FxHasher;
+use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::hash::{BuildHasherDefault, Hash, Hasher};
 
 #[derive(Clone, Default)]
 pub struct TablebasePieceWatcher(ArrayVec<(Coord, Piece), 4>);
@@ -64,22 +62,8 @@ fn unflip_move(mut m: Move, sym: Symmetry, width: i8, height: i8) -> Move {
     m
 }
 
-#[derive(Default)]
-struct IdentityHasher(u64);
-
-impl Hasher for IdentityHasher {
-    fn write(&mut self, _bytes: &[u8]) {
-        unimplemented!()
-    }
-    fn write_u64(&mut self, i: u64) {
-        self.0 = i;
-    }
-    fn finish(&self) -> u64 {
-        self.0
-    }
-}
-
-type MapTy = HashMap<u64, (Move, u16), BuildHasherDefault<IdentityHasher>>;
+type KeyTy = ArrayVec<(i8, Piece), 4>;
+type MapTy = FxHashMap<KeyTy, (Move, u16)>;
 
 #[derive(Default, Clone)]
 pub struct Tablebase<const W: i8, const H: i8> {
@@ -91,44 +75,50 @@ pub struct Tablebase<const W: i8, const H: i8> {
 
 impl<const W: i8, const H: i8> Tablebase<W, H> {
     pub fn white_result(&self, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
-        let (hash, sym) = hash(board);
+        let (hash, sym) = canonical_board(board);
         self.white_tablebase
             .get(&hash)
             .map(|e| (unflip_move(e.0, sym, W as i8, H as i8), e.1))
     }
     pub fn black_result(&self, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
-        let (hash, sym) = hash(board);
+        let (hash, sym) = canonical_board(board);
         self.black_tablebase
             .get(&hash)
             .map(|e| (unflip_move(e.0, sym, W as i8, H as i8), e.1))
     }
     fn white_add_impl(&mut self, board: &TBBoard<W, H>, m: Move, depth: u16) {
-        let (hash, sym) = hash(board);
+        let (hash, sym) = canonical_board(board);
         debug_assert!(!self.white_tablebase.contains_key(&hash));
         self.white_tablebase
             .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
     }
     fn white_contains_impl(&self, board: &TBBoard<W, H>) -> bool {
-        self.white_tablebase.contains_key(&hash(board).0)
+        self.white_tablebase.contains_key(&canonical_board(board).0)
     }
     fn white_depth_impl(&self, board: &TBBoard<W, H>) -> Option<u16> {
-        self.white_tablebase.get(&hash(board).0).map(|e| e.1)
+        self.white_tablebase
+            .get(&canonical_board(board).0)
+            .map(|e| e.1)
     }
     fn black_add_impl(&mut self, board: &TBBoard<W, H>, m: Move, depth: u16) {
-        let (hash, sym) = hash(board);
+        let (hash, sym) = canonical_board(board);
         debug_assert!(!self.black_tablebase.contains_key(&hash));
         self.black_tablebase
             .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
     }
     fn black_contains_impl(&self, board: &TBBoard<W, H>) -> bool {
-        self.black_tablebase.contains_key(&hash(board).0)
+        self.black_tablebase.contains_key(&canonical_board(board).0)
     }
     fn black_depth_impl(&self, board: &TBBoard<W, H>) -> Option<u16> {
-        self.black_tablebase.get(&hash(board).0).map(|e| e.1)
+        self.black_tablebase
+            .get(&canonical_board(board).0)
+            .map(|e| e.1)
     }
     fn merge(&mut self, other: &Self) {
-        self.white_tablebase.extend(&other.white_tablebase);
-        self.black_tablebase.extend(&other.black_tablebase);
+        self.white_tablebase
+            .extend(other.white_tablebase.iter().map(|(k, v)| (k.clone(), *v)));
+        self.black_tablebase
+            .extend(other.black_tablebase.iter().map(|(k, v)| (k.clone(), *v)));
     }
     pub fn dump_stats(&self) {
         println!("white positions: {}", self.white_tablebase.len());
@@ -143,27 +133,23 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
     }
 }
 
-fn hash_one_board<const W: i8, const H: i8>(board: &TBBoard<W, H>, sym: Symmetry) -> u64 {
-    // need to visit in consistent order across symmetries
-    let mut pieces = ArrayVec::<(Coord, Piece), 6>::new();
+fn board_key<const W: i8, const H: i8>(
+    board: &TBBoard<W, H>,
+    sym: Symmetry,
+) -> ArrayVec<(i8, Piece), 4> {
+    let mut ret = ArrayVec::<(i8, Piece), 4>::new();
     board.foreach_piece(|piece, coord| {
         let c = flip_coord(coord, sym, W as i8, H as i8);
-        pieces.push((c, piece));
+        ret.push((c.x + c.y * W, piece));
     });
 
-    pieces.sort_unstable_by(|(c1, _), (c2, _)| match c1.x.cmp(&c2.x) {
-        Ordering::Equal => c1.y.cmp(&c2.y),
-        o => o,
-    });
-    let mut hasher = FxHasher::default();
-    for (c, p) in pieces {
-        c.hash(&mut hasher);
-        p.hash(&mut hasher);
-    }
-    hasher.finish()
+    ret.sort_unstable_by(|(c1, _), (c2, _)| c1.cmp(c2));
+    ret
 }
 
-fn hash<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (u64, Symmetry) {
+fn canonical_board<const W: i8, const H: i8>(
+    board: &TBBoard<W, H>,
+) -> (ArrayVec<(i8, Piece), 4>, Symmetry) {
     let mut symmetries_to_check = ArrayVec::<Symmetry, 8>::new();
     symmetries_to_check.push(Symmetry::default());
 
@@ -230,16 +216,41 @@ fn hash<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (u64, Symmetry) {
         }
     }
 
-    let mut min_hash = hash_one_board(board, symmetries_to_check[0]);
+    let mut min_key = board_key(board, symmetries_to_check[0]);
     let mut sym = symmetries_to_check[0];
     for s in symmetries_to_check.into_iter().skip(1) {
-        let try_hash = hash_one_board(board, s);
-        if try_hash < min_hash {
-            min_hash = try_hash;
+        let try_key = board_key(board, s);
+        let mut use_this_one = false;
+        for (a, b) in min_key.iter().zip(try_key.iter()) {
+            match a.0.cmp(&b.0) {
+                Ordering::Equal => match a.1.val().cmp(&b.1.val()) {
+                    Ordering::Equal => {}
+                    Ordering::Greater => {
+                        use_this_one = false;
+                        break;
+                    }
+                    Ordering::Less => {
+                        use_this_one = true;
+                        break;
+                    }
+                },
+                Ordering::Greater => {
+                    use_this_one = false;
+                    break;
+                }
+                Ordering::Less => {
+                    use_this_one = true;
+                    break;
+                }
+            }
+        }
+
+        if use_this_one {
+            min_key = try_key;
             sym = s;
         }
     }
-    (min_hash, sym)
+    (min_key, sym)
 }
 
 pub struct GenerateAllBoards<const W: i8, const H: i8> {
@@ -670,7 +681,7 @@ mod tests {
         assert_eq!(tablebase.white_result(&board), Some((m, 1)));
     }
     #[test]
-    fn test_hash() {
+    fn test_canonical_board() {
         let wk = Piece::new(White, King);
         let bk = Piece::new(Black, King);
         let wp = Piece::new(White, Pawn);
@@ -679,57 +690,60 @@ mod tests {
             TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
         let board2 =
             TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
+        let board3 =
+            TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 2), bk), (Coord::new(0, 0), wk)]);
 
-        fn assert_hash_eq<const W: i8, const H: i8>(b1: &TBBoard<W, H>, b2: &TBBoard<W, H>) {
-            assert_eq!(hash(b1).0, hash(b2).0);
+        fn assert_canon_eq<const W: i8, const H: i8>(b1: &TBBoard<W, H>, b2: &TBBoard<W, H>) {
+            assert_eq!(canonical_board(b1).0, canonical_board(b2).0);
         }
-        fn assert_hash_ne<const W: i8, const H: i8>(b1: &TBBoard<W, H>, b2: &TBBoard<W, H>) {
-            assert_ne!(hash(b1).0, hash(b2).0);
+        fn assert_canon_ne<const W: i8, const H: i8>(b1: &TBBoard<W, H>, b2: &TBBoard<W, H>) {
+            assert_ne!(canonical_board(b1).0, canonical_board(b2).0);
         }
-        assert_hash_eq(&board1, &board1);
-        assert_hash_eq(&board2, &board2);
-        assert_hash_ne(&board1, &board2);
-        assert_hash_eq(
+        assert_canon_eq(&board1, &board1);
+        assert_canon_eq(&board2, &board2);
+        assert_canon_ne(&board1, &board2);
+        assert_canon_eq(&board2, &board3);
+        assert_canon_eq(
             &board1,
             &TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
         );
-        assert_hash_eq(
+        assert_canon_eq(
             &board1,
             &TBBoard::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(7, 6), bk)]),
         );
-        assert_hash_eq(
+        assert_canon_eq(
             &board1,
             &TBBoard::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(6, 7), bk)]),
         );
-        assert_hash_eq(
+        assert_canon_eq(
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
         );
-        assert_hash_eq(
+        assert_canon_eq(
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(2, 1), wk), (Coord::new(2, 2), bk)]),
         );
-        assert_hash_eq(
+        assert_canon_eq(
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(2, 3), wk), (Coord::new(2, 2), bk)]),
         );
-        assert_hash_eq(
+        assert_canon_eq(
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 1), wk), (Coord::new(2, 2), bk)]),
         );
-        assert_hash_eq(
+        assert_canon_eq(
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 1), wk), (Coord::new(2, 2), bk)]),
         );
-        assert_hash_eq(
+        assert_canon_eq(
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 3), wk), (Coord::new(2, 2), bk)]),
         );
-        assert_hash_ne(
+        assert_canon_ne(
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
             &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
         );
-        assert_hash_eq(
+        assert_canon_eq(
             &TBBoard::<8, 8>::with_pieces(&[
                 (Coord::new(1, 0), wk),
                 (Coord::new(1, 1), wp),
@@ -743,7 +757,7 @@ mod tests {
                 (Coord::new(6, 6), bp),
             ]),
         );
-        assert_hash_ne(
+        assert_canon_ne(
             &TBBoard::<8, 8>::with_pieces(&[
                 (Coord::new(1, 0), wk),
                 (Coord::new(1, 1), wp),
@@ -1036,7 +1050,7 @@ mod tests {
         let sets = [kk.as_slice(), kqk.as_slice(), _krkr.as_slice()];
         for pieces in &sets {
             for b in GenerateAllBoards::<6, 6>::new(pieces) {
-                assert!(hashes.insert(hash_one_board(&b, Symmetry::default())));
+                assert!(hashes.insert(board_key(&b, Symmetry::default())));
             }
         }
     }
