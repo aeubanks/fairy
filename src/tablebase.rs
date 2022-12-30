@@ -801,13 +801,13 @@ mod tests {
             ])
             .collect::<Vec<_>>();
             assert_eq!(boards.len(), 64 * 63);
-            assert_eq!(boards[0][(0, 0)], Some(Piece::new(White, King)));
-            assert_eq!(boards[0][(1, 0)], Some(Piece::new(White, Queen)));
-            assert_eq!(boards[0][(2, 0)], None);
+            assert_eq!(boards[0][Coord::new(0, 0)], Some(Piece::new(White, King)));
+            assert_eq!(boards[0][Coord::new(1, 0)], Some(Piece::new(White, Queen)));
+            assert_eq!(boards[0][Coord::new(2, 0)], None);
 
-            assert_eq!(boards[1][(0, 0)], Some(Piece::new(White, King)));
-            assert_eq!(boards[1][(1, 0)], None);
-            assert_eq!(boards[1][(2, 0)], Some(Piece::new(White, Queen)));
+            assert_eq!(boards[1][Coord::new(0, 0)], Some(Piece::new(White, King)));
+            assert_eq!(boards[1][Coord::new(1, 0)], None);
+            assert_eq!(boards[1][Coord::new(2, 0)], Some(Piece::new(White, Queen)));
         }
         {
             for b in GenerateAllBoards::<4, 4>::new(&[
@@ -817,7 +817,7 @@ mod tests {
             ]) {
                 for y in 0..4_i8 {
                     for x in 0..4_i8 {
-                        if let Some(p) = b[(x, y)] {
+                        if let Some(p) = b[Coord::new(x, y)] {
                             if p.ty() == Pawn {
                                 assert_ne!(0, y);
                                 assert_ne!(3, y);

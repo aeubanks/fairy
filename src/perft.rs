@@ -209,8 +209,8 @@ mod tests {
         {
             let Position { board, player } =
                 fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 b kq - 0 1");
-            assert_eq!(board[(0, 2)], Some(Piece::new(Black, Queen)));
-            assert_eq!(board[(1, 2)], None);
+            assert_eq!(board[Coord::new(0, 2)], Some(Piece::new(Black, Queen)));
+            assert_eq!(board[Coord::new(1, 2)], None);
             assert_eq!(
                 board.castling_rights,
                 [None, None, Some(Coord::new(0, 7)), Some(Coord::new(7, 7))]

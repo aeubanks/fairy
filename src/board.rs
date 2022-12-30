@@ -181,19 +181,11 @@ impl<const W: usize, const H: usize, PW: PieceWatcher> Index<Coord> for Board<W,
     }
 }
 
-impl<const W: usize, const H: usize, PW: PieceWatcher> Index<(i8, i8)> for Board<W, H, PW> {
-    type Output = Option<Piece>;
-
-    fn index(&self, (x, y): (i8, i8)) -> &Self::Output {
-        self.index(Coord { x, y })
-    }
-}
-
 impl<const W: usize, const H: usize, PW: PieceWatcher> std::fmt::Debug for Board<W, H, PW> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for y in (0..H as i8).rev() {
             for x in 0..W as i8 {
-                let c = match self[(x, y)] {
+                let c = match self[Coord::new(x, y)] {
                     None => '.',
                     Some(p) => {
                         let c = p.ty().char();
@@ -414,19 +406,19 @@ mod tests {
         let b = Piece::new(White, Bishop);
         let mut board = Board::<3, 1>::with_pieces(&[(Coord::new(0, 0), n), (Coord::new(1, 0), b)]);
 
-        assert_eq!(board[(0, 0)], Some(n));
-        assert_eq!(board[(1, 0)], Some(b));
-        assert_eq!(board[(2, 0)], None);
+        assert_eq!(board[Coord::new(0, 0)], Some(n));
+        assert_eq!(board[Coord::new(1, 0)], Some(b));
+        assert_eq!(board[Coord::new(2, 0)], None);
 
         board.swap(Coord::new(1, 0), Coord::new(0, 0));
-        assert_eq!(board[(0, 0)], Some(b));
-        assert_eq!(board[(1, 0)], Some(n));
-        assert_eq!(board[(2, 0)], None);
+        assert_eq!(board[Coord::new(0, 0)], Some(b));
+        assert_eq!(board[Coord::new(1, 0)], Some(n));
+        assert_eq!(board[Coord::new(2, 0)], None);
 
         board.swap(Coord::new(2, 0), Coord::new(0, 0));
-        assert_eq!(board[(0, 0)], None);
-        assert_eq!(board[(1, 0)], Some(n));
-        assert_eq!(board[(2, 0)], Some(b));
+        assert_eq!(board[Coord::new(0, 0)], None);
+        assert_eq!(board[Coord::new(1, 0)], Some(n));
+        assert_eq!(board[Coord::new(2, 0)], Some(b));
     }
     #[test]
     fn test_board() {
@@ -436,39 +428,39 @@ mod tests {
         let p2 = Piece::new(Black, Knight);
         b.add_piece(Coord::new(0, 0), p1);
         b.add_piece(Coord::new(3, 3), p2);
-        assert_eq!(b[(0, 0)], Some(p1));
-        assert_eq!(b[(3, 3)], Some(p2));
-        assert_eq!(b[(0, 3)], None);
+        assert_eq!(b[Coord::new(0, 0)], Some(p1));
+        assert_eq!(b[Coord::new(3, 3)], Some(p2));
+        assert_eq!(b[Coord::new(0, 3)], None);
         b.clear(Coord::new(0, 0));
-        assert_eq!(b[(0, 0)], None);
+        assert_eq!(b[Coord::new(0, 0)], None);
     }
 
     #[test]
     #[should_panic]
     fn test_board_panic_x_1() {
         let b = Board::<2, 3>::default();
-        let _ = b[(2, 1)];
+        let _ = b[Coord::new(2, 1)];
     }
 
     #[test]
     #[should_panic]
     fn test_board_panic_x_2() {
         let b = Board::<2, 3>::default();
-        let _ = b[(-1, 1)];
+        let _ = b[Coord::new(-1, 1)];
     }
 
     #[test]
     #[should_panic]
     fn test_board_panic_y_1() {
         let b = Board::<2, 3>::default();
-        let _ = b[(1, 3)];
+        let _ = b[Coord::new(1, 3)];
     }
 
     #[test]
     #[should_panic]
     fn test_board_panic_y_2() {
         let b = Board::<2, 3>::default();
-        let _ = b[(1, -1)];
+        let _ = b[Coord::new(1, -1)];
     }
 
     #[test]
@@ -523,7 +515,7 @@ mod tests {
         board.add_piece(Coord::new(2, 1), Piece::new(White, Pawn));
         board.add_piece(Coord::new(3, 6), Piece::new(Black, Pawn));
         assert_eq!(board.last_pawn_double_move, None);
-        assert!(board[(2, 1)].is_some());
+        assert!(board[Coord::new(2, 1)].is_some());
 
         board.make_move(
             Move {
@@ -532,8 +524,8 @@ mod tests {
             },
             White,
         );
-        assert!(board[(2, 1)].is_none());
-        assert!(board[(2, 3)].is_some());
+        assert!(board[Coord::new(2, 1)].is_none());
+        assert!(board[Coord::new(2, 3)].is_some());
         assert_eq!(board.last_pawn_double_move, Some(Coord::new(2, 3)));
         board.make_move(
             Move {
@@ -560,7 +552,7 @@ mod tests {
         board.add_piece(Coord::new(2, 4), Piece::new(White, Pawn));
         board.add_piece(Coord::new(3, 4), Piece::new(Black, Pawn));
         board.last_pawn_double_move = Some(Coord::new(3, 4));
-        assert!(board[(3, 4)].is_some());
+        assert!(board[Coord::new(3, 4)].is_some());
 
         board.make_move(
             Move {
@@ -569,7 +561,7 @@ mod tests {
             },
             White,
         );
-        assert!(board[(3, 4)].is_none());
+        assert!(board[Coord::new(3, 4)].is_none());
     }
 
     #[test]
@@ -585,7 +577,7 @@ mod tests {
             },
             White,
         );
-        assert!(board[(2, 6)].unwrap().ty() == Pawn);
+        assert!(board[Coord::new(2, 6)].unwrap().ty() == Pawn);
 
         board.make_move(
             Move {
@@ -594,7 +586,7 @@ mod tests {
             },
             Black,
         );
-        assert!(board[(3, 1)].unwrap().ty() == Pawn);
+        assert!(board[Coord::new(3, 1)].unwrap().ty() == Pawn);
 
         board.make_move(
             Move {
@@ -603,7 +595,7 @@ mod tests {
             },
             White,
         );
-        assert!(board[(2, 7)].unwrap().ty() == Queen);
+        assert!(board[Coord::new(2, 7)].unwrap().ty() == Queen);
 
         board.make_move(
             Move {
@@ -612,7 +604,7 @@ mod tests {
             },
             Black,
         );
-        assert!(board[(3, 0)].unwrap().ty() == Queen);
+        assert!(board[Coord::new(3, 0)].unwrap().ty() == Queen);
     }
 
     #[test]
@@ -712,11 +704,11 @@ mod tests {
                 },
                 White,
             );
-            assert_eq!(board2[(2, 0)].unwrap().ty(), King);
-            assert_eq!(board2[(3, 0)].unwrap().ty(), Rook);
-            assert_eq!(board2[(7, 0)].unwrap().ty(), Rook);
-            assert!(board2[(0, 0)].is_none());
-            assert!(board2[(4, 0)].is_none());
+            assert_eq!(board2[Coord::new(2, 0)].unwrap().ty(), King);
+            assert_eq!(board2[Coord::new(3, 0)].unwrap().ty(), Rook);
+            assert_eq!(board2[Coord::new(7, 0)].unwrap().ty(), Rook);
+            assert!(board2[Coord::new(0, 0)].is_none());
+            assert!(board2[Coord::new(4, 0)].is_none());
         }
         {
             let mut board2 = board.clone();
@@ -727,11 +719,11 @@ mod tests {
                 },
                 White,
             );
-            assert_eq!(board2[(0, 0)].unwrap().ty(), Rook);
-            assert_eq!(board2[(5, 0)].unwrap().ty(), Rook);
-            assert_eq!(board2[(6, 0)].unwrap().ty(), King);
-            assert!(board2[(4, 0)].is_none());
-            assert!(board2[(7, 0)].is_none());
+            assert_eq!(board2[Coord::new(0, 0)].unwrap().ty(), Rook);
+            assert_eq!(board2[Coord::new(5, 0)].unwrap().ty(), Rook);
+            assert_eq!(board2[Coord::new(6, 0)].unwrap().ty(), King);
+            assert!(board2[Coord::new(4, 0)].is_none());
+            assert!(board2[Coord::new(7, 0)].is_none());
         }
         {
             let mut board2 = board.clone();
@@ -742,11 +734,11 @@ mod tests {
                 },
                 Black,
             );
-            assert_eq!(board2[(2, 7)].unwrap().ty(), King);
-            assert_eq!(board2[(3, 7)].unwrap().ty(), Rook);
-            assert_eq!(board2[(7, 7)].unwrap().ty(), Rook);
-            assert!(board2[(0, 7)].is_none());
-            assert!(board2[(4, 7)].is_none());
+            assert_eq!(board2[Coord::new(2, 7)].unwrap().ty(), King);
+            assert_eq!(board2[Coord::new(3, 7)].unwrap().ty(), Rook);
+            assert_eq!(board2[Coord::new(7, 7)].unwrap().ty(), Rook);
+            assert!(board2[Coord::new(0, 7)].is_none());
+            assert!(board2[Coord::new(4, 7)].is_none());
         }
         {
             let mut board2 = board.clone();
@@ -757,11 +749,11 @@ mod tests {
                 },
                 Black,
             );
-            assert_eq!(board2[(0, 7)].unwrap().ty(), Rook);
-            assert_eq!(board2[(5, 7)].unwrap().ty(), Rook);
-            assert_eq!(board2[(6, 7)].unwrap().ty(), King);
-            assert!(board2[(4, 7)].is_none());
-            assert!(board2[(7, 7)].is_none());
+            assert_eq!(board2[Coord::new(0, 7)].unwrap().ty(), Rook);
+            assert_eq!(board2[Coord::new(5, 7)].unwrap().ty(), Rook);
+            assert_eq!(board2[Coord::new(6, 7)].unwrap().ty(), King);
+            assert!(board2[Coord::new(4, 7)].is_none());
+            assert!(board2[Coord::new(7, 7)].is_none());
         }
         {
             let mut board = Board::<8, 8>::with_pieces(&[
@@ -776,11 +768,11 @@ mod tests {
                 },
                 White,
             );
-            assert_eq!(board[(2, 0)].unwrap().ty(), King);
-            assert_eq!(board[(3, 0)].unwrap().ty(), Rook);
-            assert_eq!(board[(7, 0)].unwrap().ty(), Rook);
-            assert!(board[(0, 0)].is_none());
-            assert!(board[(1, 0)].is_none());
+            assert_eq!(board[Coord::new(2, 0)].unwrap().ty(), King);
+            assert_eq!(board[Coord::new(3, 0)].unwrap().ty(), Rook);
+            assert_eq!(board[Coord::new(7, 0)].unwrap().ty(), Rook);
+            assert!(board[Coord::new(0, 0)].is_none());
+            assert!(board[Coord::new(1, 0)].is_none());
         }
     }
     #[test]
