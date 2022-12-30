@@ -4,7 +4,7 @@ use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
 use fairy::tablebase::*;
 
-fn tablebase<const N: usize, const M: usize>(parallel: bool, only_three: bool) {
+fn tablebase<const N: i8, const M: i8>(parallel: bool, only_three: bool) {
     let mut all_pieces = Vec::new();
     let mut tablebase = Tablebase::<N, M>::default();
     generate_tablebase(

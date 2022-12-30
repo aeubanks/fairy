@@ -1,4 +1,4 @@
-use crate::board::{Move, PieceWatcher};
+use crate::board::{Board, Move};
 use crate::coord::Coord;
 use crate::moves::{all_moves, all_moves_to_end_at_board_no_captures, under_attack_from_coord};
 use crate::piece::Piece;
@@ -13,41 +13,7 @@ use std::hash::{BuildHasherDefault, Hash, Hasher};
 #[derive(Clone, Default)]
 pub struct TablebasePieceWatcher(ArrayVec<(Coord, Piece), 4>);
 
-impl PieceWatcher for TablebasePieceWatcher {
-    fn add_piece(&mut self, piece: Piece, coord: Coord) {
-        self.0.push((coord, piece));
-    }
-    fn remove_piece(&mut self, piece: Piece, coord: Coord) {
-        let idx = self
-            .0
-            .iter()
-            .position(|(c, p)| *c == coord && *p == piece)
-            .unwrap();
-        self.0.swap_remove(idx);
-    }
-    fn foreach_piece<F>(&self, mut f: F) -> bool
-    where
-        F: FnMut(Piece, Coord),
-    {
-        for (c, p) in &self.0 {
-            f(*p, *c);
-        }
-        true
-    }
-    fn piece_coord<F>(&self, mut f: F) -> Option<Option<Coord>>
-    where
-        F: FnMut(Piece) -> bool,
-    {
-        for (c, p) in &self.0 {
-            if f(*p) {
-                return Some(Some(*c));
-            }
-        }
-        Some(None)
-    }
-}
-
-pub type Board<const W: usize, const H: usize> = crate::board::Board<W, H, TablebasePieceWatcher>;
+pub type TBBoard<const W: i8, const H: i8> = crate::board::BoardPiece<W, H, 4>;
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
 struct Symmetry {
@@ -116,48 +82,48 @@ impl Hasher for IdentityHasher {
 type MapTy = HashMap<u64, (Move, u16), BuildHasherDefault<IdentityHasher>>;
 
 #[derive(Default, Clone)]
-pub struct Tablebase<const W: usize, const H: usize> {
+pub struct Tablebase<const W: i8, const H: i8> {
     // table of best move to play on white's turn to force a win
     white_tablebase: MapTy,
     // table of best move to play on black's turn to prolong a loss
     black_tablebase: MapTy,
 }
 
-impl<const W: usize, const H: usize> Tablebase<W, H> {
-    pub fn white_result(&self, board: &Board<W, H>) -> Option<(Move, u16)> {
+impl<const W: i8, const H: i8> Tablebase<W, H> {
+    pub fn white_result(&self, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
         let (hash, sym) = hash(board);
         self.white_tablebase
             .get(&hash)
             .map(|e| (unflip_move(e.0, sym, W as i8, H as i8), e.1))
     }
-    pub fn black_result(&self, board: &Board<W, H>) -> Option<(Move, u16)> {
+    pub fn black_result(&self, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
         let (hash, sym) = hash(board);
         self.black_tablebase
             .get(&hash)
             .map(|e| (unflip_move(e.0, sym, W as i8, H as i8), e.1))
     }
-    fn white_add_impl(&mut self, board: &Board<W, H>, m: Move, depth: u16) {
+    fn white_add_impl(&mut self, board: &TBBoard<W, H>, m: Move, depth: u16) {
         let (hash, sym) = hash(board);
         debug_assert!(!self.white_tablebase.contains_key(&hash));
         self.white_tablebase
             .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
     }
-    fn white_contains_impl(&self, board: &Board<W, H>) -> bool {
+    fn white_contains_impl(&self, board: &TBBoard<W, H>) -> bool {
         self.white_tablebase.contains_key(&hash(board).0)
     }
-    fn white_depth_impl(&self, board: &Board<W, H>) -> Option<u16> {
+    fn white_depth_impl(&self, board: &TBBoard<W, H>) -> Option<u16> {
         self.white_tablebase.get(&hash(board).0).map(|e| e.1)
     }
-    fn black_add_impl(&mut self, board: &Board<W, H>, m: Move, depth: u16) {
+    fn black_add_impl(&mut self, board: &TBBoard<W, H>, m: Move, depth: u16) {
         let (hash, sym) = hash(board);
         debug_assert!(!self.black_tablebase.contains_key(&hash));
         self.black_tablebase
             .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
     }
-    fn black_contains_impl(&self, board: &Board<W, H>) -> bool {
+    fn black_contains_impl(&self, board: &TBBoard<W, H>) -> bool {
         self.black_tablebase.contains_key(&hash(board).0)
     }
-    fn black_depth_impl(&self, board: &Board<W, H>) -> Option<u16> {
+    fn black_depth_impl(&self, board: &TBBoard<W, H>) -> Option<u16> {
         self.black_tablebase.get(&hash(board).0).map(|e| e.1)
     }
     fn merge(&mut self, other: &Self) {
@@ -177,7 +143,7 @@ impl<const W: usize, const H: usize> Tablebase<W, H> {
     }
 }
 
-fn hash_one_board<const W: usize, const H: usize>(board: &Board<W, H>, sym: Symmetry) -> u64 {
+fn hash_one_board<const W: i8, const H: i8>(board: &TBBoard<W, H>, sym: Symmetry) -> u64 {
     // need to visit in consistent order across symmetries
     let mut pieces = ArrayVec::<(Coord, Piece), 6>::new();
     board.foreach_piece(|piece, coord| {
@@ -197,7 +163,7 @@ fn hash_one_board<const W: usize, const H: usize>(board: &Board<W, H>, sym: Symm
     hasher.finish()
 }
 
-fn hash<const W: usize, const H: usize>(board: &Board<W, H>) -> (u64, Symmetry) {
+fn hash<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (u64, Symmetry) {
     let mut symmetries_to_check = ArrayVec::<Symmetry, 8>::new();
     symmetries_to_check.push(Symmetry::default());
 
@@ -276,13 +242,13 @@ fn hash<const W: usize, const H: usize>(board: &Board<W, H>) -> (u64, Symmetry) 
     (min_hash, sym)
 }
 
-pub struct GenerateAllBoards<const W: usize, const H: usize> {
+pub struct GenerateAllBoards<const W: i8, const H: i8> {
     pieces: ArrayVec<Piece, 6>,
     stack: ArrayVec<Coord, 6>,
-    board: Board<W, H>,
+    board: TBBoard<W, H>,
 }
 
-impl<const W: usize, const H: usize> GenerateAllBoards<W, H> {
+impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
     fn next_coord(mut c: Coord) -> Coord {
         c.x += 1;
         if c.x == W as i8 {
@@ -293,7 +259,9 @@ impl<const W: usize, const H: usize> GenerateAllBoards<W, H> {
     }
     fn first_empty_coord_from(&self, mut c: Coord, piece: Piece) -> Option<Coord> {
         while c.y != H as i8 {
-            if self.board.get(c).is_none() && (piece.ty() != Pawn || (c.y != 0 && c.y != H as i8 - 1)) {
+            if self.board.get(c).is_none()
+                && (piece.ty() != Pawn || (c.y != 0 && c.y != H as i8 - 1))
+            {
                 return Some(c);
             }
             c = Self::next_coord(c);
@@ -315,8 +283,8 @@ impl<const W: usize, const H: usize> GenerateAllBoards<W, H> {
     }
 }
 
-impl<const W: usize, const H: usize> Iterator for GenerateAllBoards<W, H> {
-    type Item = Board<W, H>;
+impl<const W: i8, const H: i8> Iterator for GenerateAllBoards<W, H> {
+    type Item = TBBoard<W, H>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.stack.is_empty() {
@@ -354,10 +322,10 @@ impl<const W: usize, const H: usize> Iterator for GenerateAllBoards<W, H> {
     }
 }
 
-fn populate_initial_wins<const W: usize, const H: usize>(
+fn populate_initial_wins<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
     pieces: &[Piece],
-) -> Vec<Board<W, H>> {
+) -> Vec<TBBoard<W, H>> {
     let mut ret = Vec::new();
     for b in GenerateAllBoards::new(pieces) {
         // white can capture black's king
@@ -397,10 +365,10 @@ fn populate_initial_wins<const W: usize, const H: usize>(
     ret
 }
 
-fn iterate_black<const W: usize, const H: usize>(
+fn iterate_black<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
-    previous_boards: &[Board<W, H>],
-) -> Vec<Board<W, H>> {
+    previous_boards: &[TBBoard<W, H>],
+) -> Vec<TBBoard<W, H>> {
     let mut next_boards = Vec::new();
     for prev in previous_boards {
         for m in all_moves_to_end_at_board_no_captures(prev, Black) {
@@ -452,10 +420,10 @@ fn iterate_black<const W: usize, const H: usize>(
     next_boards
 }
 
-fn iterate_white<const W: usize, const H: usize>(
+fn iterate_white<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
-    previous_boards: &[Board<W, H>],
-) -> Vec<Board<W, H>> {
+    previous_boards: &[TBBoard<W, H>],
+) -> Vec<TBBoard<W, H>> {
     let mut next_boards = Vec::new();
     for prev in previous_boards {
         for m in all_moves_to_end_at_board_no_captures(prev, White) {
@@ -519,7 +487,7 @@ fn verify_piece_set(pieces: &[Piece]) {
     assert_eq!(bk_count, 1);
 }
 
-pub fn generate_tablebase<const W: usize, const H: usize>(
+pub fn generate_tablebase<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
     pieces: &[Piece],
 ) {
@@ -561,7 +529,7 @@ pub fn generate_tablebase<const W: usize, const H: usize>(
     }
 }
 
-pub fn generate_tablebase_parallel<const W: usize, const H: usize>(
+pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
     piece_sets: &[&[Piece]],
     parallelism: Option<usize>,
@@ -688,7 +656,7 @@ mod tests {
     }
     #[test]
     fn test_generate_flip_unflip_move() {
-        let board = Board::<4, 4>::with_pieces(&[
+        let board = TBBoard::<4, 4>::with_pieces(&[
             (Coord::new(0, 0), Piece::new(White, King)),
             (Coord::new(1, 0), Piece::new(White, Queen)),
             (Coord::new(2, 0), Piece::new(Black, King)),
@@ -707,13 +675,15 @@ mod tests {
         let bk = Piece::new(Black, King);
         let wp = Piece::new(White, Pawn);
         let bp = Piece::new(Black, Pawn);
-        let board1 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
-        let board2 = Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
+        let board1 =
+            TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
+        let board2 =
+            TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
 
-        fn assert_hash_eq<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
+        fn assert_hash_eq<const W: i8, const H: i8>(b1: &TBBoard<W, H>, b2: &TBBoard<W, H>) {
             assert_eq!(hash(b1).0, hash(b2).0);
         }
-        fn assert_hash_ne<const W: usize, const H: usize>(b1: &Board<W, H>, b2: &Board<W, H>) {
+        fn assert_hash_ne<const W: i8, const H: i8>(b1: &TBBoard<W, H>, b2: &TBBoard<W, H>) {
             assert_ne!(hash(b1).0, hash(b2).0);
         }
         assert_hash_eq(&board1, &board1);
@@ -721,52 +691,52 @@ mod tests {
         assert_hash_ne(&board1, &board2);
         assert_hash_eq(
             &board1,
-            &Board::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
+            &TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
         );
         assert_hash_eq(
             &board1,
-            &Board::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(7, 6), bk)]),
+            &TBBoard::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(7, 6), bk)]),
         );
         assert_hash_eq(
             &board1,
-            &Board::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(6, 7), bk)]),
+            &TBBoard::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(6, 7), bk)]),
         );
         assert_hash_eq(
-            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-            &Board::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
         );
         assert_hash_eq(
-            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-            &Board::<5, 5>::with_pieces(&[(Coord::new(2, 1), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(2, 1), wk), (Coord::new(2, 2), bk)]),
         );
         assert_hash_eq(
-            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-            &Board::<5, 5>::with_pieces(&[(Coord::new(2, 3), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(2, 3), wk), (Coord::new(2, 2), bk)]),
         );
         assert_hash_eq(
-            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 1), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 1), wk), (Coord::new(2, 2), bk)]),
         );
         assert_hash_eq(
-            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-            &Board::<5, 5>::with_pieces(&[(Coord::new(1, 1), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 1), wk), (Coord::new(2, 2), bk)]),
         );
         assert_hash_eq(
-            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-            &Board::<5, 5>::with_pieces(&[(Coord::new(1, 3), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 3), wk), (Coord::new(2, 2), bk)]),
         );
         assert_hash_ne(
-            &Board::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-            &Board::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
         );
         assert_hash_eq(
-            &Board::<8, 8>::with_pieces(&[
+            &TBBoard::<8, 8>::with_pieces(&[
                 (Coord::new(1, 0), wk),
                 (Coord::new(1, 1), wp),
                 (Coord::new(1, 7), bk),
                 (Coord::new(1, 6), bp),
             ]),
-            &Board::<8, 8>::with_pieces(&[
+            &TBBoard::<8, 8>::with_pieces(&[
                 (Coord::new(6, 0), wk),
                 (Coord::new(6, 1), wp),
                 (Coord::new(6, 7), bk),
@@ -774,13 +744,13 @@ mod tests {
             ]),
         );
         assert_hash_ne(
-            &Board::<8, 8>::with_pieces(&[
+            &TBBoard::<8, 8>::with_pieces(&[
                 (Coord::new(1, 0), wk),
                 (Coord::new(1, 1), wp),
                 (Coord::new(1, 7), bk),
                 (Coord::new(1, 6), bp),
             ]),
-            &Board::<8, 8>::with_pieces(&[
+            &TBBoard::<8, 8>::with_pieces(&[
                 (Coord::new(1, 7), wk),
                 (Coord::new(1, 6), wp),
                 (Coord::new(1, 0), bk),
@@ -850,7 +820,7 @@ mod tests {
         assert_ne!(ret.len(), 0);
 
         assert_eq!(
-            tablebase.white_result(&Board::with_pieces(&[
+            tablebase.white_result(&TBBoard::with_pieces(&[
                 (Coord::new(0, 0), Piece::new(White, King)),
                 (Coord::new(0, 1), Piece::new(Black, King))
             ])),
@@ -884,7 +854,7 @@ mod tests {
                 ],
             );
             assert_eq!(
-                tablebase.black_depth_impl(&Board::<1, 8>::with_pieces(&[
+                tablebase.black_depth_impl(&TBBoard::<1, 8>::with_pieces(&[
                     (Coord::new(0, 7), Piece::new(White, King)),
                     (Coord::new(0, 1), Piece::new(Black, Pawn)),
                     (Coord::new(0, 0), Piece::new(Black, King)),
@@ -892,7 +862,7 @@ mod tests {
                 Some(0)
             );
             assert!(
-                !tablebase.black_contains_impl(&Board::<1, 8>::with_pieces(&[
+                !tablebase.black_contains_impl(&TBBoard::<1, 8>::with_pieces(&[
                     (Coord::new(0, 7), Piece::new(White, King)),
                     (Coord::new(0, 2), Piece::new(Black, Pawn)),
                     (Coord::new(0, 0), Piece::new(Black, King)),
@@ -908,7 +878,7 @@ mod tests {
         generate_tablebase(&mut tablebase, &[wk, bk]);
 
         assert_eq!(
-            tablebase.white_result(&Board::<5, 1>::with_pieces(&[
+            tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
                 (Coord::new(0, 0), wk),
                 (Coord::new(3, 0), bk)
             ])),
@@ -921,7 +891,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            tablebase.black_result(&Board::<5, 1>::with_pieces(&[
+            tablebase.black_result(&TBBoard::<5, 1>::with_pieces(&[
                 (Coord::new(1, 0), wk),
                 (Coord::new(3, 0), bk)
             ])),
@@ -934,7 +904,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            tablebase.white_result(&Board::<5, 1>::with_pieces(&[
+            tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
                 (Coord::new(1, 0), wk),
                 (Coord::new(4, 0), bk)
             ])),
@@ -947,7 +917,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            tablebase.black_result(&Board::<5, 1>::with_pieces(&[
+            tablebase.black_result(&TBBoard::<5, 1>::with_pieces(&[
                 (Coord::new(2, 0), wk),
                 (Coord::new(4, 0), bk)
             ])),
@@ -960,7 +930,7 @@ mod tests {
             ))
         );
         assert_eq!(
-            tablebase.white_result(&Board::<5, 1>::with_pieces(&[
+            tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
                 (Coord::new(2, 0), wk),
                 (Coord::new(3, 0), bk)
             ])),
@@ -976,7 +946,7 @@ mod tests {
 
     #[test]
     fn test_generate_king_king_tablebase() {
-        fn test<const W: usize, const H: usize>() {
+        fn test<const W: i8, const H: i8>() {
             let pieces = [Piece::new(White, King), Piece::new(Black, King)];
             let mut tablebase = Tablebase::<W, H>::default();
             generate_tablebase(&mut tablebase, &pieces);

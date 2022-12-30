@@ -1,4 +1,4 @@
-use fairy::board::Board;
+use fairy::board::{Board, BoardSquare};
 use fairy::coord::Coord;
 use fairy::moves::all_moves;
 use fairy::perft::is_in_check;
@@ -15,7 +15,7 @@ fn valid_piece_for_coord(piece: Piece, coord: Coord, height: i8) -> bool {
 
 fn add_piece_to_rand_coord<R: Rng + ?Sized, const W: usize, const H: usize>(
     rng: &mut R,
-    board: &mut Board<W, H>,
+    board: &mut BoardSquare<W, H>,
     piece: Piece,
 ) {
     loop {
@@ -53,8 +53,8 @@ fn rand_non_king_type_for_coord<R: Rng + ?Sized>(rng: &mut R, coord: Coord, heig
     }
 }
 
-fn rand_board<const W: usize, const H: usize, R: Rng + ?Sized>(rng: &mut R) -> Board<W, H> {
-    let mut board = Board::<W, H>::default();
+fn rand_board<const W: usize, const H: usize, R: Rng + ?Sized>(rng: &mut R) -> BoardSquare<W, H> {
+    let mut board = BoardSquare::<W, H>::default();
     for player in [White, Black] {
         add_piece_to_rand_coord(rng, &mut board, Piece::new(player, King));
     }
@@ -86,7 +86,7 @@ fn rand_board<const W: usize, const H: usize, R: Rng + ?Sized>(rng: &mut R) -> B
     board
 }
 
-fn check_is_in_check<const W: usize, const H: usize>(board: &Board<W, H>, player: Player) {
+fn check_is_in_check<const W: usize, const H: usize>(board: &BoardSquare<W, H>, player: Player) {
     let king_coord = board.king_coord(player);
     let is_check = all_moves(board, next_player(player))
         .into_iter()

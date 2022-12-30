@@ -7,7 +7,7 @@ use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
 use fairy::tablebase::*;
 
-fn run<const W: usize, const H: usize>() -> Tablebase<W, H> {
+fn run<const W: i8, const H: i8>() -> Tablebase<W, H> {
     let mut tablebase = Tablebase::default();
     let kk = [Piece::new(White, King), Piece::new(Black, King)];
     let kqk = [

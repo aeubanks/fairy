@@ -1,15 +1,16 @@
+use fairy::board::Board;
 use fairy::piece::{Piece, Type::*};
 use fairy::player::{next_player, Player::*};
-use fairy::tablebase::{generate_tablebase, Board, GenerateAllBoards, Tablebase};
+use fairy::tablebase::{generate_tablebase, GenerateAllBoards, TBBoard, Tablebase};
 
-fn black_king_exists<const W: usize, const H: usize>(board: &Board<W, H>) -> bool {
+fn black_king_exists<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> bool {
     board
         .piece_coord(|piece| piece.player() == Black && piece.ty() == King)
         .is_some()
 }
 
-fn verify_board_tablebase<const W: usize, const H: usize>(
-    board: &Board<W, H>,
+fn verify_board_tablebase<const W: i8, const H: i8>(
+    board: &TBBoard<W, H>,
     tablebase: &Tablebase<W, H>,
 ) {
     let mut board = board.clone();

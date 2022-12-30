@@ -1,15 +1,18 @@
-use crate::board::Board;
+use crate::board::{Board, BoardSquare};
 use crate::coord::Coord;
 use crate::moves::*;
 use crate::piece::{Piece, Type::*};
 use crate::player::{next_player, Player, Player::*};
 
-pub fn is_in_check<const W: usize, const H: usize>(board: &Board<W, H>, player: Player) -> bool {
+pub fn is_in_check<const W: usize, const H: usize>(
+    board: &BoardSquare<W, H>,
+    player: Player,
+) -> bool {
     is_under_attack(board, board.king_coord(player), player)
 }
 
 fn perft_impl<const W: usize, const H: usize>(
-    board: &Board<W, H>,
+    board: &BoardSquare<W, H>,
     player: Player,
     depth: u64,
 ) -> u64 {
@@ -45,7 +48,7 @@ fn perft_impl<const W: usize, const H: usize>(
 }
 
 pub struct Position<const W: usize, const H: usize> {
-    pub board: Board<W, H>,
+    pub board: BoardSquare<W, H>,
     pub player: Player,
 }
 
@@ -54,7 +57,7 @@ pub fn perft<const W: usize, const H: usize>(position: &Position<W, H>, depth: u
 }
 
 fn perft_all_impl<const W: usize, const H: usize>(
-    board: &Board<W, H>,
+    board: &BoardSquare<W, H>,
     player: Player,
     depth: u64,
 ) -> u64 {
@@ -83,7 +86,7 @@ pub fn perft_all<const W: usize, const H: usize>(position: &Position<W, H>, dept
 }
 
 pub fn fen(fen: &str) -> Position<8, 8> {
-    let mut board = Board::<8, 8>::default();
+    let mut board = BoardSquare::<8, 8>::default();
     let space_split: Vec<&str> = fen.split(' ').collect();
     assert!(space_split.len() == 6 || space_split.len() == 4);
 
