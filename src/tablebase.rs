@@ -133,11 +133,8 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
     }
 }
 
-fn board_key<const W: i8, const H: i8>(
-    board: &TBBoard<W, H>,
-    sym: Symmetry,
-) -> ArrayVec<(i8, Piece), 4> {
-    let mut ret = ArrayVec::<(i8, Piece), 4>::new();
+fn board_key<const W: i8, const H: i8>(board: &TBBoard<W, H>, sym: Symmetry) -> KeyTy {
+    let mut ret = KeyTy::new();
     board.foreach_piece(|piece, coord| {
         let c = flip_coord(coord, sym, W as i8, H as i8);
         ret.push((c.x + c.y * W, piece));
@@ -147,9 +144,7 @@ fn board_key<const W: i8, const H: i8>(
     ret
 }
 
-fn canonical_board<const W: i8, const H: i8>(
-    board: &TBBoard<W, H>,
-) -> (ArrayVec<(i8, Piece), 4>, Symmetry) {
+fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, Symmetry) {
     let mut symmetries_to_check = ArrayVec::<Symmetry, 8>::new();
     symmetries_to_check.push(Symmetry::default());
 
