@@ -8,9 +8,6 @@ use arrayvec::ArrayVec;
 use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
 
-#[derive(Clone, Default)]
-pub struct TablebasePieceWatcher(ArrayVec<(Coord, Piece), 4>);
-
 pub type TBBoard<const W: i8, const H: i8> = crate::board::BoardPiece<W, H, 4>;
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
