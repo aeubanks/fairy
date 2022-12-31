@@ -69,10 +69,20 @@ fn test_krk_tablebase() {
 }
 
 #[test]
+fn test_kek_tablebase() {
+    let pieces = [
+        Piece::new(White, King),
+        Piece::new(White, Empress),
+        Piece::new(Black, King),
+    ];
+    verify_all_three_piece_positions_forced_win(&pieces);
+}
+
+#[test]
 fn test_kck_tablebase() {
     let pieces = [
         Piece::new(White, King),
-        Piece::new(White, Chancellor),
+        Piece::new(White, Cardinal),
         Piece::new(Black, King),
     ];
     verify_all_three_piece_positions_forced_win(&pieces);
@@ -82,17 +92,7 @@ fn test_kck_tablebase() {
 fn test_kak_tablebase() {
     let pieces = [
         Piece::new(White, King),
-        Piece::new(White, Archbishop),
-        Piece::new(Black, King),
-    ];
-    verify_all_three_piece_positions_forced_win(&pieces);
-}
-
-#[test]
-fn test_kzk_tablebase() {
-    let pieces = [
-        Piece::new(White, King),
-        Piece::new(White, Archbishop),
+        Piece::new(White, Cardinal),
         Piece::new(Black, King),
     ];
     verify_all_three_piece_positions_forced_win(&pieces);

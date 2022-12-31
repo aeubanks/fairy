@@ -11,7 +11,7 @@ fn tablebase<const N: i8, const M: i8>(parallel: bool, only_three: bool) {
         &mut tablebase,
         &[Piece::new(White, King), Piece::new(Black, King)],
     );
-    for ty in [Bishop, Knight, Rook, Queen, Archbishop, Chancellor, Amazon] {
+    for ty in [Bishop, Knight, Rook, Queen, Cardinal, Empress, Amazon] {
         for pl in [White, Black] {
             all_pieces.push(Piece::new(pl, ty));
         }

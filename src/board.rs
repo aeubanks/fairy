@@ -415,7 +415,7 @@ impl Presets {
         BoardSquare::<10, 8>::setup_with_pawns(
             true,
             &[
-                Rook, Knight, Bishop, Queen, King, Chancellor, Archbishop, Bishop, Knight, Rook,
+                Rook, Knight, Bishop, Queen, King, Empress, Cardinal, Bishop, Knight, Rook,
             ],
         )
     }
@@ -455,9 +455,9 @@ impl Presets {
         evens[rng.gen_range(0..5)] = Some(Bishop);
         odds[rng.gen_range(0..5)] = Some(Bishop);
         let (qa1, qa2) = if rng.gen() {
-            (Queen, Archbishop)
+            (Queen, Cardinal)
         } else {
-            (Archbishop, Queen)
+            (Cardinal, Queen)
         };
         Self::set_nth_empty(rng.gen_range(0..4), &mut evens, qa1);
         Self::set_nth_empty(rng.gen_range(0..4), &mut odds, qa2);
@@ -470,7 +470,7 @@ impl Presets {
             pieces[i * 2 + 1] = t;
         }
 
-        Self::set_nth_empty(rng.gen_range(0..6), &mut pieces, Chancellor);
+        Self::set_nth_empty(rng.gen_range(0..6), &mut pieces, Empress);
         Self::set_nth_empty(rng.gen_range(0..5), &mut pieces, Knight);
         Self::set_nth_empty(rng.gen_range(0..4), &mut pieces, Knight);
         Self::set_nth_empty(0, &mut pieces, Rook);
@@ -691,10 +691,10 @@ mod tests {
             let board = T::with_pieces(&[
                 (Coord::new(0, 0), Piece::new(White, King)),
                 (Coord::new(2, 0), Piece::new(Black, King)),
-                (Coord::new(2, 2), Piece::new(White, Chancellor)),
+                (Coord::new(2, 2), Piece::new(White, Empress)),
                 (Coord::new(3, 3), Piece::new(Black, Bishop)),
             ]);
-            assert_eq!(format!("{:?}", board), "...b\n..C.\n....\nK.k.\n");
+            assert_eq!(format!("{:?}", board), "...b\n..E.\n....\nK.k.\n");
         }
         test::<BoardSquare<4, 4>>();
         test::<BoardPiece<4, 4, 4>>();

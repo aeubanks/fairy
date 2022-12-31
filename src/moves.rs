@@ -1105,7 +1105,7 @@ mod tests {
         {
             let board = BoardSquare::<8, 8>::with_pieces(&[(
                 Coord::new(3, 3),
-                Piece::new(White, Archbishop),
+                Piece::new(White, Cardinal),
             )]);
             assert_eq!(
                 under_attack_from_coord(&board, Coord::new(1, 2), Black),
@@ -1165,10 +1165,8 @@ mod tests {
             );
         }
         {
-            let board = BoardSquare::<8, 8>::with_pieces(&[(
-                Coord::new(3, 3),
-                Piece::new(White, Chancellor),
-            )]);
+            let board =
+                BoardSquare::<8, 8>::with_pieces(&[(Coord::new(3, 3), Piece::new(White, Empress))]);
             assert_eq!(
                 under_attack_from_coord(&board, Coord::new(1, 2), Black),
                 Some(Coord::new(3, 3))

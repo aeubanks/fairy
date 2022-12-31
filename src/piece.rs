@@ -14,8 +14,8 @@ pub enum Type {
     Rook,
     Queen,
     King,
-    Chancellor,
-    Archbishop,
+    Empress,
+    Cardinal,
     Amazon,
 }
 
@@ -29,9 +29,9 @@ impl Type {
             Rook => 'R',
             Queen => 'Q',
             King => 'K',
-            Chancellor => 'C',
-            Archbishop => 'A',
-            Amazon => 'Z',
+            Empress => 'E',
+            Cardinal => 'C',
+            Amazon => 'A',
         };
         assert!(ret.is_uppercase());
         ret
@@ -42,7 +42,7 @@ impl Type {
         let mut ret = ArrayVec::new();
         match self {
             Pawn => panic!(),
-            Knight | Chancellor | Archbishop | Amazon => {
+            Knight | Empress | Cardinal | Amazon => {
                 ret.push(Coord::new(2, 1));
             }
             King => {
@@ -59,10 +59,10 @@ impl Type {
         let mut ret = ArrayVec::new();
         match self {
             Pawn => panic!(),
-            Rook | Chancellor => {
+            Rook | Empress => {
                 ret.push(Coord::new(1, 0));
             }
-            Bishop | Archbishop => {
+            Bishop | Cardinal => {
                 ret.push(Coord::new(1, 1));
             }
             Queen | Amazon => {
