@@ -163,11 +163,13 @@ pub trait Board: Default + Debug + Clone {
 #[derive(Clone, PartialEq, Eq)]
 pub struct BoardSquare<const W: usize, const H: usize> {
     pieces: [[Option<Piece>; H]; W],
+    // TODO: separate this out into a separate struct that also has a BoardSquare so we can choose if we want caching or not.
+    type_counts: [u8; Type::COUNT],
     pub castling_rights: [Option<Coord>; 4],
     pub last_pawn_double_move: Option<Coord>,
 }
 
-const_assert_eq!(79, std::mem::size_of::<BoardSquare<8, 8>>());
+const_assert_eq!(79 + Type::COUNT, std::mem::size_of::<BoardSquare<8, 8>>());
 
 // This really should be derivable...
 impl<const W: usize, const H: usize> Default for BoardSquare<W, H> {
@@ -178,7 +180,8 @@ impl<const W: usize, const H: usize> Default for BoardSquare<W, H> {
         assert!(H < i8::MAX as usize);
         Self {
             pieces: [[None; H]; W],
-            castling_rights: [None; 4],
+            type_counts: Default::default(),
+            castling_rights: Default::default(),
             last_pawn_double_move: None,
         }
     }
@@ -203,17 +206,36 @@ impl<const W: usize, const H: usize> Board for BoardSquare<W, H> {
     }
 
     fn clear(&mut self, coord: Coord) {
+        if let Some(p) = self.get(coord) {
+            debug_assert_ne!(self.type_counts[p.ty() as usize], 0);
+            self.type_counts[p.ty() as usize] -= 1;
+        }
         *self.get_mut(coord) = None;
     }
 
     fn add_piece(&mut self, coord: Coord, piece: Piece) {
         assert!(self.get(coord).is_none());
 
+        self.type_counts[piece.ty() as usize] += 1;
+
         *self.get_mut(coord) = Some(piece);
     }
 
     fn take(&mut self, coord: Coord) -> Option<Piece> {
-        self.get_mut(coord).take()
+        let ret = self.get_mut(coord).take();
+        if let Some(p) = ret {
+            debug_assert_ne!(self.type_counts[p.ty() as usize], 0);
+            self.type_counts[p.ty() as usize] -= 1;
+        }
+        ret
+    }
+
+    fn piece_types_of_player(&self, _player: Player) -> Option<[bool; Type::COUNT]> {
+        let mut ret = [false; Type::COUNT];
+        for (i, &v) in self.type_counts.iter().enumerate() {
+            ret[i] = v != 0;
+        }
+        Some(ret)
     }
 
     fn existing_piece_result(&self, coord: Coord, player: Player) -> ExistingPieceResult {
