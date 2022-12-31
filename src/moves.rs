@@ -330,88 +330,66 @@ pub fn under_attack_from_coord<T: Board>(board: &T, coord: Coord, player: Player
         assert_eq!(p.player(), player);
     }
 
-    let mut may_have_pawn = true;
-    if let Some(pts) = board.piece_types_of_player(next_player(player)) {
-        // TODO: figure out a way to automatically unroll/constprop this from just rider_offsets/leaper_offsets.
-        let has_type = |ty: Type| -> bool { pts[ty as usize] };
-        may_have_pawn = has_type(Pawn);
-        if has_type(Nightrider) {
-            for o in offsets(Coord::new(2, 1)) {
-                if let Some((c, ty)) = enemy_piece_rider(board, coord, o, player) {
-                    match ty {
-                        Nightrider => return Some(c),
-                        _ => {}
-                    }
-                }
-            }
-        }
-        if has_type(Rook) || has_type(Queen) || has_type(Empress) || has_type(Amazon) {
-            for o in offsets(Coord::new(1, 0)) {
-                if let Some((c, ty)) = enemy_piece_rider(board, coord, o, player) {
-                    match ty {
-                        Rook | Queen | Empress | Amazon => return Some(c),
-                        _ => {}
-                    }
-                }
-            }
-        }
-        if has_type(Bishop) || has_type(Queen) || has_type(Cardinal) || has_type(Amazon) {
-            for o in offsets(Coord::new(1, 1)) {
-                if let Some((c, ty)) = enemy_piece_rider(board, coord, o, player) {
-                    match ty {
-                        Bishop | Queen | Cardinal | Amazon => return Some(c),
-                        _ => {}
-                    }
-                }
-            }
-        }
-        if has_type(King) {
-            for o in offsets(Coord::new(1, 1)) {
-                if let Some((c, ty)) = enemy_piece_leaper(board, coord, o, player) {
-                    if ty == King {
-                        return Some(c);
-                    }
-                }
-            }
-            for o in offsets(Coord::new(1, 0)) {
-                if let Some((c, ty)) = enemy_piece_leaper(board, coord, o, player) {
-                    if ty == King {
-                        return Some(c);
-                    }
-                }
-            }
-        }
-        if has_type(Empress) || has_type(Cardinal) || has_type(Amazon) || has_type(Knight) {
-            for o in offsets(Coord::new(2, 1)) {
-                if let Some((c, ty)) = enemy_piece_leaper(board, coord, o, player) {
-                    match ty {
-                        Empress | Cardinal | Amazon | Knight => return Some(c),
-                        _ => {}
-                    }
-                }
-            }
-        }
-    } else {
-        for r in [Coord::new(1, 0), Coord::new(1, 1), Coord::new(2, 1)] {
-            for o in offsets(r) {
-                if let Some((c, ty)) = enemy_piece_rider(board, coord, o, player) {
-                    if ty != Pawn && ty.rider_offsets().contains(&r) {
-                        return Some(c);
-                    }
-                }
-            }
-        }
-        for l in [Coord::new(1, 0), Coord::new(1, 1), Coord::new(2, 1)] {
-            for o in offsets(l) {
-                if let Some((c, ty)) = enemy_piece_leaper(board, coord, o, player) {
-                    if ty != Pawn && ty.leaper_offsets().contains(&l) {
-                        return Some(c);
-                    }
+    let pts = board.piece_types_of_player(next_player(player));
+    // TODO: figure out a way to automatically unroll/constprop this from just rider_offsets/leaper_offsets.
+    let has_type = |ty: Type| -> bool { pts[ty as usize] };
+    if has_type(Nightrider) {
+        for o in offsets(Coord::new(2, 1)) {
+            if let Some((c, ty)) = enemy_piece_rider(board, coord, o, player) {
+                match ty {
+                    Nightrider => return Some(c),
+                    _ => {}
                 }
             }
         }
     }
-    if may_have_pawn {
+    if has_type(Rook) || has_type(Queen) || has_type(Empress) || has_type(Amazon) {
+        for o in offsets(Coord::new(1, 0)) {
+            if let Some((c, ty)) = enemy_piece_rider(board, coord, o, player) {
+                match ty {
+                    Rook | Queen | Empress | Amazon => return Some(c),
+                    _ => {}
+                }
+            }
+        }
+    }
+    if has_type(Bishop) || has_type(Queen) || has_type(Cardinal) || has_type(Amazon) {
+        for o in offsets(Coord::new(1, 1)) {
+            if let Some((c, ty)) = enemy_piece_rider(board, coord, o, player) {
+                match ty {
+                    Bishop | Queen | Cardinal | Amazon => return Some(c),
+                    _ => {}
+                }
+            }
+        }
+    }
+    if has_type(King) {
+        for o in offsets(Coord::new(1, 1)) {
+            if let Some((c, ty)) = enemy_piece_leaper(board, coord, o, player) {
+                if ty == King {
+                    return Some(c);
+                }
+            }
+        }
+        for o in offsets(Coord::new(1, 0)) {
+            if let Some((c, ty)) = enemy_piece_leaper(board, coord, o, player) {
+                if ty == King {
+                    return Some(c);
+                }
+            }
+        }
+    }
+    if has_type(Empress) || has_type(Cardinal) || has_type(Amazon) || has_type(Knight) {
+        for o in offsets(Coord::new(2, 1)) {
+            if let Some((c, ty)) = enemy_piece_leaper(board, coord, o, player) {
+                match ty {
+                    Empress | Cardinal | Amazon | Knight => return Some(c),
+                    _ => {}
+                }
+            }
+        }
+    }
+    if has_type(Pawn) {
         fn has_enemy_pawn<T: Board>(board: &T, coord: Coord, player: Player) -> bool {
             if board.in_bounds(coord) {
                 if let Some(p) = board.get(coord) {

@@ -119,8 +119,9 @@ pub trait Board: Default + Debug + Clone {
         F: FnMut(Piece) -> bool;
 
     // TODO: return bit vector?
-    fn piece_types_of_player(&self, _player: Player) -> Option<[bool; Type::COUNT]> {
-        None
+    // May be conservative and return true for types that don't exist.
+    fn piece_types_of_player(&self, _player: Player) -> [bool; Type::COUNT] {
+        [true; Type::COUNT]
     }
 
     fn king_coord(&self, player: Player) -> Coord {
@@ -230,12 +231,12 @@ impl<const W: usize, const H: usize> Board for BoardSquare<W, H> {
         ret
     }
 
-    fn piece_types_of_player(&self, _player: Player) -> Option<[bool; Type::COUNT]> {
+    fn piece_types_of_player(&self, _player: Player) -> [bool; Type::COUNT] {
         let mut ret = [false; Type::COUNT];
         for (i, &v) in self.type_counts.iter().enumerate() {
             ret[i] = v != 0;
         }
-        Some(ret)
+        ret
     }
 
     fn existing_piece_result(&self, coord: Coord, player: Player) -> ExistingPieceResult {
@@ -409,14 +410,14 @@ impl<const W: i8, const H: i8, const N: usize> Board for BoardPiece<W, H, N> {
         }
         None
     }
-    fn piece_types_of_player(&self, player: Player) -> Option<[bool; Type::COUNT]> {
+    fn piece_types_of_player(&self, player: Player) -> [bool; Type::COUNT] {
         let mut ret = [false; Type::COUNT];
         for (_, p) in &self.0 {
             if p.player() == player {
                 ret[p.ty() as usize] = true;
             }
         }
-        Some(ret)
+        ret
     }
 }
 
