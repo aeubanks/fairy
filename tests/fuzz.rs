@@ -1,4 +1,4 @@
-use fairy::board::{Board, BoardSquare};
+use fairy::board::{Board, BoardPiece, BoardSquare};
 use fairy::coord::Coord;
 use fairy::moves::all_moves;
 use fairy::perft::is_in_check;
@@ -13,17 +13,16 @@ fn valid_piece_for_coord(piece: Piece, coord: Coord, height: i8) -> bool {
     }
 }
 
-fn add_piece_to_rand_coord<R: Rng + ?Sized, const W: usize, const H: usize>(
-    rng: &mut R,
-    board: &mut BoardSquare<W, H>,
-    piece: Piece,
-) {
+fn add_piece_to_rand_coord<R: Rng + ?Sized, T: Board>(rng: &mut R, board: &mut T, piece: Piece) {
     loop {
-        let coord = Coord::new(rng.gen_range(0..W as i8), rng.gen_range(0..H as i8));
+        let coord = Coord::new(
+            rng.gen_range(0..board.width() as i8),
+            rng.gen_range(0..board.height() as i8),
+        );
         if board.get(coord).is_some() {
             continue;
         }
-        if !valid_piece_for_coord(piece, coord, H as i8) {
+        if !valid_piece_for_coord(piece, coord, board.height() as i8) {
             continue;
         }
         board.add_piece(coord, piece);
@@ -53,7 +52,23 @@ fn rand_non_king_type_for_coord<R: Rng + ?Sized>(rng: &mut R, coord: Coord, heig
     }
 }
 
-fn rand_board<const W: usize, const H: usize, R: Rng + ?Sized>(rng: &mut R) -> BoardSquare<W, H> {
+fn rand_board_piece<const W: i8, const H: i8, R: Rng + ?Sized>(rng: &mut R) -> BoardPiece<W, H, 4> {
+    let mut board = BoardPiece::<W, H, 4>::default();
+    for player in [White, Black] {
+        add_piece_to_rand_coord(rng, &mut board, Piece::new(player, King));
+    }
+
+    for _ in 0..2 {
+        let piece = Piece::new(rng.gen::<Player>(), rand_non_king_type(rng));
+        add_piece_to_rand_coord(rng, &mut board, piece);
+    }
+
+    board
+}
+
+fn rand_board_square<const W: usize, const H: usize, R: Rng + ?Sized>(
+    rng: &mut R,
+) -> BoardSquare<W, H> {
     let mut board = BoardSquare::<W, H>::default();
     for player in [White, Black] {
         add_piece_to_rand_coord(rng, &mut board, Piece::new(player, King));
@@ -86,29 +101,44 @@ fn rand_board<const W: usize, const H: usize, R: Rng + ?Sized>(rng: &mut R) -> B
     board
 }
 
-fn check_is_in_check<const W: usize, const H: usize>(board: &BoardSquare<W, H>, player: Player) {
+fn check_player_is_in_check<T: Board>(board: &T, player: Player) {
     let king_coord = board.king_coord(player);
     let is_check = all_moves(board, next_player(player))
         .into_iter()
         .any(|om| om.to == king_coord);
     if is_in_check(board, player) != is_check {
         println!("{:?}", board);
+        println!("{:?}", player);
         panic!("is_in_check mismatch");
     }
 }
 
+fn check_is_in_check<T: Board>(board: &T) {
+    check_player_is_in_check(board, White);
+    check_player_is_in_check(board, Black);
+}
+
 #[test]
 fn fuzz_is_in_check() {
-    fn test<const W: usize, const H: usize>() {
+    fn test_square<const W: usize, const H: usize>() {
         let mut rng = thread_rng();
-        let board = rand_board::<W, H, _>(&mut rng);
-        check_is_in_check(&board, White);
-        check_is_in_check(&board, Black);
+        let board = rand_board_square::<W, H, _>(&mut rng);
+        check_is_in_check(&board);
+    }
+    fn test_piece<const W: i8, const H: i8>() {
+        let mut rng = thread_rng();
+        let board = rand_board_piece::<W, H, _>(&mut rng);
+        check_is_in_check(&board);
     }
     for _ in 0..1000 {
-        test::<7, 7>();
-        test::<7, 8>();
-        test::<8, 7>();
-        test::<8, 8>();
+        test_square::<7, 7>();
+        test_square::<7, 8>();
+        test_square::<8, 7>();
+        test_square::<8, 8>();
+
+        test_piece::<7, 7>();
+        test_piece::<7, 6>();
+        test_piece::<6, 7>();
+        test_piece::<6, 6>();
     }
 }

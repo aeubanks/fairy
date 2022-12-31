@@ -14,7 +14,7 @@ pub enum ExistingPieceResult {
     Opponent,
 }
 
-pub trait Board: Default + Debug {
+pub trait Board: Default + Debug + Clone {
     fn width(&self) -> i8;
     fn height(&self) -> i8;
     fn in_bounds(&self, coord: Coord) -> bool {
