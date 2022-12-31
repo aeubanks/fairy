@@ -28,6 +28,7 @@ static_assertions = "1.1"
 num-traits = "0.2"
 num-derive = "0.3"
 rustc-hash = "1.1"
+strum = { version = "0.24", features = ["derive"] }
 
 [dev-dependencies]
 criterion = "0.4"

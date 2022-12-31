@@ -5,6 +5,7 @@ use arrayvec::ArrayVec;
 use rand::Rng;
 use static_assertions::const_assert_eq;
 use std::fmt::Debug;
+use strum::EnumCount;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum ExistingPieceResult {
@@ -116,6 +117,11 @@ pub trait Board: Default + Debug {
     fn piece_coord<F>(&self, f: F) -> Option<Coord>
     where
         F: FnMut(Piece) -> bool;
+
+    // TODO: return bit vector?
+    fn piece_types_of_player(&self, _player: Player) -> Option<[bool; Type::COUNT]> {
+        None
+    }
 
     fn king_coord(&self, player: Player) -> Coord {
         let ret = self
@@ -380,6 +386,15 @@ impl<const W: i8, const H: i8, const N: usize> Board for BoardPiece<W, H, N> {
             }
         }
         None
+    }
+    fn piece_types_of_player(&self, player: Player) -> Option<[bool; Type::COUNT]> {
+        let mut ret = [false; Type::COUNT];
+        for (_, p) in &self.0 {
+            if p.player() == player {
+                ret[p.ty() as usize] = true;
+            }
+        }
+        Some(ret)
     }
 }
 
