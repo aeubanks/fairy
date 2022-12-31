@@ -1,13 +1,11 @@
 use crate::coord::Coord;
 use crate::player::Player;
 use arrayvec::ArrayVec;
-use derive_enum::EnumCount;
+use derive_enum::{EnumCount, EnumFrom};
 use derive_rand::Rand;
-use num_derive::FromPrimitive;
-use num_traits::cast::FromPrimitive;
 use std::num::NonZeroU8;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Rand, Hash, FromPrimitive, EnumCount)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Rand, Hash, EnumFrom, EnumCount)]
 pub enum Type {
     Pawn,
     Knight,

@@ -261,8 +261,6 @@ dependencies = [
  "criterion",
  "derive_enum",
  "derive_rand",
- "num-derive",
- "num-traits",
  "perfcnt",
  "rand 0.8.5",
  "rustc-hash",
@@ -416,17 +414,6 @@ checksum = "2ad2a91a8e869eeb30b9cb3119ae87773a8f4ae617f41b1eb9c154b2905f7bd6"
 dependencies = [
  "memchr",
  "version_check",
-]
-
-[[package]]
-name = "num-derive"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "876a53fff98e03a936a674b29568b0e605f06b29372c2489ff4de23f1949743d"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

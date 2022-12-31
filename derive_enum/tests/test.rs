@@ -1,24 +1,31 @@
-use derive_enum::EnumCount;
+use derive_enum::{EnumCount, EnumFrom};
 
-#[derive(Copy, Clone, EnumCount)]
+#[derive(EnumCount)]
 enum Struct0 {}
 
-#[derive(Copy, Clone, EnumCount)]
+#[derive(EnumCount)]
 enum Struct1 {
     One,
 }
 
-#[derive(Copy, Clone, EnumCount)]
+#[derive(EnumCount)]
 enum Struct2 {
     One,
     Two,
 }
 
-#[derive(Copy, Clone, EnumCount)]
-enum Struct3 {
+#[derive(Debug, PartialEq, Eq, EnumFrom)]
+enum Struct3 {}
+
+#[derive(Debug, PartialEq, Eq, EnumFrom)]
+enum Struct4 {
+    One,
+}
+
+#[derive(Debug, PartialEq, Eq, EnumFrom)]
+enum Struct5 {
     One,
     Two,
-    Three,
 }
 
 #[test]
@@ -26,5 +33,12 @@ fn test_derive() {
     assert_eq!(Struct0::COUNT, 0);
     assert_eq!(Struct1::COUNT, 1);
     assert_eq!(Struct2::COUNT, 2);
-    assert_eq!(Struct3::COUNT, 3);
+
+    assert_eq!(Struct3::from_u8(0), None);
+    assert_eq!(Struct3::from_u8(1), None);
+    assert_eq!(Struct4::from_u8(0), Some(Struct4::One));
+    assert_eq!(Struct4::from_u8(1), None);
+    assert_eq!(Struct5::from_u8(0), Some(Struct5::One));
+    assert_eq!(Struct5::from_u8(1), Some(Struct5::Two));
+    assert_eq!(Struct5::from_u8(2), None);
 }
