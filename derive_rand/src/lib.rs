@@ -54,8 +54,8 @@ fn rand_derive_impl(input: &DeriveInput) -> TokenStream {
     };
 
     TokenStream::from(quote! {
-        impl rand::distributions::Distribution<#ty> for rand::distributions::Standard {
-            fn sample<R: rand::Rng + ?Sized>(&self, __rng: &mut R) -> #ty {
+        impl ::rand::distributions::Distribution<#ty> for ::rand::distributions::Standard {
+            fn sample<R: ::rand::Rng + ?Sized>(&self, __rng: &mut R) -> #ty {
                 #body
             }
         }
