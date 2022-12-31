@@ -16,6 +16,7 @@ pub enum Type {
     Empress,
     Cardinal,
     Amazon,
+    Nightrider,
 }
 
 impl Type {
@@ -31,6 +32,7 @@ impl Type {
             Empress => 'E',
             Cardinal => 'C',
             Amazon => 'A',
+            Nightrider => 'D',
         };
         assert!(ret.is_uppercase());
         ret
@@ -48,7 +50,7 @@ impl Type {
                 ret.push(Coord::new(1, 1));
                 ret.push(Coord::new(1, 0));
             }
-            Rook | Bishop | Queen => {}
+            Rook | Bishop | Queen | Nightrider => {}
         }
         ret
     }
@@ -63,6 +65,9 @@ impl Type {
             }
             Bishop | Cardinal => {
                 ret.push(Coord::new(1, 1));
+            }
+            Nightrider => {
+                ret.push(Coord::new(2, 1));
             }
             Queen | Amazon => {
                 ret.push(Coord::new(1, 0));

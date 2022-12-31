@@ -335,6 +335,16 @@ pub fn under_attack_from_coord<T: Board>(board: &T, coord: Coord, player: Player
         // TODO: figure out a way to automatically unroll/constprop this from just rider_offsets/leaper_offsets.
         let has_type = |ty: Type| -> bool { pts[ty as usize] };
         may_have_pawn = has_type(Pawn);
+        if has_type(Nightrider) {
+            for o in offsets(Coord::new(2, 1)) {
+                if let Some((c, ty)) = enemy_piece_rider(board, coord, o, player) {
+                    match ty {
+                        Nightrider => return Some(c),
+                        _ => {}
+                    }
+                }
+            }
+        }
         if has_type(Rook) || has_type(Queen) || has_type(Empress) || has_type(Amazon) {
             for o in offsets(Coord::new(1, 0)) {
                 if let Some((c, ty)) = enemy_piece_rider(board, coord, o, player) {
@@ -382,7 +392,7 @@ pub fn under_attack_from_coord<T: Board>(board: &T, coord: Coord, player: Player
             }
         }
     } else {
-        for r in [Coord::new(1, 0), Coord::new(1, 1)] {
+        for r in [Coord::new(1, 0), Coord::new(1, 1), Coord::new(2, 1)] {
             for o in offsets(r) {
                 if let Some((c, ty)) = enemy_piece_rider(board, coord, o, player) {
                     if ty != Pawn && ty.rider_offsets().contains(&r) {
