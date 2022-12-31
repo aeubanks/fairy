@@ -2,10 +2,10 @@ use crate::coord::Coord;
 use crate::piece::{Piece, Type, Type::*};
 use crate::player::{Player, Player::*};
 use arrayvec::ArrayVec;
+use derive_enum::EnumCount;
 use rand::Rng;
 use static_assertions::const_assert_eq;
 use std::fmt::Debug;
-use strum::EnumCount;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum ExistingPieceResult {

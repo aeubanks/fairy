@@ -1,11 +1,11 @@
 use crate::coord::Coord;
 use crate::player::Player;
 use arrayvec::ArrayVec;
+use derive_enum::EnumCount;
 use derive_rand::Rand;
 use num_derive::FromPrimitive;
 use num_traits::cast::FromPrimitive;
 use std::num::NonZeroU8;
-use strum::EnumCount;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Rand, Hash, FromPrimitive, EnumCount)]
 pub enum Type {

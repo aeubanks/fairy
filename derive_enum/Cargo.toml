@@ -1,0 +1,11 @@
+[package]
+name = "derive_enum"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+
+[dependencies]
+derive_enum_impl = { path = "derive_enum_impl" }
+quote = "1"
+syn = "1"
