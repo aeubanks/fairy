@@ -1,4 +1,6 @@
-use fairy::board::Board;
+use fairy::board::{Board, Move};
+use fairy::coord::Coord;
+use fairy::moves::is_under_attack;
 use fairy::piece::{Piece, Type::*};
 use fairy::player::{next_player, Player::*};
 use fairy::tablebase::{generate_tablebase, GenerateAllBoards, TBBoard, Tablebase};
@@ -49,7 +51,7 @@ fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
 }
 
 #[test]
-fn test_kqk_tablebase() {
+fn test_kqk() {
     let pieces = [
         Piece::new(White, King),
         Piece::new(White, Queen),
@@ -59,7 +61,7 @@ fn test_kqk_tablebase() {
 }
 
 #[test]
-fn test_krk_tablebase() {
+fn test_krk() {
     let pieces = [
         Piece::new(White, King),
         Piece::new(White, Rook),
@@ -69,7 +71,7 @@ fn test_krk_tablebase() {
 }
 
 #[test]
-fn test_kek_tablebase() {
+fn test_kek() {
     let pieces = [
         Piece::new(White, King),
         Piece::new(White, Empress),
@@ -79,7 +81,7 @@ fn test_kek_tablebase() {
 }
 
 #[test]
-fn test_kck_tablebase() {
+fn test_kck() {
     let pieces = [
         Piece::new(White, King),
         Piece::new(White, Cardinal),
@@ -89,11 +91,107 @@ fn test_kck_tablebase() {
 }
 
 #[test]
-fn test_kak_tablebase() {
+fn test_kak() {
     let pieces = [
         Piece::new(White, King),
         Piece::new(White, Cardinal),
         Piece::new(Black, King),
     ];
     verify_all_three_piece_positions_forced_win(&pieces);
+}
+
+#[test]
+fn test_kk_5_1() {
+    let wk = Piece::new(White, King);
+    let bk = Piece::new(Black, King);
+    let mut tablebase = Tablebase::<5, 1>::default();
+    generate_tablebase(&mut tablebase, &[wk, bk]);
+
+    assert_eq!(
+        tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
+            (Coord::new(0, 0), wk),
+            (Coord::new(3, 0), bk)
+        ])),
+        Some((
+            Move {
+                from: Coord::new(0, 0),
+                to: Coord::new(1, 0)
+            },
+            5
+        ))
+    );
+    assert_eq!(
+        tablebase.black_result(&TBBoard::<5, 1>::with_pieces(&[
+            (Coord::new(1, 0), wk),
+            (Coord::new(3, 0), bk)
+        ])),
+        Some((
+            Move {
+                from: Coord::new(3, 0),
+                to: Coord::new(4, 0)
+            },
+            4
+        ))
+    );
+    assert_eq!(
+        tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
+            (Coord::new(1, 0), wk),
+            (Coord::new(4, 0), bk)
+        ])),
+        Some((
+            Move {
+                from: Coord::new(1, 0),
+                to: Coord::new(2, 0)
+            },
+            3
+        ))
+    );
+    assert_eq!(
+        tablebase.black_result(&TBBoard::<5, 1>::with_pieces(&[
+            (Coord::new(2, 0), wk),
+            (Coord::new(4, 0), bk)
+        ])),
+        Some((
+            Move {
+                from: Coord::new(4, 0),
+                to: Coord::new(3, 0)
+            },
+            2
+        ))
+    );
+    assert_eq!(
+        tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
+            (Coord::new(2, 0), wk),
+            (Coord::new(3, 0), bk)
+        ])),
+        Some((
+            Move {
+                from: Coord::new(2, 0),
+                to: Coord::new(3, 0)
+            },
+            1
+        ))
+    );
+}
+
+#[test]
+fn test_kk() {
+    fn test<const W: i8, const H: i8>() {
+        let pieces = [Piece::new(White, King), Piece::new(Black, King)];
+        let mut tablebase = Tablebase::<W, H>::default();
+        generate_tablebase(&mut tablebase, &pieces);
+        // If white king couldn't capture on first move, no forced win.
+        for b in GenerateAllBoards::new(&pieces) {
+            if is_under_attack(&b, b.king_coord(Black), Black) {
+                assert_eq!(tablebase.white_result(&b).unwrap().1, 1);
+            } else {
+                assert_eq!(tablebase.white_result(&b), None);
+            }
+            assert_eq!(tablebase.black_result(&b), None);
+        }
+    }
+    test::<6, 6>();
+    test::<5, 5>();
+    test::<4, 5>();
+    test::<4, 6>();
 }
