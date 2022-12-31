@@ -1,6 +1,5 @@
 use criterion::measurement::{Measurement, ValueFormatter};
-use perfcnt::linux::{HardwareEventType, PerfCounter, PerfCounterBuilderLinux};
-use perfcnt::AbstractPerfCounter;
+use perf_event::{Builder, Counter};
 
 pub struct Perf;
 
@@ -43,17 +42,15 @@ impl ValueFormatter for PerfFormatter {
 }
 
 impl Measurement for Perf {
-    type Intermediate = PerfCounter;
+    type Intermediate = Counter;
     type Value = u64;
     fn start(&self) -> Self::Intermediate {
-        let pc = PerfCounterBuilderLinux::from_hardware_event(HardwareEventType::Instructions)
-            .finish()
-            .unwrap();
-        pc.start().unwrap();
-        pc
+        let mut c = Builder::new().build().unwrap();
+        c.enable().unwrap();
+        c
     }
     fn end(&self, mut i: Self::Intermediate) -> Self::Value {
-        i.stop().unwrap();
+        i.disable().unwrap();
         i.read().unwrap()
     }
     fn add(&self, v1: &Self::Value, v2: &Self::Value) -> Self::Value {
