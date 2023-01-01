@@ -249,6 +249,7 @@ pub struct GenerateAllBoards<const W: i8, const H: i8> {
     pieces: ArrayVec<Piece, 6>,
     stack: ArrayVec<Coord, 6>,
     board: TBBoard<W, H>,
+    has_pawn: bool,
 }
 
 impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
@@ -260,9 +261,28 @@ impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
         }
         c
     }
+    fn valid_piece_coord(&self, c: Coord, piece: Piece) -> bool {
+        // Can do normal symmetry optimizations here.
+        if piece == Piece::new(Black, King) {
+            if c.x > (W - 1) / 2 {
+                return false;
+            }
+            if !self.has_pawn {
+                if c.y > (H - 1) / 2 {
+                    return false;
+                }
+                if W == H && c.x > c.y {
+                    return false;
+                }
+            }
+            return true;
+        }
+        // Pawns cannot be on bottom/top row
+        piece.ty() != Pawn || (c.y != 0 && c.y != H - 1)
+    }
     fn first_empty_coord_from(&self, mut c: Coord, piece: Piece) -> Option<Coord> {
         while c.y != H {
-            if self.board.get(c).is_none() && (piece.ty() != Pawn || (c.y != 0 && c.y != H - 1)) {
+            if self.board.get(c).is_none() && self.valid_piece_coord(c, piece) {
                 return Some(c);
             }
             c = Self::next_coord(c);
@@ -274,6 +294,7 @@ impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
             pieces: pieces.iter().copied().collect(),
             stack: Default::default(),
             board: Default::default(),
+            has_pawn: pieces.iter().any(|p| p.ty() == Pawn),
         };
         for p in pieces {
             let c = ret.first_empty_coord_from(Coord::new(0, 0), *p).unwrap();
@@ -826,6 +847,31 @@ mod tests {
                 }
             }
         }
+
+        for b in GenerateAllBoards::<4, 4>::new(&[Piece::new(Black, King)]) {
+            let c = b.king_coord(Black);
+            assert!(c.x <= 1);
+            assert!(c.y <= 1);
+            assert!(c.x <= c.y);
+        }
+        for b in GenerateAllBoards::<5, 5>::new(&[Piece::new(Black, King)]) {
+            let c = b.king_coord(Black);
+            assert!(c.x <= 2);
+            assert!(c.y <= 2);
+            assert!(c.x <= c.y);
+        }
+        assert_eq!(
+            GenerateAllBoards::<4, 4>::new(&[Piece::new(Black, King)]).count(),
+            3
+        );
+        assert_eq!(
+            GenerateAllBoards::<5, 5>::new(&[Piece::new(Black, King)]).count(),
+            6
+        );
+        assert_eq!(
+            GenerateAllBoards::<5, 4>::new(&[Piece::new(Black, King)]).count(),
+            6
+        );
     }
     #[test]
     fn test_populate_initial_tablebases() {
