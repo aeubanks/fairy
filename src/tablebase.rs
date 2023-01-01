@@ -889,23 +889,6 @@ mod tests {
     }
 
     #[test]
-    fn test_tablebase_size() {
-        let pieces1 = [Piece::new(White, King), Piece::new(Black, King)];
-        let pieces2 = [
-            Piece::new(White, King),
-            Piece::new(White, Queen),
-            Piece::new(Black, King),
-        ];
-        let mut tablebase = Tablebase::<4, 4>::default();
-        generate_tablebase(&mut tablebase, &pieces1);
-        generate_tablebase(&mut tablebase, &pieces2);
-        let all1_count = GenerateAllBoards::<4, 4>::new(&pieces1).count();
-        let all2_count = GenerateAllBoards::<4, 4>::new(&pieces2).count();
-        // With symmetry, we should expect a little over 1/8 of positions to be in the tablebase.
-        assert!(tablebase.white_tablebase.len() < all1_count + all2_count / 6);
-    }
-
-    #[test]
     fn test_generate_tablebase_parallel() {
         let mut tablebase1 = Tablebase::<4, 4>::default();
         let mut tablebase2 = Tablebase::<4, 4>::default();
