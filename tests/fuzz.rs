@@ -16,13 +16,13 @@ fn valid_piece_for_coord(piece: Piece, coord: Coord, height: i8) -> bool {
 fn add_piece_to_rand_coord<R: Rng + ?Sized, T: Board>(rng: &mut R, board: &mut T, piece: Piece) {
     loop {
         let coord = Coord::new(
-            rng.gen_range(0..board.width() as i8),
-            rng.gen_range(0..board.height() as i8),
+            rng.gen_range(0..board.width()),
+            rng.gen_range(0..board.height()),
         );
         if board.get(coord).is_some() {
             continue;
         }
-        if !valid_piece_for_coord(piece, coord, board.height() as i8) {
+        if !valid_piece_for_coord(piece, coord, board.height()) {
             continue;
         }
         board.add_piece(coord, piece);

@@ -77,11 +77,11 @@ pub fn perft_all<T: Board>(position: &Position<T>, depth: u64) -> u64 {
 
 pub fn fen(fen: &str) -> Position<BoardSquare<8, 8>> {
     let mut board = BoardSquare::<8, 8>::default();
-    let space_split: Vec<&str> = fen.split(' ').collect();
+    let space_split = fen.split(' ').collect::<Vec<_>>();
     assert!(space_split.len() == 6 || space_split.len() == 4);
 
     {
-        let slash_split: Vec<&str> = space_split[0].split('/').collect();
+        let slash_split = space_split[0].split('/').collect::<Vec<_>>();
         assert_eq!(slash_split.len(), 8);
         let mut y = 7;
         for s in slash_split {

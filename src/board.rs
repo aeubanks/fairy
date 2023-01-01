@@ -18,10 +18,7 @@ pub trait Board: Default + Debug + Clone {
     fn width(&self) -> i8;
     fn height(&self) -> i8;
     fn in_bounds(&self, coord: Coord) -> bool {
-        coord.x < self.width() as i8
-            && coord.x >= 0
-            && coord.y < self.height() as i8
-            && coord.y >= 0
+        coord.x < self.width() && coord.x >= 0 && coord.y < self.height() && coord.y >= 0
     }
     fn get(&self, coord: Coord) -> Option<Piece>;
     fn clear(&mut self, coord: Coord);
@@ -474,7 +471,7 @@ impl Presets {
     }
 
     pub fn chess960<R: Rng + ?Sized>(rng: &mut R) -> BoardSquare<8, 8> {
-        let mut pieces: [Option<Type>; 8] = [None; 8];
+        let mut pieces = [None; 8];
         Self::set_nth_empty(rng.gen_range(0..4) * 2, &mut pieces, Bishop);
         Self::set_nth_empty(rng.gen_range(0..4) * 2 + 1, &mut pieces, Bishop);
         Self::set_nth_empty(rng.gen_range(0..6), &mut pieces, Queen);
@@ -488,8 +485,8 @@ impl Presets {
     }
 
     pub fn capablanca_random<R: Rng + ?Sized>(rng: &mut R) -> BoardSquare<10, 8> {
-        let mut evens: [Option<Type>; 5] = [None; 5];
-        let mut odds: [Option<Type>; 5] = [None; 5];
+        let mut evens = [None; 5];
+        let mut odds = [None; 5];
         evens[rng.gen_range(0..5)] = Some(Bishop);
         odds[rng.gen_range(0..5)] = Some(Bishop);
         let (qa1, qa2) = if rng.gen() {
@@ -500,7 +497,7 @@ impl Presets {
         Self::set_nth_empty(rng.gen_range(0..4), &mut evens, qa1);
         Self::set_nth_empty(rng.gen_range(0..4), &mut odds, qa2);
 
-        let mut pieces: [Option<Type>; 10] = [None; 10];
+        let mut pieces = [None; 10];
         for (i, t) in evens.into_iter().enumerate() {
             pieces[i * 2] = t;
         }

@@ -75,19 +75,19 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         let (hash, sym) = canonical_board(board);
         self.white_tablebase
             .get(&hash)
-            .map(|e| (unflip_move(e.0, sym, W as i8, H as i8), e.1))
+            .map(|e| (unflip_move(e.0, sym, W, H), e.1))
     }
     pub fn black_result(&self, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
         let (hash, sym) = canonical_board(board);
         self.black_tablebase
             .get(&hash)
-            .map(|e| (unflip_move(e.0, sym, W as i8, H as i8), e.1))
+            .map(|e| (unflip_move(e.0, sym, W, H), e.1))
     }
     fn white_add_impl(&mut self, board: &TBBoard<W, H>, m: Move, depth: u16) {
         let (hash, sym) = canonical_board(board);
         debug_assert!(!self.white_tablebase.contains_key(&hash));
         self.white_tablebase
-            .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
+            .insert(hash, (flip_move(m, sym, W, H), depth));
     }
     fn white_contains_impl(&self, board: &TBBoard<W, H>) -> bool {
         self.white_tablebase.contains_key(&canonical_board(board).0)
@@ -101,7 +101,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         let (hash, sym) = canonical_board(board);
         debug_assert!(!self.black_tablebase.contains_key(&hash));
         self.black_tablebase
-            .insert(hash, (flip_move(m, sym, W as i8, H as i8), depth));
+            .insert(hash, (flip_move(m, sym, W, H), depth));
     }
     fn black_contains_impl(&self, board: &TBBoard<W, H>) -> bool {
         self.black_tablebase.contains_key(&canonical_board(board).0)
@@ -133,7 +133,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
 fn board_key<const W: i8, const H: i8>(board: &TBBoard<W, H>, sym: Symmetry) -> KeyTy {
     let mut ret = KeyTy::new();
     board.foreach_piece(|piece, coord| {
-        let c = flip_coord(coord, sym, W as i8, H as i8);
+        let c = flip_coord(coord, sym, W, H);
         ret.push((c.x + c.y * W, piece));
     });
 
@@ -147,13 +147,13 @@ fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, S
 
     let mut bk_coord = board.king_coord(Black);
 
-    if W % 2 == 1 && bk_coord.x == W as i8 / 2 {
+    if W % 2 == 1 && bk_coord.x == W / 2 {
         let symmetries_copy = symmetries_to_check.clone();
         for mut s in symmetries_copy {
             s.flip_x = true;
             symmetries_to_check.push(s);
         }
-    } else if bk_coord.x >= W as i8 / 2 {
+    } else if bk_coord.x >= W / 2 {
         bk_coord = flip_coord(
             bk_coord,
             Symmetry {
@@ -161,8 +161,8 @@ fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, S
                 flip_y: false,
                 flip_diagonally: false,
             },
-            W as i8,
-            H as i8,
+            W,
+            H,
         );
         for s in symmetries_to_check.as_mut() {
             s.flip_x = true;
@@ -171,13 +171,13 @@ fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, S
     // pawns are not symmetrical on the y axis or diagonally
     let has_pawn = board.piece_coord(|piece| piece.ty() == Pawn).is_some();
     if !has_pawn {
-        if H % 2 == 1 && bk_coord.y == H as i8 / 2 {
+        if H % 2 == 1 && bk_coord.y == H / 2 {
             let symmetries_copy = symmetries_to_check.clone();
             for mut s in symmetries_copy {
                 s.flip_y = true;
                 symmetries_to_check.push(s);
             }
-        } else if bk_coord.y >= H as i8 / 2 {
+        } else if bk_coord.y >= H / 2 {
             bk_coord = flip_coord(
                 bk_coord,
                 Symmetry {
@@ -185,8 +185,8 @@ fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, S
                     flip_y: true,
                     flip_diagonally: false,
                 },
-                W as i8,
-                H as i8,
+                W,
+                H,
             );
             for s in symmetries_to_check.as_mut() {
                 s.flip_y = true;
@@ -254,17 +254,15 @@ pub struct GenerateAllBoards<const W: i8, const H: i8> {
 impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
     fn next_coord(mut c: Coord) -> Coord {
         c.x += 1;
-        if c.x == W as i8 {
+        if c.x == W {
             c.x = 0;
             c.y += 1;
         }
         c
     }
     fn first_empty_coord_from(&self, mut c: Coord, piece: Piece) -> Option<Coord> {
-        while c.y != H as i8 {
-            if self.board.get(c).is_none()
-                && (piece.ty() != Pawn || (c.y != 0 && c.y != H as i8 - 1))
-            {
+        while c.y != H {
+            if self.board.get(c).is_none() && (piece.ty() != Pawn || (c.y != 0 && c.y != H - 1)) {
                 return Some(c);
             }
             c = Self::next_coord(c);
@@ -437,7 +435,7 @@ fn iterate_white<const W: i8, const H: i8>(
             }
             // None means no forced win
             // Some(depth) means forced win in depth moves
-            let mut min_depth: Option<u16> = None;
+            let mut min_depth = None;
             let mut best_move = None;
             let white_moves = all_moves(&b, White);
             if white_moves.is_empty() {
