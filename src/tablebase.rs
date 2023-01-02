@@ -300,14 +300,25 @@ impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
         None
     }
     pub fn with_skip_optimizations(pieces: &[Piece], skip_optimizations: bool) -> Self {
+        let bk = Piece::new(Black, King);
+        let has_pawn = pieces.iter().any(|p| p.ty() == Pawn);
+        if !skip_optimizations {
+            // Only support at most one black king if symmetry optimizations are on.
+            assert!(pieces.iter().filter(|&&p| p == bk).count() <= 1);
+        }
+        let mut pieces = pieces.iter().copied().collect::<ArrayVec<_, 6>>();
+        // Since we deduplicate symmetric positions via the black king, make sure it's placed first.
+        if let Some(idx) = pieces.iter().position(|&p| p == bk) {
+            pieces.swap(idx, 0);
+        }
         let mut ret = Self {
-            pieces: pieces.iter().copied().collect(),
+            pieces,
             stack: Default::default(),
             board: Default::default(),
-            has_pawn: pieces.iter().any(|p| p.ty() == Pawn),
+            has_pawn,
             skip_optimizations,
         };
-        for p in pieces {
+        for p in &ret.pieces {
             let c = ret.first_empty_coord_from(Coord::new(0, 0), *p).unwrap();
             ret.stack.push(c);
             ret.board.add_piece(c, *p);
@@ -921,6 +932,12 @@ mod tests {
             GenerateAllBoards::<5, 4>::new(&[Piece::new(Black, King)]).count(),
             6
         );
+        GenerateAllBoards::<4, 4>::new(&[
+            Piece::new(Black, Rook),
+            Piece::new(Black, Amazon),
+            Piece::new(Black, Queen),
+            Piece::new(Black, King),
+        ]);
     }
     #[test]
     fn test_populate_initial_tablebases() {
