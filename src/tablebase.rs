@@ -420,7 +420,7 @@ fn populate_initial_wins_one<const W: i8, const H: i8>(
     b: &TBBoard<W, H>,
 ) -> bool {
     // white can capture black's king
-    if !tablebase.white_contains_impl(&b) {
+    if !tablebase.white_contains_impl(b) {
         let opponent_king_coord = b.king_coord(Black);
         if let Some(c) = under_attack_from_coord(b, opponent_king_coord, Black) {
             tablebase.white_add_impl(
@@ -620,7 +620,7 @@ fn verify_piece_set(pieces: &[Piece]) {
 
 fn canonical_piece_set(pieces: &[Piece]) -> ArrayVec<Piece, 4> {
     let mut ret = pieces.iter().copied().collect::<ArrayVec<Piece, 4>>();
-    ret.sort_by(|a, b| a.val().cmp(&b.val()));
+    ret.sort_unstable_by_key(|a| a.val());
     ret
 }
 
@@ -1234,7 +1234,7 @@ mod tests {
         generate_tablebase(&mut tablebase, &kk);
         generate_tablebase(&mut tablebase, pieces);
 
-        generate_tablebase_no_opt(&mut tablebase_no_optimize, &pieces);
+        generate_tablebase_no_opt(&mut tablebase_no_optimize, pieces);
 
         verify_tablebases_equal(&tablebase, &tablebase_no_optimize, pieces);
 
