@@ -68,9 +68,18 @@ pub struct Tablebase<const W: i8, const H: i8> {
     white_tablebase: MapTy,
     // table of best move to play on black's turn to prolong a loss
     black_tablebase: MapTy,
+    // whether or not to skip some optimizations, for testing purposes
+    // TODO: this costs a little bit of runtime, perhaps make into const generic parameter?
+    skip_optimizations: bool,
 }
 
 impl<const W: i8, const H: i8> Tablebase<W, H> {
+    pub fn with_skip_optimizations(skip_optimizations: bool) -> Self {
+        Self {
+            skip_optimizations,
+            ..Default::default()
+        }
+    }
     pub fn white_result(&self, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
         let (hash, sym) = canonical_board(board);
         self.white_tablebase
@@ -250,6 +259,7 @@ pub struct GenerateAllBoards<const W: i8, const H: i8> {
     stack: ArrayVec<Coord, 6>,
     board: TBBoard<W, H>,
     has_pawn: bool,
+    skip_optimizations: bool,
 }
 
 impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
@@ -263,7 +273,7 @@ impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
     }
     fn valid_piece_coord(&self, c: Coord, piece: Piece) -> bool {
         // Can do normal symmetry optimizations here.
-        if piece == Piece::new(Black, King) {
+        if !self.skip_optimizations && piece == Piece::new(Black, King) {
             if c.x > (W - 1) / 2 {
                 return false;
             }
@@ -289,12 +299,13 @@ impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
         }
         None
     }
-    pub fn new(pieces: &[Piece]) -> Self {
+    pub fn with_skip_optimizations(pieces: &[Piece], skip_optimizations: bool) -> Self {
         let mut ret = Self {
             pieces: pieces.iter().copied().collect(),
             stack: Default::default(),
             board: Default::default(),
             has_pawn: pieces.iter().any(|p| p.ty() == Pawn),
+            skip_optimizations,
         };
         for p in pieces {
             let c = ret.first_empty_coord_from(Coord::new(0, 0), *p).unwrap();
@@ -302,6 +313,9 @@ impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
             ret.board.add_piece(c, *p);
         }
         ret
+    }
+    pub fn new(pieces: &[Piece]) -> Self {
+        Self::with_skip_optimizations(pieces, false)
     }
 }
 
@@ -387,107 +401,137 @@ fn populate_initial_wins<const W: i8, const H: i8>(
     ret
 }
 
+fn iterate_black_once<const W: i8, const H: i8>(
+    tablebase: &mut Tablebase<W, H>,
+    board: TBBoard<W, H>,
+    next_boards: &mut Vec<TBBoard<W, H>>,
+) {
+    if tablebase.black_contains_impl(&board) {
+        return;
+    }
+    // None means no forced loss
+    // Some(depth) means forced loss in depth moves
+    let mut max_depth = Some(0);
+    let mut best_move = None;
+    let black_moves = all_moves(&board, Black);
+    if black_moves.is_empty() {
+        // loss?
+        return;
+    }
+    for black_move in black_moves {
+        let mut clone = board.clone();
+        clone.make_move(black_move, Black);
+
+        if let Some(depth) = tablebase.white_depth_impl(&clone) {
+            max_depth = Some(match max_depth {
+                Some(md) => {
+                    // use move that prolongs checkmate as long as possible
+                    if depth > md {
+                        best_move = Some(black_move);
+                        depth
+                    } else {
+                        md
+                    }
+                }
+                None => {
+                    best_move = Some(black_move);
+                    depth
+                }
+            });
+        } else {
+            max_depth = None;
+            break;
+        }
+    }
+    if let Some(max_depth) = max_depth {
+        tablebase.black_add_impl(&board, best_move.unwrap(), max_depth + 1);
+        next_boards.push(board);
+    }
+}
+
 fn iterate_black<const W: i8, const H: i8>(
+    pieces: &[Piece],
     tablebase: &mut Tablebase<W, H>,
     previous_boards: &[TBBoard<W, H>],
 ) -> Vec<TBBoard<W, H>> {
     let mut next_boards = Vec::new();
-    for prev in previous_boards {
-        for m in all_moves_to_end_at_board_no_captures(prev, Black) {
-            let mut b = prev.clone();
-            b.swap(m.from, m.to);
-            if tablebase.black_contains_impl(&b) {
-                continue;
-            }
-            // None means no forced loss
-            // Some(depth) means forced loss in depth moves
-            let mut max_depth = Some(0);
-            let mut best_move = None;
-            let black_moves = all_moves(&b, Black);
-            if black_moves.is_empty() {
-                // loss?
-                continue;
-            }
-            for black_move in black_moves {
-                let mut clone = b.clone();
-                clone.make_move(black_move, Black);
-
-                if let Some(depth) = tablebase.white_depth_impl(&clone) {
-                    max_depth = Some(match max_depth {
-                        Some(md) => {
-                            // use move that prolongs checkmate as long as possible
-                            if depth > md {
-                                best_move = Some(black_move);
-                                depth
-                            } else {
-                                md
-                            }
-                        }
-                        None => {
-                            best_move = Some(black_move);
-                            depth
-                        }
-                    });
-                } else {
-                    max_depth = None;
-                    break;
-                }
-            }
-            if let Some(max_depth) = max_depth {
-                tablebase.black_add_impl(&b, best_move.unwrap(), max_depth + 1);
-                next_boards.push(b.clone());
+    if tablebase.skip_optimizations {
+        for b in GenerateAllBoards::with_skip_optimizations(pieces, tablebase.skip_optimizations) {
+            iterate_black_once(tablebase, b, &mut next_boards);
+        }
+    } else {
+        for prev in previous_boards {
+            for m in all_moves_to_end_at_board_no_captures(prev, Black) {
+                let mut b = prev.clone();
+                b.swap(m.from, m.to);
+                iterate_black_once(tablebase, b, &mut next_boards);
             }
         }
     }
     next_boards
 }
 
+fn iterate_white_once<const W: i8, const H: i8>(
+    tablebase: &mut Tablebase<W, H>,
+    board: TBBoard<W, H>,
+    next_boards: &mut Vec<TBBoard<W, H>>,
+) {
+    if tablebase.white_contains_impl(&board) {
+        return;
+    }
+    // None means no forced win
+    // Some(depth) means forced win in depth moves
+    let mut min_depth = None;
+    let mut best_move = None;
+    let white_moves = all_moves(&board, White);
+    if white_moves.is_empty() {
+        // loss?
+        return;
+    }
+    for white_move in white_moves {
+        let mut clone = board.clone();
+        clone.make_move(white_move, White);
+
+        if let Some(depth) = tablebase.black_depth_impl(&clone) {
+            min_depth = Some(match min_depth {
+                Some(md) => {
+                    // use move that forces checkmate as quickly as possible
+                    if depth < md {
+                        best_move = Some(white_move);
+                        depth
+                    } else {
+                        md
+                    }
+                }
+                None => {
+                    best_move = Some(white_move);
+                    depth
+                }
+            });
+        }
+    }
+    if let Some(min_depth) = min_depth {
+        tablebase.white_add_impl(&board, best_move.unwrap(), min_depth + 1);
+        next_boards.push(board);
+    }
+}
+
 fn iterate_white<const W: i8, const H: i8>(
+    pieces: &[Piece],
     tablebase: &mut Tablebase<W, H>,
     previous_boards: &[TBBoard<W, H>],
 ) -> Vec<TBBoard<W, H>> {
     let mut next_boards = Vec::new();
-    for prev in previous_boards {
-        for m in all_moves_to_end_at_board_no_captures(prev, White) {
-            let mut b = prev.clone();
-            b.swap(m.from, m.to);
-            if tablebase.white_contains_impl(&b) {
-                continue;
-            }
-            // None means no forced win
-            // Some(depth) means forced win in depth moves
-            let mut min_depth = None;
-            let mut best_move = None;
-            let white_moves = all_moves(&b, White);
-            if white_moves.is_empty() {
-                // loss?
-                continue;
-            }
-            for white_move in white_moves {
-                let mut clone = b.clone();
-                clone.make_move(white_move, White);
-
-                if let Some(depth) = tablebase.black_depth_impl(&clone) {
-                    min_depth = Some(match min_depth {
-                        Some(md) => {
-                            // use move that forces checkmate as quickly as possible
-                            if depth < md {
-                                best_move = Some(white_move);
-                                depth
-                            } else {
-                                md
-                            }
-                        }
-                        None => {
-                            best_move = Some(white_move);
-                            depth
-                        }
-                    });
-                }
-            }
-            if let Some(min_depth) = min_depth {
-                tablebase.white_add_impl(&b, best_move.unwrap(), min_depth + 1);
-                next_boards.push(b.clone());
+    if tablebase.skip_optimizations {
+        for b in GenerateAllBoards::with_skip_optimizations(pieces, tablebase.skip_optimizations) {
+            iterate_white_once(tablebase, b, &mut next_boards);
+        }
+    } else {
+        for prev in previous_boards {
+            for m in all_moves_to_end_at_board_no_captures(prev, White) {
+                let mut b = prev.clone();
+                b.swap(m.from, m.to);
+                iterate_white_once(tablebase, b, &mut next_boards);
             }
         }
     }
@@ -519,12 +563,13 @@ pub fn generate_tablebase<const W: i8, const H: i8>(
         // check that starting from all possible boards gives the same result as starting from all boards returned by previous step
         #[cfg(debug_assertions)]
         let all_black_count = iterate_black(
+            pieces,
             &mut tablebase.clone(),
             &GenerateAllBoards::new(pieces).collect::<Vec<_>>(),
         )
         .len();
 
-        boards_to_check = iterate_black(tablebase, &boards_to_check);
+        boards_to_check = iterate_black(pieces, tablebase, &boards_to_check);
 
         #[cfg(debug_assertions)]
         debug_assert_eq!(all_black_count, boards_to_check.len());
@@ -538,8 +583,8 @@ pub fn generate_tablebase<const W: i8, const H: i8>(
             for a in GenerateAllBoards::new(pieces) {
                 let mut c = boards_to_check.clone();
                 c.push(a.clone());
-                let c1 = iterate_white(&mut tablebase.clone(), &c).len();
-                let c2 = iterate_white(&mut tablebase.clone(), &boards_to_check).len();
+                let c1 = iterate_white(pieces, &mut tablebase.clone(), &c).len();
+                let c2 = iterate_white(pieces, &mut tablebase.clone(), &boards_to_check).len();
                 if c1 != c2 {
                     dbg!(a);
                 }
@@ -548,12 +593,13 @@ pub fn generate_tablebase<const W: i8, const H: i8>(
 
         #[cfg(debug_assertions)]
         let all_white_count = iterate_white(
+            pieces,
             &mut tablebase.clone(),
             &GenerateAllBoards::new(pieces).collect::<Vec<_>>(),
         )
         .len();
 
-        boards_to_check = iterate_white(tablebase, &boards_to_check);
+        boards_to_check = iterate_white(pieces, tablebase, &boards_to_check);
 
         #[cfg(debug_assertions)]
         debug_assert_eq!(all_white_count, boards_to_check.len());
@@ -998,12 +1044,42 @@ mod tests {
         assert!(!black_king_exists(&board));
     }
 
+    fn verify_tablebases_equal<const W: i8, const H: i8>(
+        tb1: &Tablebase<W, H>,
+        tb2: &Tablebase<W, H>,
+        pieces: &[Piece],
+    ) {
+        for b in GenerateAllBoards::<W, H>::new(pieces) {
+            let w1 = tb1.white_result(&b).map(|(_, d)| d);
+            let w2 = tb2.white_result(&b).map(|(_, d)| d);
+            if w1 != w2 {
+                println!("{:?}", &b);
+                println!("w1: {:?}", w1);
+                println!("w2: {:?}", w2);
+                panic!("white_result mismatch");
+            }
+            let b1 = tb1.black_result(&b).map(|(_, d)| d);
+            let b2 = tb2.black_result(&b).map(|(_, d)| d);
+            if b1 != b2 {
+                println!("{:?}", &b);
+                println!("b1: {:?}", b1);
+                println!("b2: {:?}", b2);
+                panic!("black_result mismatch");
+            }
+        }
+    }
+
     fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
         assert_eq!(pieces.len(), 3);
         let mut tablebase = Tablebase::<4, 4>::default();
+        let mut tablebase_no_optimize = Tablebase::<4, 4>::with_skip_optimizations(true);
         let kk = [Piece::new(White, King), Piece::new(Black, King)];
         generate_tablebase(&mut tablebase, &kk);
+        generate_tablebase(&mut tablebase_no_optimize, &kk);
+        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, pieces);
         generate_tablebase(&mut tablebase, pieces);
+        generate_tablebase(&mut tablebase_no_optimize, pieces);
+        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, pieces);
 
         for b in GenerateAllBoards::<4, 4>::new(pieces) {
             let wd = tablebase.white_result(&b);
