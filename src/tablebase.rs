@@ -1291,4 +1291,39 @@ mod tests {
         }
         verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &[wk, wq, bk, bq]);
     }
+
+    #[test]
+    // FIXME
+    #[should_panic]
+    fn test_kqkr() {
+        let wk = Piece::new(White, King);
+        let wq = Piece::new(White, Queen);
+        let bk = Piece::new(Black, King);
+        let br = Piece::new(Black, Rook);
+        let mut tablebase = Tablebase::<4, 4>::default();
+        let mut tablebase_no_optimize = Tablebase::with_skip_optimizations(true);
+        for set in [
+            [wk, bk].as_slice(),
+            &[wk, bk, wq],
+            &[wk, bk, br],
+            &[wk, wq, bk, br],
+        ] {
+            generate_tablebase(&mut tablebase, set);
+            generate_tablebase(&mut tablebase_no_optimize, set);
+        }
+        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &[wk, wq, bk, br]);
+        // ..k.
+        // ....
+        // .K..
+        // r..Q
+        // Don't capture the rook, it's slower to checkmate overall.
+        let res = tablebase.white_result(&TBBoard::with_pieces(&[
+            (Coord::new(0, 0), br),
+            (Coord::new(3, 0), wq),
+            (Coord::new(1, 1), wk),
+            (Coord::new(2, 3), bk),
+        ]));
+        assert_ne!(res.unwrap().0.to, Coord::new(0, 0));
+        assert_eq!(res.unwrap().1, 5);
+    }
 }
