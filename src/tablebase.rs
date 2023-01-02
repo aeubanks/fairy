@@ -379,7 +379,7 @@ fn populate_initial_wins<const W: i8, const H: i8>(
     pieces: &[Piece],
 ) -> Vec<TBBoard<W, H>> {
     let mut ret = Vec::new();
-    for b in GenerateAllBoards::new(pieces) {
+    for b in GenerateAllBoards::with_skip_optimizations(pieces, tablebase.skip_optimizations) {
         // white can capture black's king
         if !tablebase.white_contains_impl(&b) {
             let opponent_king_coord = b.king_coord(Black);
