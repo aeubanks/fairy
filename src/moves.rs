@@ -444,7 +444,7 @@ fn add_moves_for_leaper_to_end_at_board_no_captures<T: Board>(
     }
 }
 
-fn add_moves_for_piece_to_end_at_board_no_captures<T: Board>(
+pub fn add_moves_for_piece_to_end_at_board_no_captures<T: Board>(
     moves: &mut Vec<Coord>,
     board: &T,
     piece: Piece,

@@ -1,6 +1,9 @@
 use crate::board::{Board, Move};
 use crate::coord::Coord;
-use crate::moves::{all_moves, all_moves_to_end_at_board_no_captures, under_attack_from_coord};
+use crate::moves::{
+    add_moves_for_piece_to_end_at_board_no_captures, all_moves,
+    all_moves_to_end_at_board_no_captures, under_attack_from_coord,
+};
 use crate::piece::Piece;
 use crate::piece::Type::*;
 use crate::player::Player::*;
@@ -68,6 +71,8 @@ pub struct Tablebase<const W: i8, const H: i8> {
     white_tablebase: MapTy,
     // table of best move to play on black's turn to prolong a loss
     black_tablebase: MapTy,
+    // winning white positions per piece set
+    white_positions_per_piece_set: FxHashMap<ArrayVec<Piece, 4>, Vec<TBBoard<W, H>>>,
     // whether or not to skip some optimizations, for testing purposes
     // TODO: this costs a little bit of runtime, perhaps make into const generic parameter?
     skip_optimizations: bool,
@@ -545,6 +550,9 @@ fn iterate_white<const W: i8, const H: i8>(
                 iterate_white_once(tablebase, b, &mut next_boards);
             }
         }
+        for e in extras(tablebase, pieces) {
+            iterate_white_once(tablebase, e, &mut next_boards);
+        }
     }
     next_boards
 }
@@ -564,61 +572,72 @@ fn verify_piece_set(pieces: &[Piece]) {
     assert_eq!(bk_count, 1);
 }
 
+fn canonical_piece_set(pieces: &[Piece]) -> ArrayVec<Piece, 4> {
+    let mut ret = pieces.iter().copied().collect::<ArrayVec<Piece, 4>>();
+    ret.sort_by(|a, b| a.val().cmp(&b.val()));
+    ret
+}
+
+fn extras<const W: i8, const H: i8>(
+    tablebase: &mut Tablebase<W, H>,
+    pieces: &[Piece],
+) -> Vec<TBBoard<W, H>> {
+    let mut ret = Vec::new();
+    for (i, &piece_to_remove) in pieces.iter().enumerate() {
+        if piece_to_remove.player() == Black && piece_to_remove.ty() != King {
+            let mut pieces_minus_one = pieces.iter().copied().collect::<ArrayVec<_, 4>>();
+            pieces_minus_one.remove(i);
+            let boards_minus_one = tablebase
+                .white_positions_per_piece_set
+                .get(&pieces_minus_one)
+                .expect("didn't populate dependent piece set tablebase");
+            for b in boards_minus_one {
+                b.foreach_piece(|p, c| {
+                    if p.player() == White {
+                        // TODO: make more ergonomic
+                        let mut moves = Vec::new();
+                        add_moves_for_piece_to_end_at_board_no_captures(&mut moves, b, p, c);
+                        for m in moves {
+                            let mut clone = b.clone();
+                            assert_eq!(clone.get(m), None);
+                            clone.swap(m, c);
+                            clone.add_piece(c, piece_to_remove);
+                            ret.push(clone);
+                        }
+                    }
+                });
+            }
+        }
+    }
+    ret
+}
+
 pub fn generate_tablebase<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
     pieces: &[Piece],
 ) {
     verify_piece_set(pieces);
-    let mut boards_to_check = populate_initial_wins(tablebase, pieces);
+    let pieces = canonical_piece_set(pieces);
+    let mut boards_to_check = populate_initial_wins(tablebase, &pieces);
+    let mut all_added_white_boards = boards_to_check.clone();
     loop {
-        // check that starting from all possible boards gives the same result as starting from all boards returned by previous step
-        #[cfg(debug_assertions)]
-        let all_black_count = iterate_black(
-            pieces,
-            &mut tablebase.clone(),
-            &GenerateAllBoards::new(pieces).collect::<Vec<_>>(),
-        )
-        .len();
-
-        boards_to_check = iterate_black(pieces, tablebase, &boards_to_check);
-
-        #[cfg(debug_assertions)]
-        debug_assert_eq!(all_black_count, boards_to_check.len());
-
+        boards_to_check = iterate_black(&pieces, tablebase, &boards_to_check);
         if boards_to_check.is_empty() {
             break;
         }
 
-        #[cfg(debug_tablebase)]
-        {
-            for a in GenerateAllBoards::new(pieces) {
-                let mut c = boards_to_check.clone();
-                c.push(a.clone());
-                let c1 = iterate_white(pieces, &mut tablebase.clone(), &c).len();
-                let c2 = iterate_white(pieces, &mut tablebase.clone(), &boards_to_check).len();
-                if c1 != c2 {
-                    dbg!(a);
-                }
-            }
+        boards_to_check = iterate_white(&pieces, tablebase, &boards_to_check);
+        all_added_white_boards.reserve(boards_to_check.len());
+        for b in &boards_to_check {
+            all_added_white_boards.push(b.clone());
         }
-
-        #[cfg(debug_assertions)]
-        let all_white_count = iterate_white(
-            pieces,
-            &mut tablebase.clone(),
-            &GenerateAllBoards::new(pieces).collect::<Vec<_>>(),
-        )
-        .len();
-
-        boards_to_check = iterate_white(pieces, tablebase, &boards_to_check);
-
-        #[cfg(debug_assertions)]
-        debug_assert_eq!(all_white_count, boards_to_check.len());
-
         if boards_to_check.is_empty() {
             break;
         }
     }
+    tablebase
+        .white_positions_per_piece_set
+        .insert(pieces, all_added_white_boards);
 }
 
 pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
@@ -1251,5 +1270,25 @@ mod tests {
         test::<5, 5>();
         test::<4, 5>();
         test::<4, 6>();
+    }
+
+    #[test]
+    fn test_kqkq() {
+        let wk = Piece::new(White, King);
+        let wq = Piece::new(White, Queen);
+        let bk = Piece::new(Black, King);
+        let bq = Piece::new(Black, Queen);
+        let mut tablebase = Tablebase::<4, 4>::default();
+        let mut tablebase_no_optimize = Tablebase::<4, 4>::with_skip_optimizations(true);
+        for set in [
+            [wk, bk].as_slice(),
+            &[wk, bk, wq],
+            &[wk, bk, bq],
+            &[wk, wq, bk, bq],
+        ] {
+            generate_tablebase(&mut tablebase, set);
+            generate_tablebase(&mut tablebase_no_optimize, set);
+        }
+        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &[wk, wq, bk, bq]);
     }
 }
