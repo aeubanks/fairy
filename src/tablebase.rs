@@ -11,7 +11,9 @@ use arrayvec::ArrayVec;
 use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
 
-pub type TBBoard<const W: i8, const H: i8> = crate::board::BoardPiece<W, H, 4>;
+const MAX_PIECES: usize = 4;
+
+pub type TBBoard<const W: i8, const H: i8> = crate::board::BoardPiece<W, H, MAX_PIECES>;
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
 struct Symmetry {
@@ -62,7 +64,7 @@ fn unflip_move(mut m: Move, sym: Symmetry, width: i8, height: i8) -> Move {
     m
 }
 
-type KeyTy = ArrayVec<(i8, Piece), 4>;
+type KeyTy = ArrayVec<(i8, Piece), MAX_PIECES>;
 type MapTy = FxHashMap<KeyTy, (Move, u16)>;
 
 #[derive(Default, Clone)]
@@ -72,7 +74,7 @@ pub struct Tablebase<const W: i8, const H: i8> {
     // table of best move to play on black's turn to prolong a loss
     black_tablebase: MapTy,
     // winning white positions per piece set
-    white_positions_per_piece_set: FxHashMap<ArrayVec<Piece, 4>, Vec<TBBoard<W, H>>>,
+    white_positions_per_piece_set: FxHashMap<ArrayVec<Piece, MAX_PIECES>, Vec<TBBoard<W, H>>>,
 }
 
 impl<const W: i8, const H: i8> Tablebase<W, H> {
@@ -283,7 +285,7 @@ fn generate_literally_all_boards<const W: i8, const H: i8>(pieces: &[Piece]) -> 
     // Only support exactly one white and black king.
     let wk = Piece::new(White, King);
     let bk = Piece::new(Black, King);
-    let mut pieces = pieces.iter().copied().collect::<ArrayVec<_, 4>>();
+    let mut pieces = pieces.iter().copied().collect::<ArrayVec<_, MAX_PIECES>>();
     assert!(pieces.iter().filter(|&&p| p == wk).count() == 1);
     assert!(pieces.iter().filter(|&&p| p == bk).count() == 1);
     {
@@ -294,7 +296,7 @@ fn generate_literally_all_boards<const W: i8, const H: i8>(pieces: &[Piece]) -> 
     }
     // all combinations of yes/no to adding piece on board (except kings)
     for enabled in 0..(1 << pieces.len()) {
-        let mut iter_pieces = ArrayVec::<_, 4>::new();
+        let mut iter_pieces = ArrayVec::<_, MAX_PIECES>::new();
         for (i, piece) in pieces.iter().copied().enumerate() {
             if enabled & (1 << i) != 0 {
                 iter_pieces.push(piece);
@@ -308,8 +310,8 @@ fn generate_literally_all_boards<const W: i8, const H: i8>(pieces: &[Piece]) -> 
 }
 
 pub struct GenerateAllBoards<const W: i8, const H: i8> {
-    pieces: ArrayVec<Piece, 6>,
-    stack: ArrayVec<Coord, 6>,
+    pieces: ArrayVec<Piece, MAX_PIECES>,
+    stack: ArrayVec<Coord, MAX_PIECES>,
     board: TBBoard<W, H>,
     has_pawn: bool,
 }
@@ -356,7 +358,7 @@ impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
         let has_pawn = pieces.iter().any(|p| p.ty() == Pawn);
         // Only support at most one black king if symmetry optimizations are on.
         assert!(pieces.iter().filter(|&&p| p == bk).count() <= 1);
-        let mut pieces = pieces.iter().copied().collect::<ArrayVec<_, 6>>();
+        let mut pieces = pieces.iter().copied().collect::<ArrayVec<_, MAX_PIECES>>();
         // Since we deduplicate symmetric positions via the black king, make sure it's placed first.
         if let Some(idx) = pieces.iter().position(|&p| p == bk) {
             pieces.swap(idx, 0);
@@ -618,8 +620,11 @@ fn verify_piece_set(pieces: &[Piece]) {
     assert_eq!(bk_count, 1);
 }
 
-fn canonical_piece_set(pieces: &[Piece]) -> ArrayVec<Piece, 4> {
-    let mut ret = pieces.iter().copied().collect::<ArrayVec<Piece, 4>>();
+fn canonical_piece_set(pieces: &[Piece]) -> ArrayVec<Piece, MAX_PIECES> {
+    let mut ret = pieces
+        .iter()
+        .copied()
+        .collect::<ArrayVec<Piece, MAX_PIECES>>();
     ret.sort_unstable_by_key(|a| a.val());
     ret
 }
@@ -631,7 +636,7 @@ fn extras<const W: i8, const H: i8>(
     let mut ret = Vec::new();
     for (i, &piece_to_remove) in pieces.iter().enumerate() {
         if piece_to_remove.player() == Black && piece_to_remove.ty() != King {
-            let mut pieces_minus_one = pieces.iter().copied().collect::<ArrayVec<_, 4>>();
+            let mut pieces_minus_one = pieces.iter().copied().collect::<ArrayVec<_, MAX_PIECES>>();
             pieces_minus_one.remove(i);
             let boards_minus_one = tablebase
                 .white_positions_per_piece_set
