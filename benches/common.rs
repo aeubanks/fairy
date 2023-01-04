@@ -45,7 +45,7 @@ impl Measurement for Perf {
     type Intermediate = Counter;
     type Value = u64;
     fn start(&self) -> Self::Intermediate {
-        let mut c = Builder::new().build().unwrap();
+        let mut c = Builder::new().inherit(true).build().unwrap();
         c.enable().unwrap();
         c
     }
