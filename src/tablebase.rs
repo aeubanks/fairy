@@ -168,9 +168,11 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
             .get(&canonical_board(board).0)
             .map(|e| e.1)
     }
-    fn merge(&mut self, other: &Self) {
+    fn merge(&mut self, other: Self) {
+        self.white_tablebase.reserve(other.white_tablebase.len());
         self.white_tablebase
             .extend(other.white_tablebase.iter().map(|(k, v)| (k.clone(), *v)));
+        self.black_tablebase.reserve(other.black_tablebase.len());
         self.black_tablebase
             .extend(other.black_tablebase.iter().map(|(k, v)| (k.clone(), *v)));
     }
@@ -399,6 +401,8 @@ fn generate_all_boards<const W: i8, const H: i8>(pieces: &PieceSet) -> Vec<TBBoa
     ret
 }
 
+const MIN_SPLIT_COUNT: usize = 10000;
+
 #[derive(Default, Clone)]
 struct PieceSets {
     maybe_reverse_capture: Vec<PieceSet>,
@@ -418,7 +422,7 @@ struct PieceSetsSplitIter<'a> {
 impl<'a> Iterator for PieceSetsSplitIter<'a> {
     type Item = PieceSets;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining == 0 {
+        if self.remaining == 0 || (self.no_slice.is_empty() && self.maybe_slice.is_empty()) {
             return None;
         }
         self.remaining -= 1;
@@ -430,10 +434,13 @@ impl<'a> Iterator for PieceSetsSplitIter<'a> {
             });
         }
         let this_maybe_slice;
-        (this_maybe_slice, self.maybe_slice) =
-            self.maybe_slice.split_at(self.maybe_per_slice_count);
+        (this_maybe_slice, self.maybe_slice) = self
+            .maybe_slice
+            .split_at(self.maybe_per_slice_count.min(self.maybe_slice.len()));
         let this_no_slice;
-        (this_no_slice, self.no_slice) = self.no_slice.split_at(self.no_per_slice_count);
+        (this_no_slice, self.no_slice) = self
+            .no_slice
+            .split_at(self.no_per_slice_count.min(self.no_slice.len()));
         Some(PieceSets {
             maybe_reverse_capture: this_maybe_slice.to_vec(),
             no_reverse_capture: this_no_slice.to_vec(),
@@ -448,9 +455,9 @@ impl PieceSets {
         PieceSetsSplitIter {
             remaining: count,
             no_slice: self.no_reverse_capture.as_slice(),
-            no_per_slice_count: self.no_reverse_capture.len() / count,
+            no_per_slice_count: MIN_SPLIT_COUNT.max(self.no_reverse_capture.len() / count),
             maybe_slice: self.maybe_reverse_capture.as_slice(),
-            maybe_per_slice_count: self.maybe_reverse_capture.len() / count,
+            maybe_per_slice_count: MIN_SPLIT_COUNT.max(self.maybe_reverse_capture.len() / count),
         }
     }
 }
@@ -472,7 +479,7 @@ struct BoardsToVisitSplitIter<'a, const W: i8, const H: i8> {
 impl<'a, const W: i8, const H: i8> Iterator for BoardsToVisitSplitIter<'a, W, H> {
     type Item = BoardsToVisit<W, H>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining == 0 {
+        if self.remaining == 0 || (self.no_slice.is_empty() && self.maybe_slice.is_empty()) {
             return None;
         }
         self.remaining -= 1;
@@ -483,10 +490,13 @@ impl<'a, const W: i8, const H: i8> Iterator for BoardsToVisitSplitIter<'a, W, H>
             });
         }
         let this_maybe_slice;
-        (this_maybe_slice, self.maybe_slice) =
-            self.maybe_slice.split_at(self.maybe_per_slice_count);
+        (this_maybe_slice, self.maybe_slice) = self
+            .maybe_slice
+            .split_at(self.maybe_per_slice_count.min(self.maybe_slice.len()));
         let this_no_slice;
-        (this_no_slice, self.no_slice) = self.no_slice.split_at(self.no_per_slice_count);
+        (this_no_slice, self.no_slice) = self
+            .no_slice
+            .split_at(self.no_per_slice_count.min(self.no_slice.len()));
         Some(BoardsToVisit {
             maybe_reverse_capture: this_maybe_slice.to_vec(),
             no_reverse_capture: this_no_slice.to_vec(),
@@ -500,9 +510,9 @@ impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
         BoardsToVisitSplitIter {
             remaining: count,
             no_slice: self.no_reverse_capture.as_slice(),
-            no_per_slice_count: self.no_reverse_capture.len() / count,
+            no_per_slice_count: MIN_SPLIT_COUNT.max(self.no_reverse_capture.len() / count),
             maybe_slice: self.maybe_reverse_capture.as_slice(),
-            maybe_per_slice_count: self.maybe_reverse_capture.len() / count,
+            maybe_per_slice_count: MIN_SPLIT_COUNT.max(self.maybe_reverse_capture.len() / count),
         }
     }
 
@@ -512,7 +522,11 @@ impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
 
     fn merge(&mut self, other: Self) {
         self.maybe_reverse_capture
+            .reserve(other.maybe_reverse_capture.len());
+        self.maybe_reverse_capture
             .extend(other.maybe_reverse_capture);
+        self.no_reverse_capture
+            .reserve(other.no_reverse_capture.len());
         self.no_reverse_capture.extend(other.no_reverse_capture);
     }
 }
@@ -912,7 +926,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
         let mut boards_to_check = BoardsToVisit::<W, H>::default();
         for (boards, tablebase_clone) in rx {
             boards_to_check.merge(boards);
-            tablebase.merge(&tablebase_clone);
+            tablebase.merge(tablebase_clone);
         }
         boards_to_check
     };
@@ -936,7 +950,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
             let mut boards_to_check = BoardsToVisit::<W, H>::default();
             for (boards, tablebase_clone) in rx {
                 boards_to_check.merge(boards);
-                tablebase.merge(&tablebase_clone);
+                tablebase.merge(tablebase_clone);
             }
             boards_to_check
         };
@@ -962,7 +976,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
             let mut boards_to_check = BoardsToVisit::<W, H>::default();
             for (boards, tablebase_clone) in rx {
                 boards_to_check.merge(boards);
-                tablebase.merge(&tablebase_clone);
+                tablebase.merge(tablebase_clone);
             }
             boards_to_check
         };
@@ -986,9 +1000,20 @@ mod tests {
         let mut set = PieceSets::default();
         {
             let mut iter = set.split(1);
+            assert!(iter.next().is_none());
+        }
+        {
+            let mut iter = set.split(2);
+            assert!(iter.next().is_none());
+        }
+
+        set.maybe_reverse_capture
+            .resize(MIN_SPLIT_COUNT, PieceSet::default());
+        {
+            let mut iter = set.split(1);
             {
                 let v = iter.next().unwrap();
-                assert!(v.maybe_reverse_capture.is_empty());
+                assert_eq!(v.maybe_reverse_capture.len(), MIN_SPLIT_COUNT);
                 assert!(v.no_reverse_capture.is_empty());
             }
             assert!(iter.next().is_none());
@@ -997,23 +1022,20 @@ mod tests {
             let mut iter = set.split(2);
             {
                 let v = iter.next().unwrap();
-                assert!(v.maybe_reverse_capture.is_empty());
-                assert!(v.no_reverse_capture.is_empty());
-            }
-            {
-                let v = iter.next().unwrap();
-                assert!(v.maybe_reverse_capture.is_empty());
+                assert_eq!(v.maybe_reverse_capture.len(), MIN_SPLIT_COUNT);
                 assert!(v.no_reverse_capture.is_empty());
             }
             assert!(iter.next().is_none());
         }
-        set.maybe_reverse_capture.push(PieceSet::default());
+
+        set.no_reverse_capture
+            .resize(MIN_SPLIT_COUNT + 2, PieceSet::default());
         {
             let mut iter = set.split(1);
             {
                 let v = iter.next().unwrap();
-                assert_eq!(v.maybe_reverse_capture.len(), 1);
-                assert!(v.no_reverse_capture.is_empty());
+                assert_eq!(v.maybe_reverse_capture.len(), MIN_SPLIT_COUNT);
+                assert_eq!(v.no_reverse_capture.len(), MIN_SPLIT_COUNT + 2);
             }
             assert!(iter.next().is_none());
         }
@@ -1021,38 +1043,13 @@ mod tests {
             let mut iter = set.split(2);
             {
                 let v = iter.next().unwrap();
-                assert!(v.maybe_reverse_capture.is_empty());
-                assert!(v.no_reverse_capture.is_empty());
+                assert_eq!(v.maybe_reverse_capture.len(), MIN_SPLIT_COUNT);
+                assert_eq!(v.no_reverse_capture.len(), MIN_SPLIT_COUNT);
             }
             {
                 let v = iter.next().unwrap();
-                assert_eq!(v.maybe_reverse_capture.len(), 1);
-                assert!(v.no_reverse_capture.is_empty());
-            }
-            assert!(iter.next().is_none());
-        }
-        set.no_reverse_capture.push(PieceSet::default());
-        set.no_reverse_capture.push(PieceSet::default());
-        {
-            let mut iter = set.split(1);
-            {
-                let v = iter.next().unwrap();
-                assert_eq!(v.maybe_reverse_capture.len(), 1);
+                assert_eq!(v.maybe_reverse_capture.len(), 0);
                 assert_eq!(v.no_reverse_capture.len(), 2);
-            }
-            assert!(iter.next().is_none());
-        }
-        {
-            let mut iter = set.split(2);
-            {
-                let v = iter.next().unwrap();
-                assert!(v.maybe_reverse_capture.is_empty());
-                assert_eq!(v.no_reverse_capture.len(), 1);
-            }
-            {
-                let v = iter.next().unwrap();
-                assert_eq!(v.maybe_reverse_capture.len(), 1);
-                assert_eq!(v.no_reverse_capture.len(), 1);
             }
             assert!(iter.next().is_none());
         }
