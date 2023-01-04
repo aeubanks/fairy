@@ -45,5 +45,15 @@ fn main() {
             4
         )
     );
-    tablebase::<6, 6>(true, true);
+
+    use std::env::args;
+    let parallel = args()
+        .nth(1)
+        .map(|s| s.parse::<bool>().unwrap())
+        .unwrap_or(false);
+    let only_three = args()
+        .nth(2)
+        .map(|s| s.parse::<bool>().unwrap())
+        .unwrap_or(true);
+    tablebase::<6, 6>(parallel, only_three);
 }
