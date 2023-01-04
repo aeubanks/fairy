@@ -714,7 +714,7 @@ fn iterate_white<const W: i8, const H: i8>(
         }
     }
     fn board_pieces<const W: i8, const H: i8>(b: &TBBoard<W, H>) -> PieceSet {
-        let mut set = ArrayVec::<Piece, 4>::default();
+        let mut set = ArrayVec::<Piece, MAX_PIECES>::default();
         b.foreach_piece(|p, _| set.push(p));
         PieceSet::new(&set)
     }
