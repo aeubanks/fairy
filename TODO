@@ -4,3 +4,4 @@ add tests for derive crates (https://ferrous-systems.com/blog/testing-proc-macro
 tablebase
   support pawn
   add description of how optimizations work
+  find case where black needs maybe capture
