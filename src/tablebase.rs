@@ -1021,6 +1021,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
 mod tests {
     use super::*;
     use crate::moves::is_under_attack;
+    use crate::piece::Type;
     use crate::player::next_player;
 
     #[test]
@@ -1472,6 +1473,20 @@ mod tests {
         }
     }
 
+    fn test_tablebase<const W: i8, const H: i8>(sets: &[PieceSet]) -> Tablebase<W, H> {
+        let tablebase1 = generate_tablebase(sets);
+        let tablebase2 = generate_tablebase_no_opt(sets);
+        verify_tablebases_equal(&tablebase1, &tablebase2, sets);
+        tablebase1
+    }
+
+    fn test_tablebase_parallel<const W: i8, const H: i8>(sets: &[PieceSet]) -> Tablebase<W, H> {
+        let tablebase1 = generate_tablebase(sets);
+        let tablebase2 = generate_tablebase_parallel(sets, Some(2));
+        verify_tablebases_equal(&tablebase1, &tablebase2, sets);
+        tablebase1
+    }
+
     #[test]
     fn test_generate_tablebase_parallel() {
         let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
@@ -1486,10 +1501,7 @@ mod tests {
             Piece::new(Black, Amazon),
         ]);
         let sets = [kk, kak, kka];
-        let tablebase1 = generate_tablebase::<4, 4>(&sets);
-        let tablebase2 = generate_tablebase_parallel(&sets, Some(2));
-
-        verify_tablebases_equal(&tablebase1, &tablebase2, &sets);
+        test_tablebase_parallel::<4, 4>(&sets);
     }
 
     fn verify_board_tablebase<const W: i8, const H: i8>(
@@ -1503,22 +1515,23 @@ mod tests {
         }
 
         let mut board = board.clone();
-        let (_, mut expected_depth) = tablebase.white_result(&board).unwrap();
-        let mut player = White;
+        if let Some((_, mut expected_depth)) = tablebase.white_result(&board) {
+            let mut player = White;
 
-        while expected_depth > 0 {
-            assert!(black_king_exists(&board));
-            let (m, depth) = match player {
-                White => tablebase.white_result(&board),
-                Black => tablebase.black_result(&board),
+            while expected_depth > 0 {
+                assert!(black_king_exists(&board));
+                let (m, depth) = match player {
+                    White => tablebase.white_result(&board),
+                    Black => tablebase.black_result(&board),
+                }
+                .unwrap();
+                assert_eq!(depth, expected_depth);
+                board.make_move(m, player);
+                expected_depth -= 1;
+                player = next_player(player);
             }
-            .unwrap();
-            assert_eq!(depth, expected_depth);
-            board.make_move(m, player);
-            expected_depth -= 1;
-            player = next_player(player);
+            assert!(!black_king_exists(&board));
         }
-        assert!(!black_king_exists(&board));
     }
 
     fn verify_tablebases_equal<const W: i8, const H: i8>(
@@ -1544,77 +1557,53 @@ mod tests {
                     println!("b2: {:?}", b2);
                     panic!("black_result mismatch");
                 }
+                verify_board_tablebase(&b, tb1);
             }
         }
     }
 
-    fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
-        assert_eq!(pieces.len(), 3);
-        let pieces = PieceSet::new(pieces);
+    fn verify_all_three_piece_positions_forced_win(ty: Type) {
+        let set = PieceSet::new(&[
+            Piece::new(White, King),
+            Piece::new(Black, King),
+            Piece::new(White, ty),
+        ]);
         let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
-        let sets = [kk.clone(), pieces.clone()];
-        let tablebase = generate_tablebase(&sets);
-        let tablebase_no_optimize = generate_tablebase_no_opt(&sets);
+        let sets = [kk, set.clone()];
 
-        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &sets);
+        let tablebase = test_tablebase(&sets);
 
-        for b in generate_all_boards::<4, 4>(&pieces) {
+        for b in generate_all_boards::<4, 4>(&set) {
             let wd = tablebase.white_result(&b);
             let bd = tablebase.black_result(&b);
             assert!(wd.unwrap().1 % 2 == 1);
             assert!(bd.is_none() || bd.unwrap().1 % 2 == 0);
-            verify_board_tablebase(&b, &tablebase);
         }
     }
 
     #[test]
     fn test_kqk() {
-        let pieces = [
-            Piece::new(White, King),
-            Piece::new(White, Queen),
-            Piece::new(Black, King),
-        ];
-        verify_all_three_piece_positions_forced_win(&pieces);
+        verify_all_three_piece_positions_forced_win(Queen);
     }
 
     #[test]
     fn test_krk() {
-        let pieces = [
-            Piece::new(White, King),
-            Piece::new(White, Rook),
-            Piece::new(Black, King),
-        ];
-        verify_all_three_piece_positions_forced_win(&pieces);
+        verify_all_three_piece_positions_forced_win(Rook);
     }
 
     #[test]
     fn test_kek() {
-        let pieces = [
-            Piece::new(White, King),
-            Piece::new(White, Empress),
-            Piece::new(Black, King),
-        ];
-        verify_all_three_piece_positions_forced_win(&pieces);
+        verify_all_three_piece_positions_forced_win(Empress);
     }
 
     #[test]
     fn test_kck() {
-        let pieces = [
-            Piece::new(White, King),
-            Piece::new(White, Cardinal),
-            Piece::new(Black, King),
-        ];
-        verify_all_three_piece_positions_forced_win(&pieces);
+        verify_all_three_piece_positions_forced_win(Cardinal);
     }
 
     #[test]
     fn test_kak() {
-        let pieces = [
-            Piece::new(White, King),
-            Piece::new(White, Cardinal),
-            Piece::new(Black, King),
-        ];
-        verify_all_three_piece_positions_forced_win(&pieces);
+        verify_all_three_piece_positions_forced_win(Amazon);
     }
 
     #[test]
@@ -1622,7 +1611,7 @@ mod tests {
         let wk = Piece::new(White, King);
         let bk = Piece::new(Black, King);
         let kk = PieceSet::new(&[wk, bk]);
-        let tablebase = generate_tablebase(&[kk]);
+        let tablebase = test_tablebase(&[kk]);
 
         assert_eq!(
             tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
@@ -1695,7 +1684,7 @@ mod tests {
     fn test_kk() {
         fn test<const W: i8, const H: i8>() {
             let pieces = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
-            let tablebase = generate_tablebase::<4, 4>(&[pieces.clone()]);
+            let tablebase = test_tablebase::<W, H>(&[pieces.clone()]);
             // If white king couldn't capture on first move, no forced win.
             for b in generate_all_boards(&pieces) {
                 if is_under_attack(&b, b.king_coord(Black), Black) {
@@ -1722,15 +1711,25 @@ mod tests {
         let kqk = PieceSet::new(&[wk, bk, wq]);
         let kkq = PieceSet::new(&[wk, bk, bq]);
         let kqkq = PieceSet::new(&[wk, bk, wq, bq]);
+        let sets = [kk, kqk, kkq, kqkq];
+        test_tablebase::<4, 4>(&sets);
+    }
+
+    #[test]
+    fn test_kqkq_piece_order() {
+        let wk = Piece::new(White, King);
+        let wq = Piece::new(White, Queen);
+        let bk = Piece::new(Black, King);
+        let bq = Piece::new(Black, Queen);
+        let kk = PieceSet::new(&[wk, bk]);
+        let kqk = PieceSet::new(&[wk, bk, wq]);
+        let kkq = PieceSet::new(&[wk, bk, bq]);
+        let kqkq = PieceSet::new(&[wk, bk, wq, bq]);
         let sets = [kk.clone(), kqk.clone(), kkq.clone(), kqkq.clone()];
         let sets2 = [kqkq, kkq, kqk, kk];
-
-        let tablebase = generate_tablebase::<4, 4>(&sets);
-        let tablebase2 = generate_tablebase(&sets2);
-        let tablebase_no_optimize = generate_tablebase_no_opt(&sets);
-
-        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &sets);
-        verify_tablebases_equal(&tablebase, &tablebase2, &sets2);
+        let tb1 = generate_tablebase::<4, 4>(&sets);
+        let tb2 = generate_tablebase(&sets2);
+        verify_tablebases_equal(&tb1, &tb2, &sets2);
     }
 
     #[test]
@@ -1745,9 +1744,7 @@ mod tests {
         let kqkr = PieceSet::new(&[wk, bk, wq, br]);
         let sets = [kk, kqk, kkr, kqkr];
 
-        let tablebase = generate_tablebase::<4, 4>(&sets);
-        let tablebase_no_optimize = generate_tablebase_no_opt(&sets);
-        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &sets);
+        let tablebase = test_tablebase::<4, 4>(&sets);
 
         // ..k.
         // ....
@@ -1775,9 +1772,6 @@ mod tests {
         let kkr = PieceSet::new(&[wk, bk, br]);
         let kqkr = PieceSet::new(&[wk, bk, wq, br]);
         let sets = [kk, kqk, kkr, kqkr];
-
-        let tablebase = generate_tablebase::<4, 4>(&sets);
-        let tablebase_parallel = generate_tablebase_parallel(&sets, Some(2));
-        verify_tablebases_equal(&tablebase, &tablebase_parallel, &sets);
+        test_tablebase_parallel::<4, 4>(&sets);
     }
 }
