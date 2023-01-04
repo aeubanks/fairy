@@ -8,6 +8,7 @@ use crate::piece::Piece;
 use crate::piece::Type::*;
 use crate::player::Player::*;
 use arrayvec::ArrayVec;
+use log::info;
 use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -15,7 +16,7 @@ use std::ops::{Deref, DerefMut};
 
 const MAX_PIECES: usize = 4;
 
-#[derive(Default, PartialEq, Eq, Hash, Clone)]
+#[derive(Default, PartialEq, Eq, Hash, Clone, Debug)]
 pub struct PieceSet(ArrayVec<Piece, MAX_PIECES>);
 
 impl PieceSet {
@@ -836,24 +837,43 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
     ret
 }
 
+fn info_tablebase<const W: i8, const H: i8>(tablebase: &Tablebase<W, H>) {
+    info!(
+        "tablebase white size {}, black size {}",
+        tablebase.white_tablebase.len(),
+        tablebase.black_tablebase.len()
+    );
+}
+
 pub fn generate_tablebase<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
     piece_sets: &[PieceSet],
 ) {
+    info!("generating tablebases for {:?}", piece_sets);
     verify_piece_sets(piece_sets);
     let piece_sets = calculate_piece_sets(piece_sets);
+    info!("populating initial wins");
     let mut boards_to_check = populate_initial_wins(tablebase, &piece_sets);
+    info_tablebase(&tablebase);
+    let mut i = 0;
     loop {
+        info!("iteration {}", i);
+        info!("iterate_black");
         boards_to_check = iterate_black(tablebase, boards_to_check);
+        info_tablebase(&tablebase);
         if boards_to_check.is_empty() {
             break;
         }
 
+        info!("iterate_white");
         boards_to_check = iterate_white(tablebase, boards_to_check, &piece_sets);
+        info_tablebase(&tablebase);
         if boards_to_check.is_empty() {
             break;
         }
+        i += 1;
     }
+    info!("done");
 }
 
 pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
@@ -861,6 +881,8 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     piece_sets: &[PieceSet],
     parallelism: Option<usize>,
 ) {
+    info!("generating tablebases (in parallel) for {:?}", piece_sets);
+
     use std::sync::mpsc::channel;
 
     let pool = {
@@ -875,6 +897,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     verify_piece_sets(piece_sets);
     let piece_sets = calculate_piece_sets(piece_sets);
 
+    info!("populating initial wins");
     let mut boards_to_check = {
         let (tx, rx) = channel();
         for set_clone in piece_sets.split(pool_count) {
@@ -893,8 +916,12 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
         }
         boards_to_check
     };
+    info_tablebase(&tablebase);
 
+    let mut i = 0;
     loop {
+        info!("iteration {}", i);
+        info!("iterate_black");
         boards_to_check = {
             let (tx, rx) = channel();
             for boards_clone in boards_to_check.split(pool_count) {
@@ -913,10 +940,12 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
             }
             boards_to_check
         };
+        info_tablebase(&tablebase);
         if boards_to_check.is_empty() {
             break;
         }
 
+        info!("iterate_white");
         boards_to_check = {
             let (tx, rx) = channel();
             for boards_clone in boards_to_check.split(pool_count) {
@@ -937,10 +966,13 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
             }
             boards_to_check
         };
+        info_tablebase(&tablebase);
         if boards_to_check.is_empty() {
             break;
         }
+        i += 1;
     }
+    info!("done");
 }
 
 #[cfg(test)]

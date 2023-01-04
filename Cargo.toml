@@ -27,6 +27,8 @@ rand = "0.8"
 static_assertions = "1.1"
 rustc-hash = "1.1"
 threadpool = "1.8"
+log = "0.4"
+env_logger = "0.10"
 
 [dev-dependencies]
 criterion = { version = "0.4", default-features = false }
