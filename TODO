@@ -2,7 +2,5 @@ promotion to pieces other than queen
 AI
 add tests for derive crates (https://ferrous-systems.com/blog/testing-proc-macros/)
 tablebase
-  investigate reference counting pawns/pieces
   support pawn
-  dedupe reachable positions?
   add description of how optimizations work
