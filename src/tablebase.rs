@@ -13,6 +13,7 @@ use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 
 const MAX_PIECES: usize = 4;
 
@@ -595,10 +596,11 @@ fn populate_initial_wins<const W: i8, const H: i8>(
 }
 
 fn iterate_black_once<const W: i8, const H: i8>(
-    tablebase: &mut Tablebase<W, H>,
+    tablebase: &Tablebase<W, H>,
+    out_tablebase: &mut Tablebase<W, H>,
     board: &TBBoard<W, H>,
 ) -> bool {
-    if tablebase.black_contains_impl(board) {
+    if tablebase.black_contains_impl(board) || out_tablebase.black_contains_impl(board) {
         return false;
     }
     // None means no forced loss
@@ -636,22 +638,23 @@ fn iterate_black_once<const W: i8, const H: i8>(
         }
     }
     if let Some(max_depth) = max_depth {
-        tablebase.black_add_impl(board, best_move.unwrap(), max_depth + 1);
+        out_tablebase.black_add_impl(board, best_move.unwrap(), max_depth + 1);
         return true;
     }
     false
 }
 
 fn iterate_black<const W: i8, const H: i8>(
-    tablebase: &mut Tablebase<W, H>,
+    tablebase: &Tablebase<W, H>,
     previous_boards: BoardsToVisit<W, H>,
-) -> BoardsToVisit<W, H> {
+) -> (Tablebase<W, H>, BoardsToVisit<W, H>) {
     let mut next_boards = BoardsToVisit::default();
+    let mut out_tablebase = Tablebase::default();
     for prev in previous_boards.no_reverse_capture {
         for m in all_moves_to_end_at_board_no_captures(&prev, Black) {
             let mut b = prev.clone();
             b.swap(m.from, m.to);
-            if iterate_black_once(tablebase, &b) {
+            if iterate_black_once(tablebase, &mut out_tablebase, &b) {
                 next_boards.no_reverse_capture.push(b);
             }
         }
@@ -660,19 +663,20 @@ fn iterate_black<const W: i8, const H: i8>(
         for m in all_moves_to_end_at_board_no_captures(&prev, Black) {
             let mut b = prev.clone();
             b.swap(m.from, m.to);
-            if iterate_black_once(tablebase, &b) {
+            if iterate_black_once(tablebase, &mut out_tablebase, &b) {
                 next_boards.maybe_reverse_capture.push(b);
             }
         }
     }
-    next_boards
+    (out_tablebase, next_boards)
 }
 
 fn iterate_white_once<const W: i8, const H: i8>(
-    tablebase: &mut Tablebase<W, H>,
+    tablebase: &Tablebase<W, H>,
+    out_tablebase: &mut Tablebase<W, H>,
     board: &TBBoard<W, H>,
 ) -> bool {
-    if tablebase.white_contains_impl(board) {
+    if tablebase.white_contains_impl(board) || out_tablebase.white_contains_impl(board) {
         return false;
     }
     // None means no forced win
@@ -707,23 +711,24 @@ fn iterate_white_once<const W: i8, const H: i8>(
         }
     }
     if let Some(min_depth) = min_depth {
-        tablebase.white_add_impl(board, best_move.unwrap(), min_depth + 1);
+        out_tablebase.white_add_impl(board, best_move.unwrap(), min_depth + 1);
         return true;
     }
     false
 }
 
 fn iterate_white<const W: i8, const H: i8>(
-    tablebase: &mut Tablebase<W, H>,
+    tablebase: &Tablebase<W, H>,
     previous_boards: BoardsToVisit<W, H>,
     piece_sets: &PieceSets,
-) -> BoardsToVisit<W, H> {
+) -> (Tablebase<W, H>, BoardsToVisit<W, H>) {
     let mut next_boards = BoardsToVisit::default();
+    let mut out_tablebase = Tablebase::default();
     for prev in previous_boards.no_reverse_capture {
         for m in all_moves_to_end_at_board_no_captures(&prev, White) {
             let mut b = prev.clone();
             b.swap(m.from, m.to);
-            if iterate_white_once(tablebase, &b) {
+            if iterate_white_once(tablebase, &mut out_tablebase, &b) {
                 next_boards.no_reverse_capture.push(b);
             }
         }
@@ -737,7 +742,7 @@ fn iterate_white<const W: i8, const H: i8>(
         for m in all_moves_to_end_at_board_no_captures(&prev, White) {
             let mut b = prev.clone();
             b.swap(m.from, m.to);
-            if iterate_white_once(tablebase, &b) {
+            if iterate_white_once(tablebase, &mut out_tablebase, &b) {
                 next_boards.maybe_reverse_capture.push(b);
             }
         }
@@ -753,7 +758,7 @@ fn iterate_white<const W: i8, const H: i8>(
                         assert_eq!(clone.get(m), None);
                         clone.swap(m, c);
                         clone.add_piece(c, *black_piece);
-                        if iterate_white_once(tablebase, &clone) {
+                        if iterate_white_once(tablebase, &mut out_tablebase, &clone) {
                             // TODO: optimize this
                             if piece_sets
                                 .maybe_reverse_capture
@@ -770,7 +775,7 @@ fn iterate_white<const W: i8, const H: i8>(
         }
     }
 
-    next_boards
+    (out_tablebase, next_boards)
 }
 
 fn verify_piece_sets(piece_sets: &[PieceSet]) {
@@ -800,20 +805,24 @@ fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) 
     }
     loop {
         let mut changed = false;
+        let mut black_out = Tablebase::default();
         for b in &all {
-            changed |= iterate_black_once(&mut tablebase, b);
+            changed |= iterate_black_once(&tablebase, &mut black_out, b);
         }
         if !changed {
             break;
         }
+        tablebase.merge(black_out);
 
         changed = false;
+        let mut white_out = Tablebase::default();
         for b in &all {
-            changed |= iterate_white_once(&mut tablebase, b);
+            changed |= iterate_white_once(&tablebase, &mut white_out, b);
         }
         if !changed {
             break;
         }
+        tablebase.merge(white_out);
     }
     tablebase
 }
@@ -869,14 +878,18 @@ pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> 
     loop {
         info!("iteration {}", i);
         info!("iterate_black");
-        boards_to_check = iterate_black(&mut tablebase, boards_to_check);
+        let black_out;
+        (black_out, boards_to_check) = iterate_black(&tablebase, boards_to_check);
         info_tablebase(&tablebase);
         if boards_to_check.is_empty() {
             break;
         }
+        tablebase.merge(black_out);
 
         info!("iterate_white");
-        boards_to_check = iterate_white(&mut tablebase, boards_to_check, &piece_sets);
+        let white_out;
+        (white_out, boards_to_check) = iterate_white(&tablebase, boards_to_check, &piece_sets);
+        tablebase.merge(white_out);
         info_tablebase(&tablebase);
         if boards_to_check.is_empty() {
             break;
@@ -912,7 +925,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     let mut boards_to_check = {
         let (tx, rx) = channel();
         for set_clone in piece_sets.split(pool_count) {
-            let mut tablebase_clone = tablebase.clone();
+            let mut tablebase_clone = Tablebase::default();
             let tx = tx.clone();
             pool.execute(move || {
                 let boards = populate_initial_wins(&mut tablebase_clone, &set_clone);
@@ -934,20 +947,29 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
         info!("iteration {}", i);
         info!("iterate_black");
         boards_to_check = {
+            let tablebase_arc = Arc::new(tablebase);
             let (tx, rx) = channel();
             for boards_clone in boards_to_check.split(pool_count) {
-                let mut tablebase_clone = tablebase.clone();
+                let tablebase_clone = tablebase_arc.clone();
                 let tx = tx.clone();
                 pool.execute(move || {
-                    let boards = iterate_black(&mut tablebase_clone, boards_clone);
-                    tx.send((boards, tablebase_clone)).unwrap();
+                    let ret = iterate_black(&tablebase_clone, boards_clone);
+                    tx.send(ret).unwrap();
                 });
             }
             drop(tx);
             let mut boards_to_check = BoardsToVisit::<W, H>::default();
-            for (boards, tablebase_clone) in rx {
+            let mut tablebases_to_merge = Vec::new();
+            for (tablebase_to_merge, boards) in rx {
                 boards_to_check.merge(boards);
-                tablebase.merge(tablebase_clone);
+                tablebases_to_merge.push(tablebase_to_merge);
+            }
+            tablebase = match Arc::try_unwrap(tablebase_arc) {
+                Ok(t) => t,
+                Err(_) => panic!("threads didn't finish using tablebase?"),
+            };
+            for to_merge in tablebases_to_merge {
+                tablebase.merge(to_merge);
             }
             boards_to_check
         };
@@ -958,22 +980,30 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
 
         info!("iterate_white");
         boards_to_check = {
+            let tablebase_arc = Arc::new(tablebase);
             let (tx, rx) = channel();
             for boards_clone in boards_to_check.split(pool_count) {
-                let mut tablebase_clone = tablebase.clone();
+                let tablebase_clone = tablebase_arc.clone();
                 let piece_sets_clone = piece_sets.clone();
                 let tx = tx.clone();
                 pool.execute(move || {
-                    let boards =
-                        iterate_white(&mut tablebase_clone, boards_clone, &piece_sets_clone);
-                    tx.send((boards, tablebase_clone)).unwrap();
+                    let ret = iterate_white(&tablebase_clone, boards_clone, &piece_sets_clone);
+                    tx.send(ret).unwrap();
                 });
             }
             drop(tx);
             let mut boards_to_check = BoardsToVisit::<W, H>::default();
-            for (boards, tablebase_clone) in rx {
+            let mut tablebases_to_merge = Vec::new();
+            for (tablebase_to_merge, boards) in rx {
                 boards_to_check.merge(boards);
-                tablebase.merge(tablebase_clone);
+                tablebases_to_merge.push(tablebase_to_merge);
+            }
+            tablebase = match Arc::try_unwrap(tablebase_arc) {
+                Ok(t) => t,
+                Err(_) => panic!("threads didn't finish using tablebase?"),
+            };
+            for to_merge in tablebases_to_merge {
+                tablebase.merge(to_merge);
             }
             boards_to_check
         };
