@@ -8,7 +8,6 @@ use fairy::player::Player::*;
 use fairy::tablebase::*;
 
 fn run<const W: i8, const H: i8>() -> Tablebase<W, H> {
-    let mut tablebase = Tablebase::default();
     let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
     let kqk = PieceSet::new(&[
         Piece::new(White, King),
@@ -20,8 +19,7 @@ fn run<const W: i8, const H: i8>() -> Tablebase<W, H> {
         Piece::new(White, Rook),
         Piece::new(Black, King),
     ]);
-    generate_tablebase(&mut tablebase, &[kk, kqk, krk]);
-    tablebase
+    generate_tablebase(&[kk, kqk, krk])
 }
 
 fn tb(c: &mut Criterion<Perf>) {

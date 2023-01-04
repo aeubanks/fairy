@@ -20,7 +20,6 @@ fn tablebase<const N: i8, const M: i8>(parallel: usize, only_three: bool) {
     use fairy::tablebase::*;
 
     let mut all_pieces = Vec::new();
-    let mut tablebase = Tablebase::<N, M>::default();
     for ty in [Bishop, Knight, Rook, Queen, Cardinal, Empress, Amazon] {
         for pl in [White, Black] {
             all_pieces.push(Piece::new(pl, ty));
@@ -40,11 +39,11 @@ fn tablebase<const N: i8, const M: i8>(parallel: usize, only_three: bool) {
             }
         }
     }
-    if parallel != 0 {
-        generate_tablebase_parallel(&mut tablebase, &sets, Some(parallel));
+    let tablebase = if parallel != 0 {
+        generate_tablebase_parallel::<N, M>(&sets, Some(parallel))
     } else {
-        generate_tablebase(&mut tablebase, &sets);
-    }
+        generate_tablebase(&sets)
+    };
     tablebase.dump_stats();
 }
 

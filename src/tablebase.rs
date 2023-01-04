@@ -791,20 +791,17 @@ fn verify_piece_sets(piece_sets: &[PieceSet]) {
 }
 
 #[cfg(test)]
-fn generate_tablebase_no_opt<const W: i8, const H: i8>(
-    tablebase: &mut Tablebase<W, H>,
-    piece_sets: &[PieceSet],
-) {
-    assert!(tablebase.white_tablebase.is_empty());
+fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> Tablebase<W, H> {
+    let mut tablebase = Tablebase::default();
     verify_piece_sets(piece_sets);
     let all = generate_literally_all_boards(piece_sets);
     for b in &all {
-        populate_initial_wins_one(tablebase, b);
+        populate_initial_wins_one(&mut tablebase, b);
     }
     loop {
         let mut changed = false;
         for b in &all {
-            changed |= iterate_black_once(tablebase, b);
+            changed |= iterate_black_once(&mut tablebase, b);
         }
         if !changed {
             break;
@@ -812,12 +809,13 @@ fn generate_tablebase_no_opt<const W: i8, const H: i8>(
 
         changed = false;
         for b in &all {
-            changed |= iterate_white_once(tablebase, b);
+            changed |= iterate_white_once(&mut tablebase, b);
         }
         if !changed {
             break;
         }
     }
+    tablebase
 }
 
 fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
@@ -859,28 +857,26 @@ fn info_tablebase<const W: i8, const H: i8>(tablebase: &Tablebase<W, H>) {
     );
 }
 
-pub fn generate_tablebase<const W: i8, const H: i8>(
-    tablebase: &mut Tablebase<W, H>,
-    piece_sets: &[PieceSet],
-) {
+pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> Tablebase<W, H> {
     info!("generating tablebases for {:?}", piece_sets);
     verify_piece_sets(piece_sets);
     let piece_sets = calculate_piece_sets(piece_sets);
     info!("populating initial wins");
-    let mut boards_to_check = populate_initial_wins(tablebase, &piece_sets);
+    let mut tablebase = Tablebase::default();
+    let mut boards_to_check = populate_initial_wins(&mut tablebase, &piece_sets);
     info_tablebase(&tablebase);
     let mut i = 0;
     loop {
         info!("iteration {}", i);
         info!("iterate_black");
-        boards_to_check = iterate_black(tablebase, boards_to_check);
+        boards_to_check = iterate_black(&mut tablebase, boards_to_check);
         info_tablebase(&tablebase);
         if boards_to_check.is_empty() {
             break;
         }
 
         info!("iterate_white");
-        boards_to_check = iterate_white(tablebase, boards_to_check, &piece_sets);
+        boards_to_check = iterate_white(&mut tablebase, boards_to_check, &piece_sets);
         info_tablebase(&tablebase);
         if boards_to_check.is_empty() {
             break;
@@ -888,13 +884,13 @@ pub fn generate_tablebase<const W: i8, const H: i8>(
         i += 1;
     }
     info!("done");
+    tablebase
 }
 
 pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
-    tablebase: &mut Tablebase<W, H>,
     piece_sets: &[PieceSet],
     parallelism: Option<usize>,
-) {
+) -> Tablebase<W, H> {
     info!("generating tablebases (in parallel) for {:?}", piece_sets);
 
     use std::sync::mpsc::channel;
@@ -912,6 +908,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     let piece_sets = calculate_piece_sets(piece_sets);
 
     info!("populating initial wins");
+    let mut tablebase = Tablebase::default();
     let mut boards_to_check = {
         let (tx, rx) = channel();
         for set_clone in piece_sets.split(pool_count) {
@@ -987,6 +984,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
         i += 1;
     }
     info!("done");
+    tablebase
 }
 
 #[cfg(test)]
@@ -1446,8 +1444,6 @@ mod tests {
 
     #[test]
     fn test_generate_tablebase_parallel() {
-        let mut tablebase1 = Tablebase::<4, 4>::default();
-        let mut tablebase2 = Tablebase::<4, 4>::default();
         let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
         let kak = PieceSet::new(&[
             Piece::new(White, King),
@@ -1460,8 +1456,8 @@ mod tests {
             Piece::new(Black, Amazon),
         ]);
         let sets = [kk, kak, kka];
-        generate_tablebase(&mut tablebase1, &sets);
-        generate_tablebase_parallel(&mut tablebase2, &sets, Some(2));
+        let tablebase1 = generate_tablebase::<4, 4>(&sets);
+        let tablebase2 = generate_tablebase_parallel(&sets, Some(2));
 
         verify_tablebases_equal(&tablebase1, &tablebase2, &sets);
     }
@@ -1525,12 +1521,10 @@ mod tests {
     fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
         assert_eq!(pieces.len(), 3);
         let pieces = PieceSet::new(pieces);
-        let mut tablebase = Tablebase::<4, 4>::default();
-        let mut tablebase_no_optimize = Tablebase::<4, 4>::default();
         let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
         let sets = [kk.clone(), pieces.clone()];
-        generate_tablebase(&mut tablebase, &sets);
-        generate_tablebase_no_opt(&mut tablebase_no_optimize, &sets);
+        let tablebase = generate_tablebase(&sets);
+        let tablebase_no_optimize = generate_tablebase_no_opt(&sets);
 
         verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &sets);
 
@@ -1598,8 +1592,7 @@ mod tests {
         let wk = Piece::new(White, King);
         let bk = Piece::new(Black, King);
         let kk = PieceSet::new(&[wk, bk]);
-        let mut tablebase = Tablebase::<5, 1>::default();
-        generate_tablebase(&mut tablebase, &[kk]);
+        let tablebase = generate_tablebase(&[kk]);
 
         assert_eq!(
             tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
@@ -1672,8 +1665,7 @@ mod tests {
     fn test_kk() {
         fn test<const W: i8, const H: i8>() {
             let pieces = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
-            let mut tablebase = Tablebase::<W, H>::default();
-            generate_tablebase(&mut tablebase, &[pieces.clone()]);
+            let tablebase = generate_tablebase::<4, 4>(&[pieces.clone()]);
             // If white king couldn't capture on first move, no forced win.
             for b in generate_all_boards(&pieces) {
                 if is_under_attack(&b, b.king_coord(Black), Black) {
@@ -1703,12 +1695,9 @@ mod tests {
         let sets = [kk.clone(), kqk.clone(), kkq.clone(), kqkq.clone()];
         let sets2 = [kqkq, kkq, kqk, kk];
 
-        let mut tablebase = Tablebase::<4, 4>::default();
-        generate_tablebase(&mut tablebase, &sets);
-        let mut tablebase2 = Tablebase::<4, 4>::default();
-        generate_tablebase(&mut tablebase2, &sets2);
-        let mut tablebase_no_optimize = Tablebase::<4, 4>::default();
-        generate_tablebase_no_opt(&mut tablebase_no_optimize, &sets);
+        let tablebase = generate_tablebase::<4, 4>(&sets);
+        let tablebase2 = generate_tablebase(&sets2);
+        let tablebase_no_optimize = generate_tablebase_no_opt(&sets);
 
         verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &sets);
         verify_tablebases_equal(&tablebase, &tablebase2, &sets2);
@@ -1726,10 +1715,8 @@ mod tests {
         let kqkr = PieceSet::new(&[wk, bk, wq, br]);
         let sets = [kk, kqk, kkr, kqkr];
 
-        let mut tablebase = Tablebase::<4, 4>::default();
-        generate_tablebase(&mut tablebase, &sets);
-        let mut tablebase_no_optimize = Tablebase::<4, 4>::default();
-        generate_tablebase_no_opt(&mut tablebase_no_optimize, &sets);
+        let tablebase = generate_tablebase::<4, 4>(&sets);
+        let tablebase_no_optimize = generate_tablebase_no_opt(&sets);
         verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &sets);
 
         // ..k.
@@ -1759,10 +1746,8 @@ mod tests {
         let kqkr = PieceSet::new(&[wk, bk, wq, br]);
         let sets = [kk, kqk, kkr, kqkr];
 
-        let mut tablebase = Tablebase::<4, 4>::default();
-        generate_tablebase(&mut tablebase, &sets);
-        let mut tablebase_parallel = Tablebase::<4, 4>::default();
-        generate_tablebase_parallel(&mut tablebase_parallel, &sets, Some(2));
+        let tablebase = generate_tablebase::<4, 4>(&sets);
+        let tablebase_parallel = generate_tablebase_parallel(&sets, Some(2));
         verify_tablebases_equal(&tablebase, &tablebase_parallel, &sets);
     }
 }
