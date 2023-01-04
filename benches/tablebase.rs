@@ -9,20 +9,18 @@ use fairy::tablebase::*;
 
 fn run<const W: i8, const H: i8>() -> Tablebase<W, H> {
     let mut tablebase = Tablebase::default();
-    let kk = [Piece::new(White, King), Piece::new(Black, King)];
-    let kqk = [
+    let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
+    let kqk = PieceSet::new(&[
         Piece::new(White, King),
         Piece::new(White, Queen),
         Piece::new(Black, King),
-    ];
-    let krk = [
+    ]);
+    let krk = PieceSet::new(&[
         Piece::new(White, King),
         Piece::new(White, Rook),
         Piece::new(Black, King),
-    ];
-    generate_tablebase(&mut tablebase, &kk);
-    generate_tablebase(&mut tablebase, &kqk);
-    generate_tablebase(&mut tablebase, &krk);
+    ]);
+    generate_tablebase(&mut tablebase, &[kk, kqk, krk]);
     tablebase
 }
 

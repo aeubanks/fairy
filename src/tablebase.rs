@@ -10,8 +10,59 @@ use crate::player::Player::*;
 use arrayvec::ArrayVec;
 use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
+use std::collections::HashSet;
+use std::ops::{Deref, DerefMut};
 
 const MAX_PIECES: usize = 4;
+
+#[derive(Default, PartialEq, Eq, Hash, Clone)]
+pub struct PieceSet(ArrayVec<Piece, MAX_PIECES>);
+
+impl PieceSet {
+    pub fn new(pieces: &[Piece]) -> Self {
+        let mut arr = ArrayVec::<Piece, MAX_PIECES>::default();
+        for p in pieces {
+            arr.push(*p);
+        }
+        arr.sort_unstable_by_key(|a| a.val());
+        Self(arr)
+    }
+
+    fn remove(&mut self, piece: Piece) {
+        let idx = self.0.iter().position(|&p| p == piece).unwrap();
+        self.0.remove(idx);
+    }
+}
+
+impl Deref for PieceSet {
+    type Target = [Piece];
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_slice()
+    }
+}
+
+impl DerefMut for PieceSet {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.as_mut_slice()
+    }
+}
+
+impl IntoIterator for PieceSet {
+    type Item = <ArrayVec<Piece, MAX_PIECES> as IntoIterator>::Item;
+    type IntoIter = <ArrayVec<Piece, MAX_PIECES> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a PieceSet {
+    type Item = <&'a ArrayVec<Piece, MAX_PIECES> as IntoIterator>::Item;
+    type IntoIter = <&'a ArrayVec<Piece, MAX_PIECES> as IntoIterator>::IntoIter;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
 
 pub type TBBoard<const W: i8, const H: i8> = crate::board::BoardPiece<W, H, MAX_PIECES>;
 
@@ -73,8 +124,6 @@ pub struct Tablebase<const W: i8, const H: i8> {
     white_tablebase: MapTy,
     // table of best move to play on black's turn to prolong a loss
     black_tablebase: MapTy,
-    // winning white positions per piece set
-    white_positions_per_piece_set: FxHashMap<ArrayVec<Piece, MAX_PIECES>, Vec<TBBoard<W, H>>>,
 }
 
 impl<const W: i8, const H: i8> Tablebase<W, H> {
@@ -253,7 +302,9 @@ fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, S
 }
 
 #[cfg(test)]
-fn generate_literally_all_boards<const W: i8, const H: i8>(pieces: &[Piece]) -> Vec<TBBoard<W, H>> {
+fn generate_literally_all_boards<const W: i8, const H: i8>(
+    piece_sets: &[PieceSet],
+) -> Vec<TBBoard<W, H>> {
     fn generate_literally_all_boards_impl<const W: i8, const H: i8>(
         ret: &mut Vec<TBBoard<W, H>>,
         board: TBBoard<W, H>,
@@ -282,138 +333,88 @@ fn generate_literally_all_boards<const W: i8, const H: i8>(pieces: &[Piece]) -> 
     }
 
     let mut ret = Vec::new();
-    // Only support exactly one white and black king.
-    let wk = Piece::new(White, King);
-    let bk = Piece::new(Black, King);
-    let mut pieces = pieces.iter().copied().collect::<ArrayVec<_, MAX_PIECES>>();
-    assert!(pieces.iter().filter(|&&p| p == wk).count() == 1);
-    assert!(pieces.iter().filter(|&&p| p == bk).count() == 1);
-    {
-        let wk_pos = pieces.iter().position(|&p| p == wk).unwrap();
-        pieces.swap_remove(wk_pos);
-        let bk_pos = pieces.iter().position(|&p| p == bk).unwrap();
-        pieces.swap_remove(bk_pos);
-    }
-    // all combinations of yes/no to adding piece on board (except kings)
-    for enabled in 0..(1 << pieces.len()) {
-        let mut iter_pieces = ArrayVec::<_, MAX_PIECES>::new();
-        for (i, piece) in pieces.iter().copied().enumerate() {
-            if enabled & (1 << i) != 0 {
-                iter_pieces.push(piece);
-            }
-        }
-        iter_pieces.push(wk);
-        iter_pieces.push(bk);
-        generate_literally_all_boards_impl(&mut ret, TBBoard::default(), &iter_pieces);
+    for pieces in piece_sets {
+        generate_literally_all_boards_impl(&mut ret, TBBoard::default(), pieces);
     }
     ret
 }
 
-pub struct GenerateAllBoards<const W: i8, const H: i8> {
-    pieces: ArrayVec<Piece, MAX_PIECES>,
-    stack: ArrayVec<Coord, MAX_PIECES>,
-    board: TBBoard<W, H>,
-    has_pawn: bool,
-}
-
-impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
-    fn next_coord(mut c: Coord) -> Coord {
-        c.x += 1;
-        if c.x == W {
-            c.x = 0;
-            c.y += 1;
-        }
-        c
-    }
-    fn valid_piece_coord(&self, c: Coord, piece: Piece) -> bool {
-        // Can do normal symmetry optimizations here.
-        if piece == Piece::new(Black, King) {
-            if c.x > (W - 1) / 2 {
-                return false;
-            }
-            if !self.has_pawn {
-                if c.y > (H - 1) / 2 {
+fn generate_all_boards<const W: i8, const H: i8>(pieces: &PieceSet) -> Vec<TBBoard<W, H>> {
+    fn generate_all_boards_impl<const W: i8, const H: i8>(
+        ret: &mut Vec<TBBoard<W, H>>,
+        board: TBBoard<W, H>,
+        pieces: &[Piece],
+        has_pawn: bool,
+    ) {
+        let valid_piece_coord = |c: Coord, piece: Piece| -> bool {
+            // Can do normal symmetry optimizations here.
+            if piece == Piece::new(Black, King) {
+                if c.x > (W - 1) / 2 {
                     return false;
                 }
-                if W == H && c.x > c.y {
-                    return false;
+                if !has_pawn {
+                    if c.y > (H - 1) / 2 {
+                        return false;
+                    }
+                    if W == H && c.x > c.y {
+                        return false;
+                    }
                 }
+                return true;
             }
-            return true;
-        }
-        // Pawns cannot be on bottom/top row
-        piece.ty() != Pawn || (c.y != 0 && c.y != H - 1)
-    }
-    fn first_empty_coord_from(&self, mut c: Coord, piece: Piece) -> Option<Coord> {
-        while c.y != H {
-            if self.board.get(c).is_none() && self.valid_piece_coord(c, piece) {
-                return Some(c);
-            }
-            c = Self::next_coord(c);
-        }
-        None
-    }
-    pub fn new(pieces: &[Piece]) -> Self {
-        let bk = Piece::new(Black, King);
-        let has_pawn = pieces.iter().any(|p| p.ty() == Pawn);
-        // Only support at most one black king if symmetry optimizations are on.
-        assert!(pieces.iter().filter(|&&p| p == bk).count() <= 1);
-        let mut pieces = pieces.iter().copied().collect::<ArrayVec<_, MAX_PIECES>>();
-        // Since we deduplicate symmetric positions via the black king, make sure it's placed first.
-        if let Some(idx) = pieces.iter().position(|&p| p == bk) {
-            pieces.swap(idx, 0);
-        }
-        let mut ret = Self {
-            pieces,
-            stack: Default::default(),
-            board: Default::default(),
-            has_pawn,
+            // Pawns cannot be on bottom/top row
+            piece.ty() != Pawn || (c.y != 0 && c.y != H - 1)
         };
-        for p in &ret.pieces {
-            let c = ret.first_empty_coord_from(Coord::new(0, 0), *p).unwrap();
-            ret.stack.push(c);
-            ret.board.add_piece(c, *p);
+        match pieces {
+            [piece, rest @ ..] => {
+                for x in 0..W {
+                    for y in 0..H {
+                        let c = Coord::new(x, y);
+                        if !valid_piece_coord(c, *piece) || board.get(c).is_some() {
+                            continue;
+                        }
+                        let mut clone = board.clone();
+                        clone.add_piece(c, *piece);
+                        generate_all_boards_impl(ret, clone, rest, has_pawn);
+                    }
+                }
+            }
+            [] => ret.push(board),
         }
-        ret
     }
+
+    let mut ret = Vec::new();
+    // for pieces in piece_sets {
+    let has_pawn = pieces.iter().any(|&p| p.ty() == Pawn);
+    let bk = Piece::new(Black, King);
+    // Only support at most one black king if symmetry optimizations are on.
+    assert!(pieces.iter().filter(|&&p| p == bk).count() <= 1);
+    let mut clone = pieces.clone();
+    // Since we deduplicate symmetric positions via the black king, make sure it's placed first.
+    if let Some(idx) = clone.iter().position(|&p| p == bk) {
+        clone.swap(idx, 0);
+    }
+    generate_all_boards_impl(&mut ret, TBBoard::default(), &clone, has_pawn);
+    ret
 }
 
-impl<const W: i8, const H: i8> Iterator for GenerateAllBoards<W, H> {
-    type Item = TBBoard<W, H>;
+#[derive(Default)]
+struct PieceSets {
+    maybe_reverse_capture: Vec<PieceSet>,
+    no_reverse_capture: Vec<PieceSet>,
+    // FIXME: this should be per-PieceSet
+    black_pieces_to_add: Vec<Piece>,
+}
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.stack.is_empty() {
-            return None;
-        }
-        let ret = self.board.clone();
-        let mut done = false;
-        let mut add_from_idx = self.stack.len();
-        for i in (0..self.stack.len()).rev() {
-            assert_eq!(self.board.get(self.stack[i]), Some(self.pieces[i]));
-            self.board.clear(self.stack[i]);
-            if let Some(c) =
-                self.first_empty_coord_from(Self::next_coord(self.stack[i]), self.pieces[i])
-            {
-                self.board.add_piece(c, self.pieces[i]);
-                self.stack[i] = c;
-                break;
-            }
-            add_from_idx = i;
-            if i == 0 {
-                done = true;
-            }
-        }
-        if done {
-            self.stack.clear();
-        } else {
-            for i in add_from_idx..self.stack.len() {
-                self.stack[i] = self
-                    .first_empty_coord_from(Coord::new(0, 0), self.pieces[i])
-                    .unwrap();
-                self.board.add_piece(self.stack[i], self.pieces[i]);
-            }
-        }
-        Some(ret)
+#[derive(Default)]
+struct BoardsToVisit<const W: i8, const H: i8> {
+    maybe_reverse_capture: Vec<TBBoard<W, H>>,
+    no_reverse_capture: Vec<TBBoard<W, H>>,
+}
+
+impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
+    fn is_empty(&self) -> bool {
+        self.maybe_reverse_capture.is_empty() && self.no_reverse_capture.is_empty()
     }
 }
 
@@ -460,12 +461,21 @@ fn populate_initial_wins_one<const W: i8, const H: i8>(
 
 fn populate_initial_wins<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
-    pieces: &[Piece],
-) -> Vec<TBBoard<W, H>> {
-    let mut ret = Vec::new();
-    for b in GenerateAllBoards::new(pieces) {
-        if populate_initial_wins_one(tablebase, &b) {
-            ret.push(b);
+    piece_sets: &PieceSets,
+) -> BoardsToVisit<W, H> {
+    let mut ret = BoardsToVisit::default();
+    for set in &piece_sets.maybe_reverse_capture {
+        for b in generate_all_boards(set) {
+            if populate_initial_wins_one(tablebase, &b) {
+                ret.maybe_reverse_capture.push(b);
+            }
+        }
+    }
+    for set in &piece_sets.no_reverse_capture {
+        for b in generate_all_boards(set) {
+            if populate_initial_wins_one(tablebase, &b) {
+                ret.no_reverse_capture.push(b);
+            }
         }
     }
     ret
@@ -521,15 +531,24 @@ fn iterate_black_once<const W: i8, const H: i8>(
 
 fn iterate_black<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
-    previous_boards: &[TBBoard<W, H>],
-) -> Vec<TBBoard<W, H>> {
-    let mut next_boards = Vec::new();
-    for prev in previous_boards {
-        for m in all_moves_to_end_at_board_no_captures(prev, Black) {
+    previous_boards: BoardsToVisit<W, H>,
+) -> BoardsToVisit<W, H> {
+    let mut next_boards = BoardsToVisit::default();
+    for prev in previous_boards.no_reverse_capture {
+        for m in all_moves_to_end_at_board_no_captures(&prev, Black) {
             let mut b = prev.clone();
             b.swap(m.from, m.to);
             if iterate_black_once(tablebase, &b) {
-                next_boards.push(b);
+                next_boards.no_reverse_capture.push(b);
+            }
+        }
+    }
+    for prev in previous_boards.maybe_reverse_capture {
+        for m in all_moves_to_end_at_board_no_captures(&prev, Black) {
+            let mut b = prev.clone();
+            b.swap(m.from, m.to);
+            if iterate_black_once(tablebase, &b) {
+                next_boards.maybe_reverse_capture.push(b);
             }
         }
     }
@@ -582,96 +601,90 @@ fn iterate_white_once<const W: i8, const H: i8>(
 }
 
 fn iterate_white<const W: i8, const H: i8>(
-    pieces: &[Piece],
     tablebase: &mut Tablebase<W, H>,
-    previous_boards: &[TBBoard<W, H>],
-) -> Vec<TBBoard<W, H>> {
-    let mut next_boards = Vec::new();
-    for prev in previous_boards {
-        for m in all_moves_to_end_at_board_no_captures(prev, White) {
+    previous_boards: BoardsToVisit<W, H>,
+    piece_sets: &PieceSets,
+) -> BoardsToVisit<W, H> {
+    let mut next_boards = BoardsToVisit::default();
+    for prev in previous_boards.no_reverse_capture {
+        for m in all_moves_to_end_at_board_no_captures(&prev, White) {
             let mut b = prev.clone();
             b.swap(m.from, m.to);
             if iterate_white_once(tablebase, &b) {
-                next_boards.push(b);
+                next_boards.no_reverse_capture.push(b);
             }
         }
     }
-    for e in extras(tablebase, pieces) {
-        if iterate_white_once(tablebase, &e) {
-            next_boards.push(e);
+    fn board_pieces<const W: i8, const H: i8>(b: &TBBoard<W, H>) -> PieceSet {
+        let mut set = ArrayVec::<Piece, 4>::default();
+        b.foreach_piece(|p, _| set.push(p));
+        PieceSet::new(&set)
+    }
+    for prev in previous_boards.maybe_reverse_capture {
+        for m in all_moves_to_end_at_board_no_captures(&prev, White) {
+            let mut b = prev.clone();
+            b.swap(m.from, m.to);
+            if iterate_white_once(tablebase, &b) {
+                next_boards.maybe_reverse_capture.push(b);
+            }
+        }
+
+        for black_piece in &piece_sets.black_pieces_to_add {
+            prev.foreach_piece(|p, c| {
+                if p.player() == White {
+                    // TODO: make more ergonomic
+                    let mut moves = Vec::new();
+                    add_moves_for_piece_to_end_at_board_no_captures(&mut moves, &prev, p, c);
+                    for m in moves {
+                        let mut clone = prev.clone();
+                        assert_eq!(clone.get(m), None);
+                        clone.swap(m, c);
+                        clone.add_piece(c, *black_piece);
+                        if iterate_white_once(tablebase, &clone) {
+                            // TODO: optimize this
+                            if piece_sets
+                                .maybe_reverse_capture
+                                .contains(&board_pieces(&clone))
+                            {
+                                next_boards.maybe_reverse_capture.push(clone);
+                            } else {
+                                next_boards.no_reverse_capture.push(clone);
+                            }
+                        }
+                    }
+                }
+            });
         }
     }
 
     next_boards
 }
 
-fn verify_piece_set(pieces: &[Piece]) {
-    let mut wk_count = 0;
-    let mut bk_count = 0;
-    for p in pieces {
-        if p.ty() == King {
-            match p.player() {
-                White => wk_count += 1,
-                Black => bk_count += 1,
+fn verify_piece_sets(piece_sets: &[PieceSet]) {
+    for pieces in piece_sets {
+        let mut wk_count = 0;
+        let mut bk_count = 0;
+        for p in pieces {
+            if p.ty() == King {
+                match p.player() {
+                    White => wk_count += 1,
+                    Black => bk_count += 1,
+                }
             }
         }
+        assert_eq!(wk_count, 1);
+        assert_eq!(bk_count, 1);
     }
-    assert_eq!(wk_count, 1);
-    assert_eq!(bk_count, 1);
 }
 
-fn canonical_piece_set(pieces: &[Piece]) -> ArrayVec<Piece, MAX_PIECES> {
-    let mut ret = pieces
-        .iter()
-        .copied()
-        .collect::<ArrayVec<Piece, MAX_PIECES>>();
-    ret.sort_unstable_by_key(|a| a.val());
-    ret
-}
-
-fn extras<const W: i8, const H: i8>(
-    tablebase: &mut Tablebase<W, H>,
-    pieces: &[Piece],
-) -> Vec<TBBoard<W, H>> {
-    let mut ret = Vec::new();
-    for (i, &piece_to_remove) in pieces.iter().enumerate() {
-        if piece_to_remove.player() == Black && piece_to_remove.ty() != King {
-            let mut pieces_minus_one = pieces.iter().copied().collect::<ArrayVec<_, MAX_PIECES>>();
-            pieces_minus_one.remove(i);
-            let boards_minus_one = tablebase
-                .white_positions_per_piece_set
-                .get(&pieces_minus_one)
-                .expect("didn't populate dependent piece set tablebase");
-            for b in boards_minus_one {
-                b.foreach_piece(|p, c| {
-                    if p.player() == White {
-                        // TODO: make more ergonomic
-                        let mut moves = Vec::new();
-                        add_moves_for_piece_to_end_at_board_no_captures(&mut moves, b, p, c);
-                        for m in moves {
-                            let mut clone = b.clone();
-                            assert_eq!(clone.get(m), None);
-                            clone.swap(m, c);
-                            clone.add_piece(c, piece_to_remove);
-                            ret.push(clone);
-                        }
-                    }
-                });
-            }
-        }
-    }
-    ret
-}
-
-// must generate all piece combinations at once
 #[cfg(test)]
 fn generate_tablebase_no_opt<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
-    pieces: &[Piece],
+    piece_sets: &[PieceSet],
 ) {
     assert!(tablebase.white_tablebase.is_empty());
-    verify_piece_set(pieces);
-    let all = generate_literally_all_boards(pieces);
+    verify_piece_sets(piece_sets);
+    let all = generate_literally_all_boards(piece_sets);
     for b in &all {
         populate_initial_wins_one(tablebase, b);
     }
@@ -694,64 +707,63 @@ fn generate_tablebase_no_opt<const W: i8, const H: i8>(
     }
 }
 
+fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
+    // clone and sort/canonicalize piece sets
+    let piece_sets = piece_sets.to_vec();
+    let mut set = HashSet::new();
+    for pieces in &piece_sets {
+        for &p in pieces.iter() {
+            if p.player() == Black && p.ty() != King {
+                let mut subset = pieces.clone();
+                subset.remove(p);
+                set.insert(subset);
+            }
+        }
+    }
+    let mut ret = PieceSets::default();
+    let mut black_non_king_pieces = HashSet::new();
+    for pieces in piece_sets {
+        for &p in &pieces {
+            if p.player() == Black && p.ty() != King {
+                black_non_king_pieces.insert(p);
+            }
+        }
+        if set.contains(&pieces) {
+            ret.maybe_reverse_capture.push(pieces);
+        } else {
+            ret.no_reverse_capture.push(pieces);
+        }
+    }
+    ret.black_pieces_to_add = black_non_king_pieces.into_iter().collect();
+    ret
+}
+
 pub fn generate_tablebase<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
-    pieces: &[Piece],
+    piece_sets: &[PieceSet],
 ) {
-    verify_piece_set(pieces);
-    let pieces = canonical_piece_set(pieces);
-    let mut boards_to_check = populate_initial_wins(tablebase, &pieces);
-    let mut all_added_white_boards = boards_to_check.clone();
+    verify_piece_sets(piece_sets);
+    let piece_sets = calculate_piece_sets(piece_sets);
+    let mut boards_to_check = populate_initial_wins(tablebase, &piece_sets);
     loop {
-        boards_to_check = iterate_black(tablebase, &boards_to_check);
+        boards_to_check = iterate_black(tablebase, boards_to_check);
         if boards_to_check.is_empty() {
             break;
         }
 
-        boards_to_check = iterate_white(&pieces, tablebase, &boards_to_check);
-        all_added_white_boards.reserve(boards_to_check.len());
-        for b in &boards_to_check {
-            all_added_white_boards.push(b.clone());
-        }
+        boards_to_check = iterate_white(tablebase, boards_to_check, &piece_sets);
         if boards_to_check.is_empty() {
             break;
         }
     }
-    tablebase
-        .white_positions_per_piece_set
-        .insert(pieces, all_added_white_boards);
 }
 
 pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     tablebase: &mut Tablebase<W, H>,
-    piece_sets: &[&[Piece]],
+    piece_sets: &[PieceSet],
     parallelism: Option<usize>,
 ) {
-    use std::sync::{Arc, Mutex};
-    use std::thread;
-    let sets = Arc::new(Mutex::new(
-        piece_sets.iter().map(|s| s.to_vec()).collect::<Vec<_>>(),
-    ));
-    let mut handles = Vec::new();
-    for _ in 0..parallelism.unwrap_or_else(|| thread::available_parallelism().unwrap().get()) {
-        let sets = sets.clone();
-        let mut clone = tablebase.clone();
-        handles.push(thread::spawn(move || {
-            loop {
-                let set = { sets.lock().unwrap().pop() };
-                if let Some(set) = set {
-                    generate_tablebase(&mut clone, &set);
-                } else {
-                    break;
-                }
-            }
-            clone
-        }))
-    }
-    for handle in handles {
-        let res = handle.join().unwrap();
-        tablebase.merge(&res);
-    }
+    generate_tablebase(tablebase, piece_sets)
 }
 
 #[cfg(test)]
@@ -960,42 +972,41 @@ mod tests {
     #[test]
     fn test_generate_all_boards() {
         {
-            let boards = GenerateAllBoards::<8, 8>::new(&[Piece::new(White, King)]);
-            assert_eq!(boards.count(), 64);
+            let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[Piece::new(White, King)]));
+            assert_eq!(boards.len(), 64);
         }
         {
-            let boards = GenerateAllBoards::<8, 8>::new(&[
+            let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[
                 Piece::new(White, King),
                 Piece::new(White, Queen),
-            ])
-            .collect::<Vec<_>>();
+            ]));
             assert_eq!(boards.len(), 64 * 63);
             assert_eq!(
                 boards[0].get(Coord::new(0, 0)),
-                Some(Piece::new(White, King))
-            );
-            assert_eq!(
-                boards[0].get(Coord::new(1, 0)),
                 Some(Piece::new(White, Queen))
             );
-            assert_eq!(boards[0].get(Coord::new(2, 0)), None);
+            assert_eq!(
+                boards[0].get(Coord::new(0, 1)),
+                Some(Piece::new(White, King))
+            );
+            assert_eq!(boards[0].get(Coord::new(0, 2)), None);
 
             assert_eq!(
                 boards[1].get(Coord::new(0, 0)),
-                Some(Piece::new(White, King))
-            );
-            assert_eq!(boards[1].get(Coord::new(1, 0)), None);
-            assert_eq!(
-                boards[1].get(Coord::new(2, 0)),
                 Some(Piece::new(White, Queen))
+            );
+            assert_eq!(boards[1].get(Coord::new(0, 1)), None);
+            assert_eq!(
+                boards[1].get(Coord::new(0, 2)),
+                Some(Piece::new(White, King))
             );
         }
         {
-            for b in GenerateAllBoards::<4, 4>::new(&[
+            for b in generate_all_boards::<4, 4>(&PieceSet::new(&[
                 Piece::new(White, King),
                 Piece::new(White, Pawn),
                 Piece::new(White, Pawn),
-            ]) {
+            ])) {
                 for y in 0..4_i8 {
                     for x in 0..4_i8 {
                         if let Some(p) = b.get(Coord::new(x, y)) {
@@ -1009,71 +1020,74 @@ mod tests {
             }
         }
 
-        for b in GenerateAllBoards::<4, 4>::new(&[Piece::new(Black, King)]) {
+        for b in generate_all_boards::<4, 4>(&PieceSet::new(&[Piece::new(Black, King)])) {
             let c = b.king_coord(Black);
             assert!(c.x <= 1);
             assert!(c.y <= 1);
             assert!(c.x <= c.y);
         }
-        for b in GenerateAllBoards::<5, 5>::new(&[Piece::new(Black, King)]) {
+        for b in generate_all_boards::<5, 5>(&PieceSet::new(&[Piece::new(Black, King)])) {
             let c = b.king_coord(Black);
             assert!(c.x <= 2);
             assert!(c.y <= 2);
             assert!(c.x <= c.y);
         }
         assert_eq!(
-            GenerateAllBoards::<4, 4>::new(&[Piece::new(Black, King)]).count(),
+            generate_all_boards::<4, 4>(&PieceSet::new(&[Piece::new(Black, King)])).len(),
             3
         );
         assert_eq!(
-            GenerateAllBoards::<5, 5>::new(&[Piece::new(Black, King)]).count(),
+            generate_all_boards::<5, 5>(&PieceSet::new(&[Piece::new(Black, King)])).len(),
             6
         );
         assert_eq!(
-            GenerateAllBoards::<5, 4>::new(&[Piece::new(Black, King)]).count(),
+            generate_all_boards::<5, 4>(&PieceSet::new(&[Piece::new(Black, King)])).len(),
             6
         );
-        GenerateAllBoards::<4, 4>::new(&[
+        generate_all_boards::<4, 4>(&PieceSet::new(&[
             Piece::new(Black, Rook),
             Piece::new(Black, Amazon),
             Piece::new(Black, Queen),
             Piece::new(Black, King),
-        ]);
+        ]));
     }
     #[test]
     fn test_generate_literally_all_boards() {
+        let kk = PieceSet::new(&[Piece::new(Black, King), Piece::new(White, King)]);
+        let krk = PieceSet::new(&[
+            Piece::new(White, Rook),
+            Piece::new(Black, King),
+            Piece::new(White, King),
+        ]);
+        let kkr = PieceSet::new(&[
+            Piece::new(Black, Rook),
+            Piece::new(Black, King),
+            Piece::new(White, King),
+        ]);
+        let krkr = PieceSet::new(&[
+            Piece::new(Black, Rook),
+            Piece::new(White, Rook),
+            Piece::new(Black, King),
+            Piece::new(White, King),
+        ]);
+        let kpk = PieceSet::new(&[
+            Piece::new(White, Pawn),
+            Piece::new(Black, King),
+            Piece::new(White, King),
+        ]);
         assert_eq!(
-            generate_literally_all_boards::<3, 3>(&[
-                Piece::new(Black, King),
-                Piece::new(White, King),
-            ])
-            .len(),
+            generate_literally_all_boards::<3, 3>(&[kk.clone()]).len(),
             9 * 8
         );
         assert_eq!(
-            generate_literally_all_boards::<3, 3>(&[
-                Piece::new(Black, King),
-                Piece::new(White, King),
-                Piece::new(White, Rook),
-            ])
-            .len(),
+            generate_literally_all_boards::<3, 3>(&[kk.clone(), krk.clone()]).len(),
             9 * 8 * 7 + 9 * 8
         );
         assert_eq!(
-            generate_literally_all_boards::<3, 3>(&[
-                Piece::new(Black, King),
-                Piece::new(White, King),
-                Piece::new(White, Pawn),
-            ])
-            .len(),
+            generate_literally_all_boards::<3, 3>(&[kk.clone(), kpk.clone()]).len(),
             3 * 8 * 7 + 9 * 8
         );
-        let bs = generate_literally_all_boards::<3, 3>(&[
-            Piece::new(Black, King),
-            Piece::new(White, King),
-            Piece::new(White, Rook),
-            Piece::new(Black, Rook),
-        ]);
+        let bs = generate_literally_all_boards::<3, 3>(&[kk, krk, kkr, krkr]);
         assert_eq!(bs.len(), 9 * 8 + 9 * 8 * 7 * 2 + 9 * 8 * 7 * 6);
         let count = |b: &TBBoard<3, 3>| -> usize {
             let mut count = 0;
@@ -1087,11 +1101,14 @@ mod tests {
     #[test]
     fn test_populate_initial_tablebases() {
         let mut tablebase = Tablebase::default();
-        let ret = populate_initial_wins::<4, 4>(
-            &mut tablebase,
-            &[Piece::new(White, King), Piece::new(Black, King)],
-        );
-        assert_ne!(ret.len(), 0);
+        let piece_sets = calculate_piece_sets(&[PieceSet::new(&[
+            Piece::new(White, King),
+            Piece::new(Black, King),
+        ])]);
+
+        let ret = populate_initial_wins::<4, 4>(&mut tablebase, &piece_sets);
+        assert!(ret.maybe_reverse_capture.is_empty());
+        assert!(!ret.no_reverse_capture.is_empty());
 
         assert_eq!(
             tablebase.white_result(&TBBoard::with_pieces(&[
@@ -1106,7 +1123,7 @@ mod tests {
                 1
             ))
         );
-        for board in ret {
+        for board in ret.no_reverse_capture {
             let wk_coord = board.king_coord(White);
             let bk_coord = board.king_coord(Black);
             assert!((wk_coord.x - bk_coord.x).abs() <= 1);
@@ -1149,23 +1166,20 @@ mod tests {
     fn test_generate_tablebase_parallel() {
         let mut tablebase1 = Tablebase::<4, 4>::default();
         let mut tablebase2 = Tablebase::<4, 4>::default();
-        let kk = [Piece::new(White, King), Piece::new(Black, King)];
-        let kzk = [
+        let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
+        let kak = PieceSet::new(&[
             Piece::new(White, King),
             Piece::new(White, Amazon),
             Piece::new(Black, King),
-        ];
-        let kkz = [
+        ]);
+        let kka = PieceSet::new(&[
             Piece::new(White, King),
             Piece::new(Black, King),
             Piece::new(Black, Amazon),
-        ];
-        generate_tablebase(&mut tablebase1, &kk);
-        generate_tablebase(&mut tablebase1, &kzk);
-        generate_tablebase(&mut tablebase1, &kkz);
-
-        generate_tablebase(&mut tablebase2, &kk);
-        generate_tablebase_parallel(&mut tablebase2, &[&kzk, &kkz], Some(2));
+        ]);
+        let sets = [kk, kak, kka];
+        generate_tablebase(&mut tablebase1, &sets);
+        generate_tablebase_parallel(&mut tablebase2, &sets, Some(2));
 
         assert_eq!(
             tablebase1.white_tablebase.len(),
@@ -1209,41 +1223,43 @@ mod tests {
     fn verify_tablebases_equal<const W: i8, const H: i8>(
         tb1: &Tablebase<W, H>,
         tb2: &Tablebase<W, H>,
-        pieces: &[Piece],
+        piece_sets: &[PieceSet],
     ) {
-        for b in GenerateAllBoards::<W, H>::new(pieces) {
-            let w1 = tb1.white_result(&b).map(|(_, d)| d);
-            let w2 = tb2.white_result(&b).map(|(_, d)| d);
-            if w1 != w2 {
-                println!("{:?}", &b);
-                println!("w1: {:?}", w1);
-                println!("w2: {:?}", w2);
-                panic!("white_result mismatch");
-            }
-            let b1 = tb1.black_result(&b).map(|(_, d)| d);
-            let b2 = tb2.black_result(&b).map(|(_, d)| d);
-            if b1 != b2 {
-                println!("{:?}", &b);
-                println!("b1: {:?}", b1);
-                println!("b2: {:?}", b2);
-                panic!("black_result mismatch");
+        for set in piece_sets {
+            for b in generate_all_boards::<W, H>(set) {
+                let w1 = tb1.white_result(&b).map(|(_, d)| d);
+                let w2 = tb2.white_result(&b).map(|(_, d)| d);
+                if w1 != w2 {
+                    println!("{:?}", &b);
+                    println!("w1: {:?}", w1);
+                    println!("w2: {:?}", w2);
+                    panic!("white_result mismatch");
+                }
+                let b1 = tb1.black_result(&b).map(|(_, d)| d);
+                let b2 = tb2.black_result(&b).map(|(_, d)| d);
+                if b1 != b2 {
+                    println!("{:?}", &b);
+                    println!("b1: {:?}", b1);
+                    println!("b2: {:?}", b2);
+                    panic!("black_result mismatch");
+                }
             }
         }
     }
 
     fn verify_all_three_piece_positions_forced_win(pieces: &[Piece]) {
         assert_eq!(pieces.len(), 3);
+        let pieces = PieceSet::new(pieces);
         let mut tablebase = Tablebase::<4, 4>::default();
         let mut tablebase_no_optimize = Tablebase::<4, 4>::default();
-        let kk = [Piece::new(White, King), Piece::new(Black, King)];
-        generate_tablebase(&mut tablebase, &kk);
-        generate_tablebase(&mut tablebase, pieces);
+        let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
+        let sets = [kk.clone(), pieces.clone()];
+        generate_tablebase(&mut tablebase, &sets);
+        generate_tablebase_no_opt(&mut tablebase_no_optimize, &sets);
 
-        generate_tablebase_no_opt(&mut tablebase_no_optimize, pieces);
+        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &sets);
 
-        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, pieces);
-
-        for b in GenerateAllBoards::<4, 4>::new(pieces) {
+        for b in generate_all_boards::<4, 4>(&pieces) {
             let wd = tablebase.white_result(&b);
             let bd = tablebase.black_result(&b);
             assert!(wd.unwrap().1 % 2 == 1);
@@ -1306,8 +1322,9 @@ mod tests {
     fn test_kk_5_1() {
         let wk = Piece::new(White, King);
         let bk = Piece::new(Black, King);
+        let kk = PieceSet::new(&[wk, bk]);
         let mut tablebase = Tablebase::<5, 1>::default();
-        generate_tablebase(&mut tablebase, &[wk, bk]);
+        generate_tablebase(&mut tablebase, &[kk]);
 
         assert_eq!(
             tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
@@ -1379,11 +1396,11 @@ mod tests {
     #[test]
     fn test_kk() {
         fn test<const W: i8, const H: i8>() {
-            let pieces = [Piece::new(White, King), Piece::new(Black, King)];
+            let pieces = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
             let mut tablebase = Tablebase::<W, H>::default();
-            generate_tablebase(&mut tablebase, &pieces);
+            generate_tablebase(&mut tablebase, &[pieces.clone()]);
             // If white king couldn't capture on first move, no forced win.
-            for b in GenerateAllBoards::new(&pieces) {
+            for b in generate_all_boards(&pieces) {
                 if is_under_attack(&b, b.king_coord(Black), Black) {
                     assert_eq!(tablebase.white_result(&b).unwrap().1, 1);
                 } else {
@@ -1404,40 +1421,42 @@ mod tests {
         let wq = Piece::new(White, Queen);
         let bk = Piece::new(Black, King);
         let bq = Piece::new(Black, Queen);
+        let kk = PieceSet::new(&[wk, bk]);
+        let kqk = PieceSet::new(&[wk, bk, wq]);
+        let kkq = PieceSet::new(&[wk, bk, bq]);
+        let kqkq = PieceSet::new(&[wk, bk, wq, bq]);
+        let sets = [kk.clone(), kqk.clone(), kkq.clone(), kqkq.clone()];
+        let sets2 = [kqkq, kkq, kqk, kk];
+
         let mut tablebase = Tablebase::<4, 4>::default();
-        for set in [
-            [wk, bk].as_slice(),
-            &[wk, bk, wq],
-            &[wk, bk, bq],
-            &[wk, wq, bk, bq],
-        ] {
-            generate_tablebase(&mut tablebase, set);
-        }
+        generate_tablebase(&mut tablebase, &sets);
+        let mut tablebase2 = Tablebase::<4, 4>::default();
+        generate_tablebase(&mut tablebase2, &sets2);
         let mut tablebase_no_optimize = Tablebase::<4, 4>::default();
-        generate_tablebase_no_opt(&mut tablebase_no_optimize, &[wk, wq, bk, bq]);
-        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &[wk, wq, bk, bq]);
+        generate_tablebase_no_opt(&mut tablebase_no_optimize, &sets);
+
+        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &sets);
+        verify_tablebases_equal(&tablebase, &tablebase2, &sets2);
     }
 
     #[test]
-    // FIXME
-    #[should_panic]
     fn test_kqkr() {
         let wk = Piece::new(White, King);
         let wq = Piece::new(White, Queen);
         let bk = Piece::new(Black, King);
         let br = Piece::new(Black, Rook);
+        let kk = PieceSet::new(&[wk, bk]);
+        let kqk = PieceSet::new(&[wk, bk, wq]);
+        let kkr = PieceSet::new(&[wk, bk, br]);
+        let kqkr = PieceSet::new(&[wk, bk, wq, br]);
+        let sets = [kk, kqk, kkr, kqkr];
+
         let mut tablebase = Tablebase::<4, 4>::default();
-        for set in [
-            [wk, bk].as_slice(),
-            &[wk, bk, wq],
-            &[wk, bk, br],
-            &[wk, wq, bk, br],
-        ] {
-            generate_tablebase(&mut tablebase, set);
-        }
+        generate_tablebase(&mut tablebase, &sets);
         let mut tablebase_no_optimize = Tablebase::<4, 4>::default();
-        generate_tablebase_no_opt(&mut tablebase_no_optimize, &[wk, wq, bk, br]);
-        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &[wk, wq, bk, br]);
+        generate_tablebase_no_opt(&mut tablebase_no_optimize, &sets);
+        verify_tablebases_equal(&tablebase, &tablebase_no_optimize, &sets);
+
         // ..k.
         // ....
         // .K..

@@ -7,52 +7,29 @@ use fairy::tablebase::*;
 fn tablebase<const N: i8, const M: i8>(parallel: bool, only_three: bool) {
     let mut all_pieces = Vec::new();
     let mut tablebase = Tablebase::<N, M>::default();
-    generate_tablebase(
-        &mut tablebase,
-        &[Piece::new(White, King), Piece::new(Black, King)],
-    );
     for ty in [Bishop, Knight, Rook, Queen, Cardinal, Empress, Amazon] {
         for pl in [White, Black] {
             all_pieces.push(Piece::new(pl, ty));
         }
     }
-    let mut sets3 = Vec::new();
-    let mut sets4 = Vec::new();
+    let wk = Piece::new(White, King);
+    let bk = Piece::new(Black, King);
+    let mut sets = Vec::<PieceSet>::new();
+    sets.push(PieceSet::new(&[wk, bk]));
     for p in &all_pieces {
-        sets3.push(vec![Piece::new(White, King), Piece::new(Black, King), *p]);
+        sets.push(PieceSet::new(&[wk, bk, *p]));
     }
-    for p1 in &all_pieces {
-        for p2 in &all_pieces {
-            sets4.push(vec![
-                Piece::new(White, King),
-                Piece::new(Black, King),
-                *p1,
-                *p2,
-            ]);
+    if !only_three {
+        for p1 in &all_pieces {
+            for p2 in &all_pieces {
+                sets.push(PieceSet::new(&[wk, bk, *p1, *p2]));
+            }
         }
     }
     if parallel {
-        generate_tablebase_parallel(
-            &mut tablebase,
-            &sets3.iter().map(|p| p.as_slice()).collect::<Vec<_>>(),
-            None,
-        );
-        if !only_three {
-            generate_tablebase_parallel(
-                &mut tablebase,
-                &sets4.iter().map(|p| p.as_slice()).collect::<Vec<_>>(),
-                None,
-            );
-        }
+        generate_tablebase_parallel(&mut tablebase, &sets, None);
     } else {
-        for set3 in &sets3 {
-            generate_tablebase(&mut tablebase, set3);
-        }
-        if !only_three {
-            for set4 in &sets4 {
-                generate_tablebase(&mut tablebase, set4);
-            }
-        }
+        generate_tablebase(&mut tablebase, &sets);
     }
     tablebase.dump_stats();
 }
