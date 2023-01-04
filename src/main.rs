@@ -1,10 +1,24 @@
-use fairy::board::Presets;
-use fairy::perft::{perft, Position};
 use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
-use fairy::tablebase::*;
+
+fn run_perft() {
+    use fairy::board::Presets;
+    use fairy::perft::{perft, Position};
+    println!(
+        "perft(4): {}",
+        perft(
+            &Position {
+                board: Presets::classical(),
+                player: White
+            },
+            4
+        )
+    );
+}
 
 fn tablebase<const N: i8, const M: i8>(parallel: usize, only_three: bool) {
+    use fairy::tablebase::*;
+
     let mut all_pieces = Vec::new();
     let mut tablebase = Tablebase::<N, M>::default();
     for ty in [Bishop, Knight, Rook, Queen, Cardinal, Empress, Amazon] {
@@ -38,25 +52,24 @@ fn main() {
     use env_logger::{Builder, Env};
     Builder::from_env(Env::default().default_filter_or("info")).init();
 
-    println!(
-        "perft(4): {}",
-        perft(
-            &Position {
-                board: Presets::classical(),
-                player: White
-            },
-            4
-        )
-    );
-
     use std::env::args;
-    let parallel = args()
-        .nth(1)
-        .map(|s| s.parse::<usize>().unwrap())
-        .unwrap_or(0);
-    let only_three = args()
-        .nth(2)
-        .map(|s| s.parse::<bool>().unwrap())
-        .unwrap_or(true);
-    tablebase::<6, 6>(parallel, only_three);
+    if let Some(str) = args().nth(1) {
+        if str == "tablebase" {
+            let parallel = args()
+                .nth(2)
+                .map(|s| s.parse::<usize>().unwrap())
+                .unwrap_or(0);
+            let only_three = args()
+                .nth(3)
+                .map(|s| s.parse::<bool>().unwrap())
+                .unwrap_or(true);
+            tablebase::<6, 6>(parallel, only_three);
+        } else if str == "perft" {
+            run_perft();
+        } else {
+            println!("unexpected arg '{}'", str);
+        }
+    } else {
+        println!("specify 'tablebase' or 'perft' as first arg");
+    }
 }
