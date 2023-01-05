@@ -1,7 +1,7 @@
 mod common;
 
-use common::Perf;
-use criterion::{criterion_group, criterion_main, Criterion};
+use common::{fairy_criterion, FairyCriterion};
+use criterion::{criterion_group, criterion_main};
 
 use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
@@ -37,14 +37,14 @@ fn run_parallel<const W: i8, const H: i8>() -> Tablebase<W, H> {
     generate_tablebase_parallel(&[kk, kqk, krk], Some(2))
 }
 
-fn tb(c: &mut Criterion<Perf>) {
+fn tb(c: &mut FairyCriterion) {
     c.bench_function("kk/kqk/krk", |b| b.iter(run::<5, 5>));
     c.bench_function("kk/kqk/krk parallel", |b| b.iter(run_parallel::<5, 5>));
 }
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().with_measurement(Perf);
+    config = fairy_criterion();
     targets = tb
 );
 criterion_main!(benches);

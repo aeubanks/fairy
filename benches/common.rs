@@ -1,5 +1,19 @@
-use criterion::measurement::{Measurement, ValueFormatter};
+use std::time::Duration;
+
+use criterion::{
+    measurement::{Measurement, ValueFormatter},
+    Criterion,
+};
 use perf_event::{Builder, Counter};
+
+pub type FairyCriterion = Criterion<Perf>;
+
+pub fn fairy_criterion() -> FairyCriterion {
+    Criterion::default()
+        .warm_up_time(Duration::new(1, 0))
+        .measurement_time(Duration::new(3, 0))
+        .with_measurement(Perf)
+}
 
 pub struct Perf;
 

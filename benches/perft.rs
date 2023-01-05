@@ -1,12 +1,12 @@
 mod common;
 
-use common::Perf;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use common::{fairy_criterion, FairyCriterion};
+use criterion::{black_box, criterion_group, criterion_main};
 use fairy::board::Presets;
 use fairy::perft::{fen, perft, perft_all, Position};
 use fairy::player::Player::*;
 
-fn run_perft_all(c: &mut Criterion<Perf>) {
+fn run_perft_all(c: &mut FairyCriterion) {
     let pos1 = Position {
         board: Presets::classical(),
         player: White,
@@ -28,7 +28,7 @@ fn run_perft_all(c: &mut Criterion<Perf>) {
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().with_measurement(Perf);
+    config = fairy_criterion();
     targets = run_perft_all
 );
 criterion_main!(benches);
