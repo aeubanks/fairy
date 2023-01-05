@@ -28,14 +28,14 @@ fn tablebase<const N: i8, const M: i8>(parallel: usize, only_three: bool) {
     let wk = Piece::new(White, King);
     let bk = Piece::new(Black, King);
     let mut sets = Vec::<PieceSet>::new();
-    sets.push(PieceSet::new(&[wk, bk]));
-    for p in &all_pieces {
-        sets.push(PieceSet::new(&[wk, bk, *p]));
-    }
-    if !only_three {
-        for p1 in &all_pieces {
-            for p2 in &all_pieces {
-                sets.push(PieceSet::new(&[wk, bk, *p1, *p2]));
+    if only_three {
+        for &p in &all_pieces {
+            sets.push(PieceSet::new(&[wk, bk, p]));
+        }
+    } else {
+        for &p1 in &all_pieces {
+            for &p2 in &all_pieces {
+                sets.push(PieceSet::new(&[wk, bk, p1, p2]));
             }
         }
     }

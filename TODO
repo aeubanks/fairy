@@ -5,5 +5,4 @@ tablebase
   pawn black promotion, en passant, double move, capture into promotion
   add description of how optimizations work
   find case where black needs maybe capture
-  automatically calculate piece set dependencies
   work backwards for initial wins

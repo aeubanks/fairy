@@ -913,9 +913,12 @@ fn verify_piece_sets(piece_sets: &[PieceSet]) {
 #[cfg(test)]
 fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> Tablebase<W, H> {
     let mut tablebase = Tablebase::default();
-    verify_piece_sets(piece_sets);
     let mut all = Vec::new();
-    for s in piece_sets {
+    let piece_sets = calculate_piece_sets(piece_sets);
+    for s in &piece_sets.maybe_reverse_capture {
+        all.extend(generate_literally_all_boards(s));
+    }
+    for s in &piece_sets.no_reverse_capture {
         all.extend(generate_literally_all_boards(s));
     }
     for b in &all {
@@ -946,21 +949,44 @@ fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) 
 }
 
 fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
-    // clone and sort/canonicalize piece sets
-    let piece_sets = piece_sets.to_vec();
-    let mut set = HashSet::new();
-    for pieces in &piece_sets {
+    verify_piece_sets(piece_sets);
+
+    let mut visited = HashSet::<PieceSet>::new();
+    let mut stack = piece_sets.to_vec();
+    while let Some(s) = stack.pop() {
+        if !visited.insert(s.clone()) {
+            continue;
+        }
+        for (i, &p) in s.iter().enumerate() {
+            if p.ty() == King {
+                continue;
+            }
+            let mut clone = s.clone();
+            clone.remove(p);
+            stack.push(clone);
+            if p.ty() == Pawn {
+                let mut pawn_to_queen = s.iter().as_slice().to_vec();
+                pawn_to_queen[i] = Piece::new(p.player(), Queen);
+                let clone2 = PieceSet::new(&pawn_to_queen);
+                stack.push(clone2);
+            }
+        }
+    }
+
+    let mut maybe_reverse_capture_set = HashSet::new();
+    for pieces in &visited {
         for &p in pieces.iter() {
             if p.player() == Black && p.ty() != King {
                 let mut subset = pieces.clone();
                 subset.remove(p);
-                set.insert(subset);
+                maybe_reverse_capture_set.insert(subset);
             }
         }
     }
+
     let mut ret = PieceSets::default();
     let mut black_non_king_pieces = HashSet::new();
-    for pieces in piece_sets {
+    for pieces in visited {
         for &p in &pieces {
             if p.player() == Black && p.ty() != King {
                 black_non_king_pieces.insert(p);
@@ -968,7 +994,7 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
                 ret.has_white_pawn = true;
             }
         }
-        if set.contains(&pieces) {
+        if maybe_reverse_capture_set.contains(&pieces) {
             ret.maybe_reverse_capture.push(pieces);
         } else {
             ret.no_reverse_capture.push(pieces);
@@ -988,7 +1014,6 @@ fn info_tablebase<const W: i8, const H: i8>(tablebase: &Tablebase<W, H>) {
 
 pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> Tablebase<W, H> {
     info!("generating tablebases for {:?}", piece_sets);
-    verify_piece_sets(piece_sets);
     let piece_sets = calculate_piece_sets(piece_sets);
     info!("populating initial wins");
     let mut tablebase = Tablebase::default();
@@ -1037,7 +1062,6 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     };
     let pool_count = pool.max_count();
 
-    verify_piece_sets(piece_sets);
     let piece_sets = calculate_piece_sets(piece_sets);
 
     info!("populating initial wins");
@@ -1389,6 +1413,90 @@ mod tests {
         );
     }
     #[test]
+    fn test_calculate_piece_sets() {
+        let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
+        let kqk = PieceSet::new(&[
+            Piece::new(White, King),
+            Piece::new(White, Queen),
+            Piece::new(Black, King),
+        ]);
+        let kkq = PieceSet::new(&[
+            Piece::new(White, King),
+            Piece::new(Black, Queen),
+            Piece::new(Black, King),
+        ]);
+        let kpk = PieceSet::new(&[
+            Piece::new(White, King),
+            Piece::new(White, Pawn),
+            Piece::new(Black, King),
+        ]);
+        let kqkr = PieceSet::new(&[
+            Piece::new(White, King),
+            Piece::new(White, Queen),
+            Piece::new(Black, King),
+            Piece::new(Black, Rook),
+        ]);
+        let kpkr = PieceSet::new(&[
+            Piece::new(White, King),
+            Piece::new(White, Pawn),
+            Piece::new(Black, King),
+            Piece::new(Black, Rook),
+        ]);
+        let kkr = PieceSet::new(&[
+            Piece::new(White, King),
+            Piece::new(Black, King),
+            Piece::new(Black, Rook),
+        ]);
+        {
+            let s = calculate_piece_sets(&[kk.clone()]);
+            assert!(s.maybe_reverse_capture.is_empty());
+            assert_eq!(s.no_reverse_capture, vec![kk.clone()]);
+        }
+        {
+            let s = calculate_piece_sets(&[kqk.clone()]);
+            assert!(s.maybe_reverse_capture.is_empty());
+            assert_eq!(s.no_reverse_capture.len(), 2);
+            assert!(s.no_reverse_capture.contains(&kk));
+            assert!(s.no_reverse_capture.contains(&kqk));
+        }
+        {
+            let s = calculate_piece_sets(&[kkq.clone()]);
+            assert_eq!(s.maybe_reverse_capture, vec![kk.clone()]);
+            assert_eq!(s.no_reverse_capture, vec![kkq.clone()]);
+        }
+        {
+            let s = calculate_piece_sets(&[kkq.clone(), kqk.clone()]);
+            assert_eq!(s.maybe_reverse_capture, vec![kk.clone()]);
+            assert_eq!(
+                s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
+                [kqk.clone(), kkq.clone()].into_iter().collect()
+            );
+        }
+        {
+            let s = calculate_piece_sets(&[kpk.clone()]);
+            assert_eq!(s.maybe_reverse_capture, vec![]);
+            assert_eq!(
+                s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
+                [kpk.clone(), kqk.clone(), kk.clone()].into_iter().collect()
+            );
+        }
+        {
+            let s = calculate_piece_sets(&[kpkr.clone()]);
+            assert_eq!(
+                s.maybe_reverse_capture.into_iter().collect::<HashSet<_>>(),
+                [kk.clone(), kpk.clone(), kqk.clone(), kk.clone()]
+                    .into_iter()
+                    .collect()
+            );
+            assert_eq!(
+                s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
+                [kpkr.clone(), kkr.clone(), kqkr.clone()]
+                    .into_iter()
+                    .collect()
+            );
+        }
+    }
+    #[test]
     fn test_generate_all_boards() {
         {
             let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[Piece::new(White, King)]));
@@ -1537,7 +1645,6 @@ mod tests {
 
     #[test]
     fn test_generate_tablebase_parallel() {
-        let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
         let kak = PieceSet::new(&[
             Piece::new(White, King),
             Piece::new(White, Amazon),
@@ -1548,7 +1655,7 @@ mod tests {
             Piece::new(Black, King),
             Piece::new(Black, Amazon),
         ]);
-        let sets = [kk, kak, kka];
+        let sets = [kak, kka];
         test_tablebase_parallel::<4, 4>(&sets);
     }
 
@@ -1616,10 +1723,8 @@ mod tests {
             Piece::new(Black, King),
             Piece::new(White, ty),
         ]);
-        let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
-        let sets = [kk, set.clone()];
 
-        let tablebase = test_tablebase(&sets);
+        let tablebase = test_tablebase(&[set.clone()]);
 
         for b in generate_all_boards::<4, 4>(&set) {
             let wd = tablebase.white_result(&b);
@@ -1752,14 +1857,10 @@ mod tests {
     #[test]
     fn test_kpk() {
         let wk = Piece::new(White, King);
-        let wq = Piece::new(White, Queen);
         let wp = Piece::new(White, Pawn);
         let bk = Piece::new(Black, King);
-        let kk = PieceSet::new(&[wk, bk]);
-        let kqk = PieceSet::new(&[wk, bk, wq]);
         let kpk = PieceSet::new(&[wk, bk, wp]);
-        let sets = [kk, kqk, kpk];
-        test_tablebase::<4, 4>(&sets);
+        test_tablebase::<4, 4>(&[kpk]);
     }
 
     #[test]
@@ -1768,29 +1869,8 @@ mod tests {
         let wq = Piece::new(White, Queen);
         let bk = Piece::new(Black, King);
         let bq = Piece::new(Black, Queen);
-        let kk = PieceSet::new(&[wk, bk]);
-        let kqk = PieceSet::new(&[wk, bk, wq]);
-        let kkq = PieceSet::new(&[wk, bk, bq]);
         let kqkq = PieceSet::new(&[wk, bk, wq, bq]);
-        let sets = [kk, kqk, kkq, kqkq];
-        test_tablebase::<4, 4>(&sets);
-    }
-
-    #[test]
-    fn test_kqkq_piece_order() {
-        let wk = Piece::new(White, King);
-        let wq = Piece::new(White, Queen);
-        let bk = Piece::new(Black, King);
-        let bq = Piece::new(Black, Queen);
-        let kk = PieceSet::new(&[wk, bk]);
-        let kqk = PieceSet::new(&[wk, bk, wq]);
-        let kkq = PieceSet::new(&[wk, bk, bq]);
-        let kqkq = PieceSet::new(&[wk, bk, wq, bq]);
-        let sets = [kk.clone(), kqk.clone(), kkq.clone(), kqkq.clone()];
-        let sets2 = [kqkq, kkq, kqk, kk];
-        let tb1 = generate_tablebase::<4, 4>(&sets);
-        let tb2 = generate_tablebase(&sets2);
-        verify_tablebases_equal(&tb1, &tb2, &sets2);
+        test_tablebase::<4, 4>(&[kqkq]);
     }
 
     #[test]
@@ -1799,13 +1879,9 @@ mod tests {
         let wq = Piece::new(White, Queen);
         let bk = Piece::new(Black, King);
         let br = Piece::new(Black, Rook);
-        let kk = PieceSet::new(&[wk, bk]);
-        let kqk = PieceSet::new(&[wk, bk, wq]);
-        let kkr = PieceSet::new(&[wk, bk, br]);
         let kqkr = PieceSet::new(&[wk, bk, wq, br]);
-        let sets = [kk, kqk, kkr, kqkr];
 
-        let tablebase = test_tablebase::<4, 4>(&sets);
+        let tablebase = test_tablebase::<4, 4>(&[kqkr]);
 
         // ..k.
         // ....
@@ -1828,11 +1904,7 @@ mod tests {
         let wq = Piece::new(White, Queen);
         let bk = Piece::new(Black, King);
         let br = Piece::new(Black, Rook);
-        let kk = PieceSet::new(&[wk, bk]);
-        let kqk = PieceSet::new(&[wk, bk, wq]);
-        let kkr = PieceSet::new(&[wk, bk, br]);
         let kqkr = PieceSet::new(&[wk, bk, wq, br]);
-        let sets = [kk, kqk, kkr, kqkr];
-        test_tablebase_parallel::<4, 4>(&sets);
+        test_tablebase_parallel::<4, 4>(&[kqkr]);
     }
 }

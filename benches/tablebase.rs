@@ -8,7 +8,6 @@ use fairy::player::Player::*;
 use fairy::tablebase::*;
 
 fn run<const W: i8, const H: i8>() -> Tablebase<W, H> {
-    let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
     let kqk = PieceSet::new(&[
         Piece::new(White, King),
         Piece::new(White, Queen),
@@ -19,11 +18,10 @@ fn run<const W: i8, const H: i8>() -> Tablebase<W, H> {
         Piece::new(White, Rook),
         Piece::new(Black, King),
     ]);
-    generate_tablebase(&[kk, kqk, krk])
+    generate_tablebase(&[kqk, krk])
 }
 
 fn run_parallel<const W: i8, const H: i8>() -> Tablebase<W, H> {
-    let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
     let kqk = PieceSet::new(&[
         Piece::new(White, King),
         Piece::new(White, Queen),
@@ -34,7 +32,7 @@ fn run_parallel<const W: i8, const H: i8>() -> Tablebase<W, H> {
         Piece::new(White, Rook),
         Piece::new(Black, King),
     ]);
-    generate_tablebase_parallel(&[kk, kqk, krk], Some(2))
+    generate_tablebase_parallel(&[kqk, krk], Some(2))
 }
 
 fn tb(c: &mut FairyCriterion) {
