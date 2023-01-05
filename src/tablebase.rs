@@ -1168,6 +1168,17 @@ mod tests {
     use crate::piece::Type;
     use crate::player::next_player;
 
+    const WK: Piece = Piece::new(White, King);
+    const WQ: Piece = Piece::new(White, Queen);
+    const WP: Piece = Piece::new(White, Pawn);
+    const WA: Piece = Piece::new(White, Amazon);
+    const WR: Piece = Piece::new(White, Rook);
+    const BK: Piece = Piece::new(Black, King);
+    const BQ: Piece = Piece::new(Black, Queen);
+    const BR: Piece = Piece::new(Black, Rook);
+    const BP: Piece = Piece::new(Black, Pawn);
+    const BA: Piece = Piece::new(Black, Amazon);
+
     #[test]
     fn test_piece_sets_split_iter() {
         let mut set = PieceSets::default();
@@ -1308,9 +1319,9 @@ mod tests {
     #[test]
     fn test_generate_flip_unflip_move() {
         let board = TBBoard::<4, 4>::with_pieces(&[
-            (Coord::new(0, 0), Piece::new(White, King)),
-            (Coord::new(1, 0), Piece::new(White, Queen)),
-            (Coord::new(2, 0), Piece::new(Black, King)),
+            (Coord::new(0, 0), WK),
+            (Coord::new(1, 0), WQ),
+            (Coord::new(2, 0), BK),
         ]);
         let m = Move {
             from: Coord::new(1, 0),
@@ -1322,16 +1333,12 @@ mod tests {
     }
     #[test]
     fn test_canonical_board() {
-        let wk = Piece::new(White, King);
-        let bk = Piece::new(Black, King);
-        let wp = Piece::new(White, Pawn);
-        let bp = Piece::new(Black, Pawn);
         let board1 =
-            TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 1), bk)]);
+            TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), WK), (Coord::new(0, 1), BK)]);
         let board2 =
-            TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(0, 2), bk)]);
+            TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), WK), (Coord::new(0, 2), BK)]);
         let board3 =
-            TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 2), bk), (Coord::new(0, 0), wk)]);
+            TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 2), BK), (Coord::new(0, 0), WK)]);
 
         fn assert_canon_eq<const W: i8, const H: i8>(b1: &TBBoard<W, H>, b2: &TBBoard<W, H>) {
             assert_eq!(canonical_board(b1).0, canonical_board(b2).0);
@@ -1345,108 +1352,82 @@ mod tests {
         assert_canon_eq(&board2, &board3);
         assert_canon_eq(
             &board1,
-            &TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), wk), (Coord::new(1, 0), bk)]),
+            &TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 0), WK), (Coord::new(1, 0), BK)]),
         );
         assert_canon_eq(
             &board1,
-            &TBBoard::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(7, 6), bk)]),
+            &TBBoard::<8, 8>::with_pieces(&[(Coord::new(7, 7), WK), (Coord::new(7, 6), BK)]),
         );
         assert_canon_eq(
             &board1,
-            &TBBoard::<8, 8>::with_pieces(&[(Coord::new(7, 7), wk), (Coord::new(6, 7), bk)]),
+            &TBBoard::<8, 8>::with_pieces(&[(Coord::new(7, 7), WK), (Coord::new(6, 7), BK)]),
         );
         assert_canon_eq(
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), WK), (Coord::new(2, 2), BK)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 2), WK), (Coord::new(2, 2), BK)]),
         );
         assert_canon_eq(
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(2, 1), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), WK), (Coord::new(2, 2), BK)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(2, 1), WK), (Coord::new(2, 2), BK)]),
         );
         assert_canon_eq(
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), wk), (Coord::new(2, 2), bk)]),
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(2, 3), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 2), WK), (Coord::new(2, 2), BK)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(2, 3), WK), (Coord::new(2, 2), BK)]),
         );
         assert_canon_eq(
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 1), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), WK), (Coord::new(2, 2), BK)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 1), WK), (Coord::new(2, 2), BK)]),
         );
         assert_canon_eq(
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 1), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), WK), (Coord::new(2, 2), BK)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 1), WK), (Coord::new(2, 2), BK)]),
         );
         assert_canon_eq(
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 3), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), WK), (Coord::new(2, 2), BK)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 3), WK), (Coord::new(2, 2), BK)]),
         );
         assert_canon_ne(
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), wk), (Coord::new(2, 2), bk)]),
-            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 2), wk), (Coord::new(2, 2), bk)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(3, 3), WK), (Coord::new(2, 2), BK)]),
+            &TBBoard::<5, 5>::with_pieces(&[(Coord::new(1, 2), WK), (Coord::new(2, 2), BK)]),
         );
         assert_canon_eq(
             &TBBoard::<8, 8>::with_pieces(&[
-                (Coord::new(1, 0), wk),
-                (Coord::new(1, 1), wp),
-                (Coord::new(1, 7), bk),
-                (Coord::new(1, 6), bp),
+                (Coord::new(1, 0), WK),
+                (Coord::new(1, 1), WP),
+                (Coord::new(1, 7), BK),
+                (Coord::new(1, 6), BP),
             ]),
             &TBBoard::<8, 8>::with_pieces(&[
-                (Coord::new(6, 0), wk),
-                (Coord::new(6, 1), wp),
-                (Coord::new(6, 7), bk),
-                (Coord::new(6, 6), bp),
+                (Coord::new(6, 0), WK),
+                (Coord::new(6, 1), WP),
+                (Coord::new(6, 7), BK),
+                (Coord::new(6, 6), BP),
             ]),
         );
         assert_canon_ne(
             &TBBoard::<8, 8>::with_pieces(&[
-                (Coord::new(1, 0), wk),
-                (Coord::new(1, 1), wp),
-                (Coord::new(1, 7), bk),
-                (Coord::new(1, 6), bp),
+                (Coord::new(1, 0), WK),
+                (Coord::new(1, 1), WP),
+                (Coord::new(1, 7), BK),
+                (Coord::new(1, 6), BP),
             ]),
             &TBBoard::<8, 8>::with_pieces(&[
-                (Coord::new(1, 7), wk),
-                (Coord::new(1, 6), wp),
-                (Coord::new(1, 0), bk),
-                (Coord::new(1, 1), bp),
+                (Coord::new(1, 7), WK),
+                (Coord::new(1, 6), WP),
+                (Coord::new(1, 0), BK),
+                (Coord::new(1, 1), BP),
             ]),
         );
     }
     #[test]
     fn test_calculate_piece_sets() {
-        let kk = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
-        let kqk = PieceSet::new(&[
-            Piece::new(White, King),
-            Piece::new(White, Queen),
-            Piece::new(Black, King),
-        ]);
-        let kkq = PieceSet::new(&[
-            Piece::new(White, King),
-            Piece::new(Black, Queen),
-            Piece::new(Black, King),
-        ]);
-        let kpk = PieceSet::new(&[
-            Piece::new(White, King),
-            Piece::new(White, Pawn),
-            Piece::new(Black, King),
-        ]);
-        let kqkr = PieceSet::new(&[
-            Piece::new(White, King),
-            Piece::new(White, Queen),
-            Piece::new(Black, King),
-            Piece::new(Black, Rook),
-        ]);
-        let kpkr = PieceSet::new(&[
-            Piece::new(White, King),
-            Piece::new(White, Pawn),
-            Piece::new(Black, King),
-            Piece::new(Black, Rook),
-        ]);
-        let kkr = PieceSet::new(&[
-            Piece::new(White, King),
-            Piece::new(Black, King),
-            Piece::new(Black, Rook),
-        ]);
+        let kk = PieceSet::new(&[WK, BK]);
+        let kqk = PieceSet::new(&[WK, WQ, BK]);
+        let kkq = PieceSet::new(&[WK, BQ, BK]);
+        let kpk = PieceSet::new(&[WK, WP, BK]);
+        let kqkr = PieceSet::new(&[WK, WQ, BK, BR]);
+        let kpkr = PieceSet::new(&[WK, WP, BK, BR]);
+        let kkr = PieceSet::new(&[WK, BK, BR]);
         {
             let s = calculate_piece_sets(&[kk.clone()]);
             assert!(s.maybe_reverse_capture.is_empty());
@@ -1499,37 +1480,27 @@ mod tests {
     #[test]
     fn test_generate_all_boards() {
         {
-            let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[Piece::new(White, King)]));
+            let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[WK]));
             assert_eq!(boards.count(), 64);
         }
         {
-            let mut boards = generate_all_boards::<8, 8>(&PieceSet::new(&[
-                Piece::new(White, King),
-                Piece::new(White, Queen),
-            ]));
+            let mut boards = generate_all_boards::<8, 8>(&PieceSet::new(&[WK, WQ]));
             let b0 = boards.next().unwrap();
-            assert_eq!(b0.get(Coord::new(0, 0)), Some(Piece::new(White, Queen)));
-            assert_eq!(b0.get(Coord::new(1, 0)), Some(Piece::new(White, King)));
+            assert_eq!(b0.get(Coord::new(0, 0)), Some(WQ));
+            assert_eq!(b0.get(Coord::new(1, 0)), Some(WK));
             assert_eq!(b0.get(Coord::new(2, 0)), None);
 
             let b1 = boards.next().unwrap();
-            assert_eq!(b1.get(Coord::new(0, 0)), Some(Piece::new(White, Queen)));
+            assert_eq!(b1.get(Coord::new(0, 0)), Some(WQ));
             assert_eq!(b1.get(Coord::new(1, 0)), None);
-            assert_eq!(b1.get(Coord::new(2, 0)), Some(Piece::new(White, King)));
+            assert_eq!(b1.get(Coord::new(2, 0)), Some(WK));
         }
         {
-            let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[
-                Piece::new(White, King),
-                Piece::new(White, Queen),
-            ]));
+            let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[WK, WQ]));
             assert_eq!(boards.count(), 64 * 63);
         }
         {
-            for b in generate_all_boards::<4, 4>(&PieceSet::new(&[
-                Piece::new(White, King),
-                Piece::new(White, Pawn),
-                Piece::new(White, Pawn),
-            ])) {
+            for b in generate_all_boards::<4, 4>(&PieceSet::new(&[WK, WP, WP])) {
                 for y in 0..4_i8 {
                     for x in 0..4_i8 {
                         if let Some(p) = b.get(Coord::new(x, y)) {
@@ -1543,50 +1514,37 @@ mod tests {
             }
         }
 
-        for b in generate_all_boards::<4, 4>(&PieceSet::new(&[Piece::new(Black, King)])) {
+        for b in generate_all_boards::<4, 4>(&PieceSet::new(&[BK])) {
             let c = b.king_coord(Black);
             assert!(c.x <= 1);
             assert!(c.y <= 1);
             assert!(c.x <= c.y);
         }
-        for b in generate_all_boards::<5, 5>(&PieceSet::new(&[Piece::new(Black, King)])) {
+        for b in generate_all_boards::<5, 5>(&PieceSet::new(&[BK])) {
             let c = b.king_coord(Black);
             assert!(c.x <= 2);
             assert!(c.y <= 2);
             assert!(c.x <= c.y);
         }
         assert_eq!(
-            generate_all_boards::<4, 4>(&PieceSet::new(&[Piece::new(Black, King)])).count(),
+            generate_all_boards::<4, 4>(&PieceSet::new(&[BK])).count(),
             3
         );
         assert_eq!(
-            generate_all_boards::<5, 5>(&PieceSet::new(&[Piece::new(Black, King)])).count(),
+            generate_all_boards::<5, 5>(&PieceSet::new(&[BK])).count(),
             6
         );
         assert_eq!(
-            generate_all_boards::<5, 4>(&PieceSet::new(&[Piece::new(Black, King)])).count(),
+            generate_all_boards::<5, 4>(&PieceSet::new(&[BK])).count(),
             6
         );
-        generate_all_boards::<4, 4>(&PieceSet::new(&[
-            Piece::new(Black, Rook),
-            Piece::new(Black, Amazon),
-            Piece::new(Black, Queen),
-            Piece::new(Black, King),
-        ]));
+        generate_all_boards::<4, 4>(&PieceSet::new(&[BR, BA, BQ, BK]));
     }
     #[test]
     fn test_generate_literally_all_boards() {
-        let kk = PieceSet::new(&[Piece::new(Black, King), Piece::new(White, King)]);
-        let krk = PieceSet::new(&[
-            Piece::new(White, Rook),
-            Piece::new(Black, King),
-            Piece::new(White, King),
-        ]);
-        let kpk = PieceSet::new(&[
-            Piece::new(White, Pawn),
-            Piece::new(Black, King),
-            Piece::new(White, King),
-        ]);
+        let kk = PieceSet::new(&[BK, WK]);
+        let krk = PieceSet::new(&[WR, BK, WK]);
+        let kpk = PieceSet::new(&[WP, BK, WK]);
         assert_eq!(generate_literally_all_boards::<3, 3>(&kk).count(), 9 * 8);
         assert_eq!(
             generate_literally_all_boards::<3, 3>(&krk).count(),
@@ -1603,27 +1561,20 @@ mod tests {
         #[test]
         fn test_populate_initial_tablebases_stalemate() {
             let mut tablebase = Tablebase::default();
-            populate_initial_wins(
-                &mut tablebase,
-                &[
-                    Piece::new(White, King),
-                    Piece::new(Black, Pawn),
-                    Piece::new(Black, King),
-                ],
-            );
+            populate_initial_wins(&mut tablebase, &[WK, BP, BK]);
             assert_eq!(
                 tablebase.black_depth_impl(&TBBoard::<1, 8>::with_pieces(&[
-                    (Coord::new(0, 7), Piece::new(White, King)),
-                    (Coord::new(0, 1), Piece::new(Black, Pawn)),
-                    (Coord::new(0, 0), Piece::new(Black, King)),
+                    (Coord::new(0, 7), WK),
+                    (Coord::new(0, 1), BP),
+                    (Coord::new(0, 0), BK),
                 ])),
                 Some(0)
             );
             assert!(
                 !tablebase.black_contains_impl(&TBBoard::<1, 8>::with_pieces(&[
-                    (Coord::new(0, 7), Piece::new(White, King)),
-                    (Coord::new(0, 2), Piece::new(Black, Pawn)),
-                    (Coord::new(0, 0), Piece::new(Black, King)),
+                    (Coord::new(0, 7), WK),
+                    (Coord::new(0, 2), BP),
+                    (Coord::new(0, 0), BK),
                 ]))
             );
         }
@@ -1645,16 +1596,8 @@ mod tests {
 
     #[test]
     fn test_generate_tablebase_parallel() {
-        let kak = PieceSet::new(&[
-            Piece::new(White, King),
-            Piece::new(White, Amazon),
-            Piece::new(Black, King),
-        ]);
-        let kka = PieceSet::new(&[
-            Piece::new(White, King),
-            Piece::new(Black, King),
-            Piece::new(Black, Amazon),
-        ]);
+        let kak = PieceSet::new(&[WK, WA, BK]);
+        let kka = PieceSet::new(&[WK, BK, BA]);
         let sets = [kak, kka];
         test_tablebase_parallel::<4, 4>(&sets);
     }
@@ -1718,11 +1661,7 @@ mod tests {
     }
 
     fn verify_all_three_piece_positions_forced_win(ty: Type) {
-        let set = PieceSet::new(&[
-            Piece::new(White, King),
-            Piece::new(Black, King),
-            Piece::new(White, ty),
-        ]);
+        let set = PieceSet::new(&[WK, BK, Piece::new(White, ty)]);
 
         let tablebase = test_tablebase(&[set.clone()]);
 
@@ -1761,15 +1700,13 @@ mod tests {
 
     #[test]
     fn test_kk_5_1() {
-        let wk = Piece::new(White, King);
-        let bk = Piece::new(Black, King);
-        let kk = PieceSet::new(&[wk, bk]);
+        let kk = PieceSet::new(&[WK, BK]);
         let tablebase = test_tablebase(&[kk]);
 
         assert_eq!(
             tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
-                (Coord::new(0, 0), wk),
-                (Coord::new(3, 0), bk)
+                (Coord::new(0, 0), WK),
+                (Coord::new(3, 0), BK)
             ])),
             Some((
                 Move {
@@ -1781,8 +1718,8 @@ mod tests {
         );
         assert_eq!(
             tablebase.black_result(&TBBoard::<5, 1>::with_pieces(&[
-                (Coord::new(1, 0), wk),
-                (Coord::new(3, 0), bk)
+                (Coord::new(1, 0), WK),
+                (Coord::new(3, 0), BK)
             ])),
             Some((
                 Move {
@@ -1794,8 +1731,8 @@ mod tests {
         );
         assert_eq!(
             tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
-                (Coord::new(1, 0), wk),
-                (Coord::new(4, 0), bk)
+                (Coord::new(1, 0), WK),
+                (Coord::new(4, 0), BK)
             ])),
             Some((
                 Move {
@@ -1807,8 +1744,8 @@ mod tests {
         );
         assert_eq!(
             tablebase.black_result(&TBBoard::<5, 1>::with_pieces(&[
-                (Coord::new(2, 0), wk),
-                (Coord::new(4, 0), bk)
+                (Coord::new(2, 0), WK),
+                (Coord::new(4, 0), BK)
             ])),
             Some((
                 Move {
@@ -1820,8 +1757,8 @@ mod tests {
         );
         assert_eq!(
             tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
-                (Coord::new(2, 0), wk),
-                (Coord::new(3, 0), bk)
+                (Coord::new(2, 0), WK),
+                (Coord::new(3, 0), BK)
             ])),
             Some((
                 Move {
@@ -1836,7 +1773,7 @@ mod tests {
     #[test]
     fn test_kk() {
         fn test<const W: i8, const H: i8>() {
-            let pieces = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
+            let pieces = PieceSet::new(&[WK, BK]);
             let tablebase = test_tablebase::<W, H>(&[pieces.clone()]);
             // If white king couldn't capture on first move, no forced win.
             for b in generate_all_boards(&pieces) {
@@ -1856,30 +1793,19 @@ mod tests {
 
     #[test]
     fn test_kpk() {
-        let wk = Piece::new(White, King);
-        let wp = Piece::new(White, Pawn);
-        let bk = Piece::new(Black, King);
-        let kpk = PieceSet::new(&[wk, bk, wp]);
+        let kpk = PieceSet::new(&[WK, BK, WP]);
         test_tablebase::<4, 4>(&[kpk]);
     }
 
     #[test]
     fn test_kqkq() {
-        let wk = Piece::new(White, King);
-        let wq = Piece::new(White, Queen);
-        let bk = Piece::new(Black, King);
-        let bq = Piece::new(Black, Queen);
-        let kqkq = PieceSet::new(&[wk, bk, wq, bq]);
+        let kqkq = PieceSet::new(&[WK, BK, WQ, BQ]);
         test_tablebase::<4, 4>(&[kqkq]);
     }
 
     #[test]
     fn test_kqkr() {
-        let wk = Piece::new(White, King);
-        let wq = Piece::new(White, Queen);
-        let bk = Piece::new(Black, King);
-        let br = Piece::new(Black, Rook);
-        let kqkr = PieceSet::new(&[wk, bk, wq, br]);
+        let kqkr = PieceSet::new(&[WK, BK, WQ, BR]);
 
         let tablebase = test_tablebase::<4, 4>(&[kqkr]);
 
@@ -1889,10 +1815,10 @@ mod tests {
         // r..Q
         // Don't capture the rook, it's slower to checkmate overall.
         let res = tablebase.white_result(&TBBoard::with_pieces(&[
-            (Coord::new(0, 0), br),
-            (Coord::new(3, 0), wq),
-            (Coord::new(1, 1), wk),
-            (Coord::new(2, 3), bk),
+            (Coord::new(0, 0), BR),
+            (Coord::new(3, 0), WQ),
+            (Coord::new(1, 1), WK),
+            (Coord::new(2, 3), BK),
         ]));
         assert_ne!(res.unwrap().0.to, Coord::new(0, 0));
         assert_eq!(res.unwrap().1, 5);
@@ -1900,11 +1826,7 @@ mod tests {
 
     #[test]
     fn test_kqkr_parallel() {
-        let wk = Piece::new(White, King);
-        let wq = Piece::new(White, Queen);
-        let bk = Piece::new(Black, King);
-        let br = Piece::new(Black, Rook);
-        let kqkr = PieceSet::new(&[wk, bk, wq, br]);
+        let kqkr = PieceSet::new(&[WK, BK, WQ, BR]);
         test_tablebase_parallel::<4, 4>(&[kqkr]);
     }
 }

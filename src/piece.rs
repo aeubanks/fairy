@@ -85,10 +85,13 @@ pub struct Piece {
 }
 
 impl Piece {
-    pub fn new(player: Player, ty: Type) -> Self {
+    pub const fn new(player: Player, ty: Type) -> Self {
         let val = (1 << 7) | ((player as u8) << 6) | (ty as u8);
         Piece {
-            val: NonZeroU8::new(val).unwrap(),
+            val: match NonZeroU8::new(val) {
+                Some(v) => v,
+                None => panic!(),
+            },
         }
     }
 
