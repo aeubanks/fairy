@@ -90,6 +90,13 @@ fn flip_coord<const W: i8, const H: i8>(mut c: Coord, sym: Symmetry) -> Coord {
 }
 
 #[must_use]
+fn flip_board<const W: i8, const H: i8>(b: &TBBoard<W, H>, sym: Symmetry) -> TBBoard<W, H> {
+    let mut ret = TBBoard::default();
+    b.foreach_piece(|p, c| ret.add_piece(flip_coord::<W, H>(c, sym), p));
+    ret
+}
+
+#[must_use]
 fn flip_move<const W: i8, const H: i8>(mut m: Move, sym: Symmetry) -> Move {
     m.from = flip_coord::<W, H>(m.from, sym);
     m.to = flip_coord::<W, H>(m.to, sym);
@@ -455,6 +462,8 @@ struct PieceSets {
     no_reverse_capture: Vec<PieceSet>,
     // FIXME: this should be per-PieceSet
     black_pieces_to_add: Vec<Piece>,
+    // FIXME: this should be per-PieceSet
+    has_white_pawn: bool,
 }
 
 struct PieceSetsSplitIter<'a> {
@@ -777,6 +786,92 @@ fn iterate_white<const W: i8, const H: i8>(
                 next_boards.no_reverse_capture.push(b);
             }
         }
+        // FIXME: this should also be in maybe_reverse_capture below
+        if piece_sets.has_white_pawn {
+            let mut visit_maybe_reverse_promotion = |b: &TBBoard<W, H>, c: Coord| {
+                debug_assert_eq!(c.y, b.height() - 1);
+                debug_assert_eq!(b.get(c), Some(Piece::new(White, Queen)));
+                let reverse_coord = c + Coord::new(0, -1);
+                if b.get(reverse_coord).is_none() {
+                    let mut clone = b.clone();
+                    clone.clear(c);
+                    clone.add_piece(reverse_coord, Piece::new(White, Pawn));
+
+                    if iterate_white_once(tablebase, &mut out_tablebase, &clone) {
+                        next_boards.no_reverse_capture.push(clone);
+                    }
+                }
+            };
+            fn board_has_pawn<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> bool {
+                let mut ret = false;
+                board.foreach_piece(|p, _| {
+                    if p.ty() == Pawn {
+                        ret = true;
+                    }
+                });
+                ret
+            }
+            let prev_has_pawn = board_has_pawn(&prev);
+            prev.foreach_piece(|p, mut c| {
+                if p == Piece::new(White, Queen) {
+                    if prev_has_pawn {
+                        if c.y == prev.height() - 1 {
+                            visit_maybe_reverse_promotion(&prev, c);
+                        }
+                    } else if c.y == prev.height() - 1 || c.y == 0 {
+                        let mut clone = prev.clone();
+                        if c.y == 0 {
+                            let sym = Symmetry {
+                                flip_x: false,
+                                flip_y: true,
+                                flip_diagonally: false,
+                            };
+                            clone = flip_board(&clone, sym);
+                            c = flip_coord::<W, H>(c, sym);
+                        }
+                        visit_maybe_reverse_promotion(&clone, c);
+                        if c.x == 0 || c.x == prev.width() - 1 {
+                            if c.x == 0 {
+                                let sym = Symmetry {
+                                    flip_x: true,
+                                    flip_y: false,
+                                    flip_diagonally: false,
+                                };
+                                clone = flip_board(&clone, sym);
+                                c = flip_coord::<W, H>(c, sym);
+                            }
+                            let sym = Symmetry {
+                                flip_x: false,
+                                flip_y: false,
+                                flip_diagonally: true,
+                            };
+                            clone = flip_board(&clone, sym);
+                            c = flip_coord::<W, H>(c, sym);
+                            visit_maybe_reverse_promotion(&clone, c);
+                        }
+                    } else if c.x == prev.width() - 1 || c.x == 0 {
+                        let mut clone = prev.clone();
+                        if c.x == 0 {
+                            let sym = Symmetry {
+                                flip_x: true,
+                                flip_y: false,
+                                flip_diagonally: false,
+                            };
+                            clone = flip_board(&clone, sym);
+                            c = flip_coord::<W, H>(c, sym);
+                        }
+                        let sym = Symmetry {
+                            flip_x: false,
+                            flip_y: false,
+                            flip_diagonally: true,
+                        };
+                        clone = flip_board(&clone, sym);
+                        c = flip_coord::<W, H>(c, sym);
+                        visit_maybe_reverse_promotion(&clone, c);
+                    }
+                }
+            });
+        }
     }
     fn board_pieces<const W: i8, const H: i8>(b: &TBBoard<W, H>) -> PieceSet {
         let mut set = ArrayVec::<Piece, MAX_PIECES>::default();
@@ -891,6 +986,8 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
         for &p in &pieces {
             if p.player() == Black && p.ty() != King {
                 black_non_king_pieces.insert(p);
+            } else if p == Piece::new(White, Pawn) {
+                ret.has_white_pawn = true;
             }
         }
         if set.contains(&pieces) {
@@ -1728,6 +1825,19 @@ mod tests {
         test::<5, 5>();
         test::<4, 5>();
         test::<4, 6>();
+    }
+
+    #[test]
+    fn test_kpk() {
+        let wk = Piece::new(White, King);
+        let wq = Piece::new(White, Queen);
+        let wp = Piece::new(White, Pawn);
+        let bk = Piece::new(Black, King);
+        let kk = PieceSet::new(&[wk, bk]);
+        let kqk = PieceSet::new(&[wk, bk, wq]);
+        let kpk = PieceSet::new(&[wk, bk, wp]);
+        let sets = [kk, kqk, kpk];
+        test_tablebase::<4, 4>(&sets);
     }
 
     #[test]
