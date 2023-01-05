@@ -310,50 +310,25 @@ fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, S
 
 #[cfg(test)]
 fn generate_literally_all_boards<const W: i8, const H: i8>(
-    piece_sets: &[PieceSet],
-) -> Vec<TBBoard<W, H>> {
-    fn generate_literally_all_boards_impl<const W: i8, const H: i8>(
-        ret: &mut Vec<TBBoard<W, H>>,
-        board: TBBoard<W, H>,
-        pieces: &[Piece],
-    ) {
-        let valid_piece_coord = |c: Coord, piece: Piece| -> bool {
-            // Pawns cannot be on bottom/top row
-            piece.ty() != Pawn || (c.y != 0 && c.y != H - 1)
-        };
-        match pieces {
-            [piece, rest @ ..] => {
-                for x in 0..W {
-                    for y in 0..H {
-                        let c = Coord::new(x, y);
-                        if !valid_piece_coord(c, *piece) || board.get(c).is_some() {
-                            continue;
-                        }
-                        let mut clone = board.clone();
-                        clone.add_piece(c, *piece);
-                        generate_literally_all_boards_impl(ret, clone, rest);
-                    }
-                }
-            }
-            [] => ret.push(board),
-        }
-    }
-
-    let mut ret = Vec::new();
-    for pieces in piece_sets {
-        generate_literally_all_boards_impl(&mut ret, TBBoard::default(), pieces);
-    }
-    ret
+    pieces: &[Piece],
+) -> GenerateAllBoards<W, H, false> {
+    GenerateAllBoards::new(pieces)
 }
 
-pub struct GenerateAllBoards<const W: i8, const H: i8> {
+fn generate_all_boards<const W: i8, const H: i8>(
+    pieces: &[Piece],
+) -> GenerateAllBoards<W, H, true> {
+    GenerateAllBoards::new(pieces)
+}
+
+struct GenerateAllBoards<const W: i8, const H: i8, const OPT: bool> {
     pieces: ArrayVec<Piece, MAX_PIECES>,
     stack: ArrayVec<Coord, MAX_PIECES>,
     board: TBBoard<W, H>,
     has_pawn: bool,
 }
 
-impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
+impl<const W: i8, const H: i8, const OPT: bool> GenerateAllBoards<W, H, OPT> {
     fn next_coord(mut c: Coord) -> Coord {
         c.x += 1;
         if c.x == W {
@@ -364,7 +339,7 @@ impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
     }
     fn valid_piece_coord(&self, c: Coord, piece: Piece) -> bool {
         // Can do normal symmetry optimizations here.
-        if piece == Piece::new(Black, King) {
+        if OPT && piece == Piece::new(Black, King) {
             if c.x > (W - 1) / 2 {
                 return false;
             }
@@ -390,7 +365,7 @@ impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
         }
         None
     }
-    pub fn new(pieces: &[Piece]) -> Self {
+    fn new(pieces: &[Piece]) -> Self {
         let bk = Piece::new(Black, King);
         let has_pawn = pieces.iter().any(|p| p.ty() == Pawn);
         // Only support at most one black king if symmetry optimizations are on.
@@ -415,7 +390,7 @@ impl<const W: i8, const H: i8> GenerateAllBoards<W, H> {
     }
 }
 
-impl<const W: i8, const H: i8> Iterator for GenerateAllBoards<W, H> {
+impl<const W: i8, const H: i8, const OPT: bool> Iterator for GenerateAllBoards<W, H, OPT> {
     type Item = TBBoard<W, H>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -633,14 +608,14 @@ fn populate_initial_wins<const W: i8, const H: i8>(
 ) -> BoardsToVisit<W, H> {
     let mut ret = BoardsToVisit::default();
     for set in &piece_sets.maybe_reverse_capture {
-        for b in GenerateAllBoards::new(set) {
+        for b in generate_all_boards(set) {
             if populate_initial_wins_one(tablebase, &b) {
                 ret.maybe_reverse_capture.push(b);
             }
         }
     }
     for set in &piece_sets.no_reverse_capture {
-        for b in GenerateAllBoards::new(set) {
+        for b in generate_all_boards(set) {
             if populate_initial_wins_one(tablebase, &b) {
                 ret.no_reverse_capture.push(b);
             }
@@ -939,7 +914,10 @@ fn verify_piece_sets(piece_sets: &[PieceSet]) {
 fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> Tablebase<W, H> {
     let mut tablebase = Tablebase::default();
     verify_piece_sets(piece_sets);
-    let all = generate_literally_all_boards(piece_sets);
+    let mut all = Vec::new();
+    for s in piece_sets {
+        all.extend(generate_literally_all_boards(s));
+    }
     for b in &all {
         populate_initial_wins_one(&mut tablebase, b);
     }
@@ -1413,11 +1391,11 @@ mod tests {
     #[test]
     fn test_generate_all_boards() {
         {
-            let boards = GenerateAllBoards::<8, 8>::new(&PieceSet::new(&[Piece::new(White, King)]));
+            let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[Piece::new(White, King)]));
             assert_eq!(boards.count(), 64);
         }
         {
-            let mut boards = GenerateAllBoards::<8, 8>::new(&PieceSet::new(&[
+            let mut boards = generate_all_boards::<8, 8>(&PieceSet::new(&[
                 Piece::new(White, King),
                 Piece::new(White, Queen),
             ]));
@@ -1432,14 +1410,14 @@ mod tests {
             assert_eq!(b1.get(Coord::new(2, 0)), Some(Piece::new(White, King)));
         }
         {
-            let boards = GenerateAllBoards::<8, 8>::new(&PieceSet::new(&[
+            let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[
                 Piece::new(White, King),
                 Piece::new(White, Queen),
             ]));
             assert_eq!(boards.count(), 64 * 63);
         }
         {
-            for b in GenerateAllBoards::<4, 4>::new(&PieceSet::new(&[
+            for b in generate_all_boards::<4, 4>(&PieceSet::new(&[
                 Piece::new(White, King),
                 Piece::new(White, Pawn),
                 Piece::new(White, Pawn),
@@ -1457,31 +1435,31 @@ mod tests {
             }
         }
 
-        for b in GenerateAllBoards::<4, 4>::new(&PieceSet::new(&[Piece::new(Black, King)])) {
+        for b in generate_all_boards::<4, 4>(&PieceSet::new(&[Piece::new(Black, King)])) {
             let c = b.king_coord(Black);
             assert!(c.x <= 1);
             assert!(c.y <= 1);
             assert!(c.x <= c.y);
         }
-        for b in GenerateAllBoards::<5, 5>::new(&PieceSet::new(&[Piece::new(Black, King)])) {
+        for b in generate_all_boards::<5, 5>(&PieceSet::new(&[Piece::new(Black, King)])) {
             let c = b.king_coord(Black);
             assert!(c.x <= 2);
             assert!(c.y <= 2);
             assert!(c.x <= c.y);
         }
         assert_eq!(
-            GenerateAllBoards::<4, 4>::new(&PieceSet::new(&[Piece::new(Black, King)])).count(),
+            generate_all_boards::<4, 4>(&PieceSet::new(&[Piece::new(Black, King)])).count(),
             3
         );
         assert_eq!(
-            GenerateAllBoards::<5, 5>::new(&PieceSet::new(&[Piece::new(Black, King)])).count(),
+            generate_all_boards::<5, 5>(&PieceSet::new(&[Piece::new(Black, King)])).count(),
             6
         );
         assert_eq!(
-            GenerateAllBoards::<5, 4>::new(&PieceSet::new(&[Piece::new(Black, King)])).count(),
+            generate_all_boards::<5, 4>(&PieceSet::new(&[Piece::new(Black, King)])).count(),
             6
         );
-        GenerateAllBoards::<4, 4>::new(&PieceSet::new(&[
+        generate_all_boards::<4, 4>(&PieceSet::new(&[
             Piece::new(Black, Rook),
             Piece::new(Black, Amazon),
             Piece::new(Black, Queen),
@@ -1496,44 +1474,20 @@ mod tests {
             Piece::new(Black, King),
             Piece::new(White, King),
         ]);
-        let kkr = PieceSet::new(&[
-            Piece::new(Black, Rook),
-            Piece::new(Black, King),
-            Piece::new(White, King),
-        ]);
-        let krkr = PieceSet::new(&[
-            Piece::new(Black, Rook),
-            Piece::new(White, Rook),
-            Piece::new(Black, King),
-            Piece::new(White, King),
-        ]);
         let kpk = PieceSet::new(&[
             Piece::new(White, Pawn),
             Piece::new(Black, King),
             Piece::new(White, King),
         ]);
+        assert_eq!(generate_literally_all_boards::<3, 3>(&kk).count(), 9 * 8);
         assert_eq!(
-            generate_literally_all_boards::<3, 3>(&[kk.clone()]).len(),
-            9 * 8
+            generate_literally_all_boards::<3, 3>(&krk).count(),
+            9 * 8 * 7
         );
         assert_eq!(
-            generate_literally_all_boards::<3, 3>(&[kk.clone(), krk.clone()]).len(),
-            9 * 8 * 7 + 9 * 8
+            generate_literally_all_boards::<3, 3>(&kpk).count(),
+            3 * 8 * 7
         );
-        assert_eq!(
-            generate_literally_all_boards::<3, 3>(&[kk.clone(), kpk.clone()]).len(),
-            3 * 8 * 7 + 9 * 8
-        );
-        let bs = generate_literally_all_boards::<3, 3>(&[kk, krk, kkr, krkr]);
-        assert_eq!(bs.len(), 9 * 8 + 9 * 8 * 7 * 2 + 9 * 8 * 7 * 6);
-        let count = |b: &TBBoard<3, 3>| -> usize {
-            let mut count = 0;
-            b.foreach_piece(|_, _| count += 1);
-            count
-        };
-        assert!(bs.iter().any(|b| count(b) == 2));
-        assert!(bs.iter().any(|b| count(b) == 3));
-        assert!(bs.iter().any(|b| count(b) == 4));
     }
 
     #[cfg(tablebase_stalemate_win)]
@@ -1634,7 +1588,7 @@ mod tests {
         piece_sets: &[PieceSet],
     ) {
         for set in piece_sets {
-            for b in GenerateAllBoards::<W, H>::new(set) {
+            for b in generate_all_boards::<W, H>(set) {
                 let w1 = tb1.white_result(&b).map(|(_, d)| d);
                 let w2 = tb2.white_result(&b).map(|(_, d)| d);
                 if w1 != w2 {
@@ -1667,7 +1621,7 @@ mod tests {
 
         let tablebase = test_tablebase(&sets);
 
-        for b in GenerateAllBoards::<4, 4>::new(&set) {
+        for b in generate_all_boards::<4, 4>(&set) {
             let wd = tablebase.white_result(&b);
             let bd = tablebase.black_result(&b);
             assert!(wd.unwrap().1 % 2 == 1);
@@ -1780,7 +1734,7 @@ mod tests {
             let pieces = PieceSet::new(&[Piece::new(White, King), Piece::new(Black, King)]);
             let tablebase = test_tablebase::<W, H>(&[pieces.clone()]);
             // If white king couldn't capture on first move, no forced win.
-            for b in GenerateAllBoards::new(&pieces) {
+            for b in generate_all_boards(&pieces) {
                 if is_under_attack(&b, b.king_coord(Black), Black) {
                     assert_eq!(tablebase.white_result(&b).unwrap().1, 1);
                 } else {
