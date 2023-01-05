@@ -388,7 +388,6 @@ fn generate_all_boards<const W: i8, const H: i8>(pieces: &PieceSet) -> Vec<TBBoa
     }
 
     let mut ret = Vec::new();
-    // for pieces in piece_sets {
     let has_pawn = pieces.iter().any(|&p| p.ty() == Pawn);
     let bk = Piece::new(Black, King);
     // Only support at most one black king if symmetry optimizations are on.
