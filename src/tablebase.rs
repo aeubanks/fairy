@@ -76,12 +76,12 @@ struct Symmetry {
 }
 
 #[must_use]
-fn flip_coord(mut c: Coord, sym: Symmetry, width: i8, height: i8) -> Coord {
+fn flip_coord<const W: i8, const H: i8>(mut c: Coord, sym: Symmetry) -> Coord {
     if sym.flip_x {
-        c.x = width - 1 - c.x;
+        c.x = W - 1 - c.x;
     }
     if sym.flip_y {
-        c.y = height - 1 - c.y;
+        c.y = H - 1 - c.y;
     }
     if sym.flip_diagonally {
         std::mem::swap(&mut c.x, &mut c.y);
@@ -90,9 +90,9 @@ fn flip_coord(mut c: Coord, sym: Symmetry, width: i8, height: i8) -> Coord {
 }
 
 #[must_use]
-fn flip_move(mut m: Move, sym: Symmetry, width: i8, height: i8) -> Move {
-    m.from = flip_coord(m.from, sym, width, height);
-    m.to = flip_coord(m.to, sym, width, height);
+fn flip_move<const W: i8, const H: i8>(mut m: Move, sym: Symmetry) -> Move {
+    m.from = flip_coord::<W, H>(m.from, sym);
+    m.to = flip_coord::<W, H>(m.to, sym);
     m
 }
 
@@ -145,7 +145,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         let (hash, sym) = canonical_board(board);
         debug_assert!(!self.white_tablebase.contains_key(&hash));
         self.white_tablebase
-            .insert(hash, (flip_move(m, sym, W, H), depth));
+            .insert(hash, (flip_move::<W, H>(m, sym), depth));
     }
     fn white_contains_impl(&self, board: &TBBoard<W, H>) -> bool {
         self.white_tablebase.contains_key(&canonical_board(board).0)
@@ -159,7 +159,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         let (hash, sym) = canonical_board(board);
         debug_assert!(!self.black_tablebase.contains_key(&hash));
         self.black_tablebase
-            .insert(hash, (flip_move(m, sym, W, H), depth));
+            .insert(hash, (flip_move::<W, H>(m, sym), depth));
     }
     fn black_contains_impl(&self, board: &TBBoard<W, H>) -> bool {
         self.black_tablebase.contains_key(&canonical_board(board).0)
@@ -193,7 +193,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
 fn board_key<const W: i8, const H: i8>(board: &TBBoard<W, H>, sym: Symmetry) -> KeyTy {
     let mut ret = KeyTy::new();
     board.foreach_piece(|piece, coord| {
-        let c = flip_coord(coord, sym, W, H);
+        let c = flip_coord::<W, H>(coord, sym);
         ret.push((c.x + c.y * W, piece));
     });
 
@@ -214,15 +214,13 @@ fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, S
             symmetries_to_check.push(s);
         }
     } else if bk_coord.x >= W / 2 {
-        bk_coord = flip_coord(
+        bk_coord = flip_coord::<W, H>(
             bk_coord,
             Symmetry {
                 flip_x: true,
                 flip_y: false,
                 flip_diagonally: false,
             },
-            W,
-            H,
         );
         for s in symmetries_to_check.as_mut() {
             s.flip_x = true;
@@ -238,15 +236,13 @@ fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, S
                 symmetries_to_check.push(s);
             }
         } else if bk_coord.y >= H / 2 {
-            bk_coord = flip_coord(
+            bk_coord = flip_coord::<W, H>(
                 bk_coord,
                 Symmetry {
                     flip_x: false,
                     flip_y: true,
                     flip_diagonally: false,
                 },
-                W,
-                H,
             );
             for s in symmetries_to_check.as_mut() {
                 s.flip_y = true;
@@ -1135,67 +1131,57 @@ mod tests {
     #[test]
     fn test_flip_coord() {
         assert_eq!(
-            flip_coord(
+            flip_coord::<4, 4>(
                 Coord::new(1, 2),
                 Symmetry {
                     flip_x: false,
                     flip_y: false,
                     flip_diagonally: false
                 },
-                4,
-                4
             ),
             Coord::new(1, 2)
         );
         assert_eq!(
-            flip_coord(
+            flip_coord::<4, 4>(
                 Coord::new(1, 2),
                 Symmetry {
                     flip_x: true,
                     flip_y: false,
                     flip_diagonally: false
                 },
-                4,
-                4
             ),
             Coord::new(2, 2)
         );
         assert_eq!(
-            flip_coord(
+            flip_coord::<4, 4>(
                 Coord::new(1, 2),
                 Symmetry {
                     flip_x: false,
                     flip_y: true,
                     flip_diagonally: false
                 },
-                4,
-                4
             ),
             Coord::new(1, 1)
         );
         assert_eq!(
-            flip_coord(
+            flip_coord::<4, 4>(
                 Coord::new(1, 2),
                 Symmetry {
                     flip_x: false,
                     flip_y: false,
                     flip_diagonally: true
                 },
-                4,
-                4
             ),
             Coord::new(2, 1)
         );
         assert_eq!(
-            flip_coord(
+            flip_coord::<4, 4>(
                 Coord::new(0, 2),
                 Symmetry {
                     flip_x: true,
                     flip_y: true,
                     flip_diagonally: true
                 },
-                4,
-                4
             ),
             Coord::new(1, 3)
         );
@@ -1203,7 +1189,7 @@ mod tests {
     #[test]
     fn test_flip_move() {
         assert_eq!(
-            flip_move(
+            flip_move::<4, 4>(
                 Move {
                     from: Coord::new(1, 0),
                     to: Coord::new(3, 2)
@@ -1213,8 +1199,6 @@ mod tests {
                     flip_y: true,
                     flip_diagonally: false
                 },
-                4,
-                4
             ),
             Move {
                 from: Coord::new(1, 3),
