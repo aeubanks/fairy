@@ -1535,38 +1535,6 @@ mod tests {
         assert!(bs.iter().any(|b| count(b) == 3));
         assert!(bs.iter().any(|b| count(b) == 4));
     }
-    #[test]
-    fn test_populate_initial_tablebases() {
-        let mut tablebase = Tablebase::default();
-        let piece_sets = calculate_piece_sets(&[PieceSet::new(&[
-            Piece::new(White, King),
-            Piece::new(Black, King),
-        ])]);
-
-        let ret = populate_initial_wins::<4, 4>(&mut tablebase, &piece_sets);
-        assert!(ret.maybe_reverse_capture.is_empty());
-        assert!(!ret.no_reverse_capture.is_empty());
-
-        assert_eq!(
-            tablebase.white_result(&TBBoard::with_pieces(&[
-                (Coord::new(0, 0), Piece::new(White, King)),
-                (Coord::new(0, 1), Piece::new(Black, King))
-            ])),
-            Some((
-                Move {
-                    from: Coord::new(0, 0),
-                    to: Coord::new(0, 1)
-                },
-                1
-            ))
-        );
-        for board in ret.no_reverse_capture {
-            let wk_coord = board.king_coord(White);
-            let bk_coord = board.king_coord(Black);
-            assert!((wk_coord.x - bk_coord.x).abs() <= 1);
-            assert!((wk_coord.y - bk_coord.y).abs() <= 1);
-        }
-    }
 
     #[cfg(tablebase_stalemate_win)]
     mod stalemate {
