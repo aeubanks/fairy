@@ -10,6 +10,7 @@ pub type FairyCriterion = Criterion<Perf>;
 
 pub fn fairy_criterion() -> FairyCriterion {
     Criterion::default()
+        .sample_size(10)
         .warm_up_time(Duration::new(1, 0))
         .measurement_time(Duration::new(3, 0))
         .with_measurement(Perf)
