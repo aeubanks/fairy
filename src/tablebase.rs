@@ -697,26 +697,13 @@ fn board_pieces<const W: i8, const H: i8>(b: &TBBoard<W, H>) -> PieceSet {
     PieceSet::new(&set)
 }
 
-fn visit_reverse_promotion<const W: i8, const H: i8>(
-    tablebase: &Tablebase<W, H>,
-    out_tablebase: &mut Tablebase<W, H>,
+fn visit_reverse_promotion<const W: i8, const H: i8, F>(
     board: &TBBoard<W, H>,
     player: Player,
-    next_boards: &mut BoardsToVisit<W, H>,
-) {
-    let mut visit_maybe_reverse_promotion = |b: &TBBoard<W, H>, c: Coord| {
-        debug_assert_eq!(c.y, b.height() - 1);
-        debug_assert_eq!(b.get(c), Some(Piece::new(player, Queen)));
-        for m in all_moves_to_end_at_board_no_captures(b, Piece::new(player, Pawn), c) {
-            let mut clone = b.clone();
-            clone.clear(c);
-            clone.add_piece(m, Piece::new(player, Pawn));
-
-            if iterate_once(tablebase, out_tablebase, player, &clone) {
-                next_boards.boards.push(clone);
-            }
-        }
-    };
+    mut callback: F,
+) where
+    F: FnMut(&TBBoard<W, H>, Coord),
+{
     fn board_has_pawn<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> bool {
         let mut ret = false;
         board.foreach_piece(|p, _| {
@@ -732,7 +719,7 @@ fn visit_reverse_promotion<const W: i8, const H: i8>(
         if p == Piece::new(player, Queen) {
             if has_pawn {
                 if c.y == H - 1 {
-                    visit_maybe_reverse_promotion(&board, c);
+                    callback(&board, c);
                 }
             } else if c.y == H - 1 || c.y == 0 {
                 let mut clone = board.clone();
@@ -745,7 +732,7 @@ fn visit_reverse_promotion<const W: i8, const H: i8>(
                     clone = flip_board(&clone, sym);
                     c = flip_coord::<W, H>(c, sym);
                 }
-                visit_maybe_reverse_promotion(&clone, c);
+                callback(&clone, c);
                 if c.x == 0 || c.x == W - 1 {
                     if c.x == 0 {
                         let sym = Symmetry {
@@ -763,7 +750,7 @@ fn visit_reverse_promotion<const W: i8, const H: i8>(
                     };
                     clone = flip_board(&clone, sym);
                     c = flip_coord::<W, H>(c, sym);
-                    visit_maybe_reverse_promotion(&clone, c);
+                    callback(&clone, c);
                 }
             } else if c.x == W - 1 || c.x == 0 {
                 let mut clone = board.clone();
@@ -783,7 +770,7 @@ fn visit_reverse_promotion<const W: i8, const H: i8>(
                 };
                 clone = flip_board(&clone, sym);
                 c = flip_coord::<W, H>(c, sym);
-                visit_maybe_reverse_promotion(&clone, c);
+                callback(&clone, c);
             }
         }
     });
@@ -835,14 +822,21 @@ fn iterate<const W: i8, const H: i8>(
         );
 
         let prev_piece_set = board_pieces(&prev);
-        if piece_sets.can_reverse_promote.contains(&prev_piece_set) {
-            visit_reverse_promotion(
-                tablebase,
-                &mut out_tablebase,
-                &prev,
-                player,
-                &mut next_boards,
-            );
+        let promote = piece_sets.can_reverse_promote.contains(&prev_piece_set);
+        if promote {
+            visit_reverse_promotion(&prev, player, |b: &TBBoard<W, H>, c: Coord| {
+                debug_assert_eq!(c.y, b.height() - 1);
+                debug_assert_eq!(b.get(c), Some(Piece::new(player, Queen)));
+                for m in all_moves_to_end_at_board_no_captures(b, Piece::new(player, Pawn), c) {
+                    let mut clone = b.clone();
+                    clone.clear(c);
+                    clone.add_piece(m, Piece::new(player, Pawn));
+
+                    if iterate_once(tablebase, &mut out_tablebase, player, &clone) {
+                        next_boards.boards.push(clone);
+                    }
+                }
+            });
         }
 
         if let Some(pieces_to_add) = piece_sets.pieces_to_add.get(&prev_piece_set) {
@@ -854,6 +848,27 @@ fn iterate<const W: i8, const H: i8>(
                 player,
                 &mut next_boards,
             );
+
+            if promote {
+                visit_reverse_promotion(&prev, player, |b: &TBBoard<W, H>, c: Coord| {
+                    debug_assert_eq!(c.y, b.height() - 1);
+                    debug_assert_eq!(b.get(c), Some(Piece::new(player, Queen)));
+                    for m in all_moves_to_end_at_board_captures(b, Piece::new(player, Pawn), c) {
+                        for &piece_to_add in pieces_to_add {
+                            if piece_to_add.player() != player {
+                                let mut clone = b.clone();
+                                clone.clear(c);
+                                clone.add_piece(m, Piece::new(player, Pawn));
+                                clone.add_piece(c, piece_to_add);
+
+                                if iterate_once(tablebase, &mut out_tablebase, player, &clone) {
+                                    next_boards.boards.push(clone);
+                                }
+                            }
+                        }
+                    }
+                });
+            }
         }
     }
 
@@ -1741,8 +1756,6 @@ mod tests {
     }
 
     #[test]
-    // FIXME: promotion+capture on same turn
-    #[ignore]
     fn test_pkb() {
         let set = PieceSet::new(&[BK, WP, BB]);
         test_tablebase::<4, 4>(&[set]);
