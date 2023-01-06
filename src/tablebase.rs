@@ -1553,21 +1553,15 @@ mod tests {
     ) {
         for set in piece_sets {
             for b in generate_all_boards::<W, H>(set) {
-                let w1 = tb1.result(White, &b).map(|(_, d)| d);
-                let w2 = tb2.result(White, &b).map(|(_, d)| d);
-                if w1 != w2 {
-                    println!("{:?}", &b);
-                    println!("w1: {:?}", w1);
-                    println!("w2: {:?}", w2);
-                    panic!("result(White) mismatch");
-                }
-                let b1 = tb1.result(Black, &b).map(|(_, d)| d);
-                let b2 = tb2.result(Black, &b).map(|(_, d)| d);
-                if b1 != b2 {
-                    println!("{:?}", &b);
-                    println!("b1: {:?}", b1);
-                    println!("b2: {:?}", b2);
-                    panic!("result(Black) mismatch");
+                for player in [White, Black] {
+                    let r1 = tb1.result(player, &b).map(|(_, d)| d);
+                    let r2 = tb2.result(player, &b).map(|(_, d)| d);
+                    if r1 != r2 {
+                        println!("{:?}", &b);
+                        println!("tb1: {:?}", tb1.result(player, &b));
+                        println!("tb2: {:?}", tb2.result(player, &b));
+                        panic!("result({:?}) mismatch", player);
+                    }
                 }
                 verify_board_tablebase(&b, tb1);
             }
