@@ -584,14 +584,15 @@ fn populate_initial_wins<const W: i8, const H: i8>(
     ret
 }
 
-fn iterate_once<const W: i8, const H: i8>(
+fn visit_board<const W: i8, const H: i8>(
     tablebase: &Tablebase<W, H>,
     out_tablebase: &mut Tablebase<W, H>,
+    next_boards: &mut BoardsToVisit<W, H>,
     player: Player,
     board: &TBBoard<W, H>,
-) -> bool {
+) {
     if tablebase.contains_impl(player, board) || out_tablebase.contains_impl(player, board) {
-        return false;
+        return;
     }
     // For white:
     // None means no forced win
@@ -607,7 +608,7 @@ fn iterate_once<const W: i8, const H: i8>(
     let all_moves = all_moves(board, player);
     if all_moves.is_empty() {
         // loss?
-        return false;
+        return;
     }
     for m in all_moves {
         let mut clone = board.clone();
@@ -663,10 +664,9 @@ fn iterate_once<const W: i8, const H: i8>(
         }
     }
     if let Some(best_depth) = best_depth {
+        next_boards.boards.push(board.clone());
         out_tablebase.add_impl(player, board, best_move.unwrap(), best_depth + 1);
-        return true;
     }
-    false
 }
 
 fn visit_reverse_moves<const W: i8, const H: i8>(
@@ -683,9 +683,7 @@ fn visit_reverse_moves<const W: i8, const H: i8>(
                 let mut clone = board.clone();
                 assert_eq!(clone.get(m), None);
                 clone.swap(m, c);
-                if iterate_once(tablebase, out_tablebase, player, &clone) {
-                    next_boards.boards.push(clone);
-                }
+                visit_board(tablebase, out_tablebase, next_boards, player, &clone);
             }
         }
     });
@@ -794,9 +792,7 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
                         assert_eq!(clone.get(m), None);
                         clone.swap(m, c);
                         clone.add_piece(c, *piece_to_add);
-                        if iterate_once(tablebase, out_tablebase, player, &clone) {
-                            next_boards.boards.push(clone);
-                        }
+                        visit_board(tablebase, out_tablebase, next_boards, player, &clone);
                     }
                 }
             });
@@ -832,9 +828,13 @@ fn iterate<const W: i8, const H: i8>(
                     clone.clear(c);
                     clone.add_piece(m, Piece::new(player, Pawn));
 
-                    if iterate_once(tablebase, &mut out_tablebase, player, &clone) {
-                        next_boards.boards.push(clone);
-                    }
+                    visit_board(
+                        tablebase,
+                        &mut out_tablebase,
+                        &mut next_boards,
+                        player,
+                        &clone,
+                    );
                 }
             });
         }
@@ -861,9 +861,13 @@ fn iterate<const W: i8, const H: i8>(
                                 clone.add_piece(m, Piece::new(player, Pawn));
                                 clone.add_piece(c, piece_to_add);
 
-                                if iterate_once(tablebase, &mut out_tablebase, player, &clone) {
-                                    next_boards.boards.push(clone);
-                                }
+                                visit_board(
+                                    tablebase,
+                                    &mut out_tablebase,
+                                    &mut next_boards,
+                                    player,
+                                    &clone,
+                                );
                             }
                         }
                     }
@@ -902,8 +906,11 @@ fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) 
     loop {
         let mut changed = false;
         let mut black_out = Tablebase::default();
+        let mut ignore = BoardsToVisit::default();
         for b in &all {
-            changed |= iterate_once(&tablebase, &mut black_out, player, b);
+            visit_board(&tablebase, &mut black_out, &mut ignore, player, b);
+            changed |= !ignore.boards.is_empty();
+            ignore.boards.clear();
         }
         if !changed {
             break;
