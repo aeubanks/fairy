@@ -895,17 +895,12 @@ fn iterate_white<const W: i8, const H: i8>(
 
 fn verify_piece_sets(piece_sets: &[PieceSet]) {
     for pieces in piece_sets {
-        let mut wk_count = 0;
         let mut bk_count = 0;
-        for p in pieces {
-            if p.ty() == King {
-                match p.player() {
-                    White => wk_count += 1,
-                    Black => bk_count += 1,
-                }
+        for &p in pieces {
+            if p == Piece::new(Black, King) {
+                bk_count += 1;
             }
         }
-        assert_eq!(wk_count, 1);
         assert_eq!(bk_count, 1);
     }
 }
@@ -1789,6 +1784,12 @@ mod tests {
         test::<5, 5>();
         test::<4, 5>();
         test::<4, 6>();
+    }
+
+    #[test]
+    fn test_qk() {
+        let qk = PieceSet::new(&[WQ, BK]);
+        test_tablebase::<4, 4>(&[qk]);
     }
 
     #[test]
