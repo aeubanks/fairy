@@ -1830,4 +1830,21 @@ mod tests {
         let kqkr = PieceSet::new(&[WK, BK, WQ, BR]);
         test_tablebase_parallel::<4, 4>(&[kqkr]);
     }
+
+    #[test]
+    #[ignore]
+    fn test_all_three() {
+        let mut all_pieces = Vec::new();
+        for ty in [Bishop, Knight, Rook, Queen, Cardinal, Empress, Amazon, Pawn] {
+            for pl in [White, Black] {
+                all_pieces.push(Piece::new(pl, ty));
+            }
+        }
+        for &p1 in &all_pieces {
+            for &p2 in &all_pieces {
+                let ps = PieceSet::new(&[BK, p1, p2]);
+                test_tablebase::<4, 4>(&[ps]);
+            }
+        }
+    }
 }
