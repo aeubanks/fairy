@@ -707,18 +707,15 @@ fn visit_reverse_promotion<const W: i8, const H: i8>(
     let mut visit_maybe_reverse_promotion = |b: &TBBoard<W, H>, c: Coord| {
         debug_assert_eq!(c.y, b.height() - 1);
         debug_assert_eq!(b.get(c), Some(Piece::new(player, Queen)));
-        let reverse_coord = c + Coord::new(0, -1);
-        if b.get(reverse_coord).is_none() {
+        for m in all_moves_to_end_at_board_no_captures(b, Piece::new(player, Pawn), c) {
             let mut clone = b.clone();
             clone.clear(c);
-            clone.add_piece(reverse_coord, Piece::new(player, Pawn));
+            clone.add_piece(m, Piece::new(player, Pawn));
 
             if iterate_once(tablebase, out_tablebase, player, &clone) {
                 next_boards.boards.push(clone);
-                return true;
             }
         }
-        false
     };
     fn board_has_pawn<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> bool {
         let mut ret = false;
