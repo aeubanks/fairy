@@ -713,17 +713,23 @@ fn visit_reverse_moves<const W: i8, const H: i8>(
     next_boards: &mut BoardsToVisit<W, H>,
     no_reverse_capture: bool,
 ) {
-    for m in all_moves_to_end_at_board_no_captures(board, player) {
-        let mut b = board.clone();
-        b.swap(m.from, m.to);
-        if iterate_once(tablebase, out_tablebase, player, &b) {
-            if no_reverse_capture {
-                next_boards.no_reverse_capture.push(b);
-            } else {
-                next_boards.maybe_reverse_capture.push(b);
+    board.foreach_piece(|p, c| {
+        if p.player() == player {
+            let moves = all_moves_to_end_at_board_no_captures(board, p, c);
+            for m in moves {
+                let mut clone = board.clone();
+                assert_eq!(clone.get(m), None);
+                clone.swap(m, c);
+                if iterate_once(tablebase, out_tablebase, player, &clone) {
+                    if no_reverse_capture {
+                        next_boards.no_reverse_capture.push(clone);
+                    } else {
+                        next_boards.maybe_reverse_capture.push(clone);
+                    }
+                }
             }
         }
-    }
+    });
 }
 
 fn board_pieces<const W: i8, const H: i8>(b: &TBBoard<W, H>) -> PieceSet {

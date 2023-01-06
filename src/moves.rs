@@ -444,32 +444,18 @@ fn add_moves_for_leaper_to_end_at_board_no_captures<T: Board>(
     }
 }
 
-fn add_moves_for_piece_to_end_at_board_no_captures<T: Board>(
+fn add_moves_for_non_pawn_piece_end_at_board_no_captures<T: Board>(
     moves: &mut Vec<Coord>,
     board: &T,
     piece: Piece,
     coord: Coord,
 ) {
-    match piece.ty() {
-        Pawn => {
-            let (dy, start_y) = match piece.player() {
-                White => (1, 1),
-                Black => (-1, board.height() - 2),
-            };
-
-            // FIXME: double move, en passant
-            if coord.y != start_y && board.get(coord + Coord::new(0, -dy)).is_none() {
-                moves.push(coord + Coord::new(0, -dy));
-            }
-        }
-        ty => {
-            for l in ty.leaper_offsets() {
-                add_moves_for_leaper_to_end_at_board_no_captures(moves, board, coord, l);
-            }
-            for r in ty.rider_offsets() {
-                add_moves_for_rider_to_end_at_board_no_captures(moves, board, coord, r);
-            }
-        }
+    let ty = piece.ty();
+    for l in ty.leaper_offsets() {
+        add_moves_for_leaper_to_end_at_board_no_captures(moves, board, coord, l);
+    }
+    for r in ty.rider_offsets() {
+        add_moves_for_rider_to_end_at_board_no_captures(moves, board, coord, r);
     }
 }
 
@@ -493,40 +479,39 @@ pub fn all_moves_to_end_at_board_captures<T: Board>(
             }
         }
     } else {
-        add_moves_for_piece_to_end_at_board_no_captures(&mut moves, board, piece, coord);
+        add_moves_for_non_pawn_piece_end_at_board_no_captures(&mut moves, board, piece, coord);
     }
+    #[cfg(debug_assertions)]
+    moves.iter().for_each(|&m| {
+        assert!(board.get(m).is_none());
+    });
     moves
 }
 
 #[must_use]
-pub fn all_moves_to_end_at_board_no_captures<T: Board>(board: &T, player: Player) -> Vec<Move> {
+pub fn all_moves_to_end_at_board_no_captures<T: Board>(
+    board: &T,
+    piece: Piece,
+    coord: Coord,
+) -> Vec<Coord> {
     let mut moves = Vec::new();
-    board.foreach_piece(|piece, coord| {
-        if piece.player() != player {
-            return;
+    if piece.ty() == Pawn {
+        let (dy, start_y) = match piece.player() {
+            White => (1, 1),
+            Black => (-1, board.height() - 2),
+        };
+
+        // FIXME: double move
+        let try_coord = coord + Coord::new(0, -dy);
+        if coord.y != start_y && board.get(try_coord).is_none() {
+            moves.push(try_coord);
         }
-        let mut piece_moves = Vec::new();
-        add_moves_for_piece_to_end_at_board_no_captures(&mut piece_moves, board, piece, coord);
-        moves.append(
-            &mut piece_moves
-                .iter()
-                .map(|c| Move {
-                    from: *c,
-                    to: coord,
-                })
-                .collect(),
-        );
-        #[cfg(debug_assertions)]
-        moves.iter().for_each(|m| {
-            assert_eq!(
-                board.existing_piece_result(m.from, player),
-                ExistingPieceResult::Empty
-            );
-            assert_eq!(
-                board.existing_piece_result(m.to, player),
-                ExistingPieceResult::Friend
-            );
-        });
+    } else {
+        add_moves_for_non_pawn_piece_end_at_board_no_captures(&mut moves, board, piece, coord);
+    }
+    #[cfg(debug_assertions)]
+    moves.iter().for_each(|&m| {
+        assert!(board.get(m).is_none());
     });
     moves
 }
@@ -1465,12 +1450,10 @@ mod tests {
     #[test]
     fn test_add_moves_for_piece_to_end_at_board_no_captures() {
         {
-            let mut moves = Vec::new();
             let mut board = BoardSquare::<4, 4>::default();
             board.add_piece(Coord::new(3, 1), Piece::new(White, Bishop));
             board.add_piece(Coord::new(1, 3), Piece::new(Black, Bishop));
-            add_moves_for_piece_to_end_at_board_no_captures(
-                &mut moves,
+            let moves = all_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(White, Rook),
                 Coord::new(1, 1),
@@ -1486,12 +1469,10 @@ mod tests {
             );
         }
         {
-            let mut moves = Vec::new();
             let mut board = BoardSquare::<4, 4>::default();
             board.add_piece(Coord::new(3, 2), Piece::new(White, Bishop));
             board.add_piece(Coord::new(2, 3), Piece::new(Black, Bishop));
-            add_moves_for_piece_to_end_at_board_no_captures(
-                &mut moves,
+            let moves = all_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(White, Knight),
                 Coord::new(1, 1),
@@ -1499,47 +1480,37 @@ mod tests {
             assert_moves_eq(&[Coord::new(3, 0), Coord::new(0, 3)], moves);
         }
         {
-            let mut moves = Vec::new();
             let mut board = BoardSquare::<4, 4>::default();
             board.add_piece(Coord::new(1, 1), Piece::new(White, Bishop));
-            add_moves_for_piece_to_end_at_board_no_captures(
-                &mut moves,
+            let mut moves = all_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(White, Pawn),
                 Coord::new(1, 2),
             );
             assert_moves_eq(&[], moves);
 
-            moves = Vec::new();
-            add_moves_for_piece_to_end_at_board_no_captures(
-                &mut moves,
+            moves = all_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(White, Pawn),
                 Coord::new(2, 2),
             );
             assert_moves_eq(&[Coord::new(2, 1)], moves);
 
-            moves = Vec::new();
-            add_moves_for_piece_to_end_at_board_no_captures(
-                &mut moves,
+            moves = all_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(White, Pawn),
                 Coord::new(3, 1),
             );
             assert_moves_eq(&[], moves);
 
-            moves = Vec::new();
-            add_moves_for_piece_to_end_at_board_no_captures(
-                &mut moves,
+            moves = all_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(Black, Pawn),
                 Coord::new(3, 1),
             );
             assert_moves_eq(&[Coord::new(3, 2)], moves);
 
-            moves = Vec::new();
-            add_moves_for_piece_to_end_at_board_no_captures(
-                &mut moves,
+            moves = all_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(Black, Pawn),
                 Coord::new(3, 2),
