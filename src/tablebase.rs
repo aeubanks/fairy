@@ -760,8 +760,6 @@ fn visit_reverse_promotion<const W: i8, const H: i8>(
                     } else {
                         next_boards.no_reverse_capture.push(clone);
                     }
-                    // TODO: figure out if this can go into no_reverse_capture
-                    // next_boards.maybe_reverse_capture.push(clone);
                     return true;
                 }
             }
