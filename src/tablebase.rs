@@ -6,8 +6,8 @@ use crate::moves::{
 };
 use crate::piece::Piece;
 use crate::piece::Type::*;
-use crate::player::Player;
 use crate::player::Player::*;
+use crate::player::{next_player, Player};
 use arrayvec::ArrayVec;
 use log::info;
 use rustc_hash::FxHashMap;
@@ -430,7 +430,7 @@ struct PieceSets {
     maybe_reverse_capture: Vec<PieceSet>,
     no_reverse_capture: Vec<PieceSet>,
     // FIXME: this should be per-PieceSet
-    black_pieces_to_add: Vec<Piece>,
+    pieces_to_add: Vec<Piece>,
     // FIXME: this should be per-PieceSet
     has_white_pawn: bool,
 }
@@ -620,144 +620,104 @@ fn populate_initial_wins<const W: i8, const H: i8>(
     ret
 }
 
-fn iterate_black_once<const W: i8, const H: i8>(
+fn iterate_once<const W: i8, const H: i8>(
     tablebase: &Tablebase<W, H>,
     out_tablebase: &mut Tablebase<W, H>,
+    player: Player,
     board: &TBBoard<W, H>,
 ) -> bool {
-    if tablebase.contains_impl(Black, board) || out_tablebase.contains_impl(Black, board) {
+    if tablebase.contains_impl(player, board) || out_tablebase.contains_impl(player, board) {
         return false;
     }
-    // None means no forced loss
-    // Some(depth) means forced loss in depth moves
-    let mut max_depth = Some(0);
-    let mut best_move = None;
-    let black_moves = all_moves(board, Black);
-    if black_moves.is_empty() {
-        // loss?
-        return false;
-    }
-    for black_move in black_moves {
-        let mut clone = board.clone();
-        clone.make_move(black_move, Black);
-
-        if let Some(depth) = tablebase.depth_impl(White, &clone) {
-            max_depth = Some(match max_depth {
-                Some(md) => {
-                    // use move that prolongs checkmate as long as possible
-                    if depth > md {
-                        best_move = Some(black_move);
-                        depth
-                    } else {
-                        md
-                    }
-                }
-                None => {
-                    best_move = Some(black_move);
-                    depth
-                }
-            });
-        } else {
-            max_depth = None;
-            break;
-        }
-    }
-    if let Some(max_depth) = max_depth {
-        out_tablebase.add_impl(Black, board, best_move.unwrap(), max_depth + 1);
-        return true;
-    }
-    false
-}
-
-fn iterate_black<const W: i8, const H: i8>(
-    tablebase: &Tablebase<W, H>,
-    previous_boards: BoardsToVisit<W, H>,
-) -> (Tablebase<W, H>, BoardsToVisit<W, H>) {
-    let mut next_boards = BoardsToVisit::default();
-    let mut out_tablebase = Tablebase::default();
-    for prev in previous_boards.no_reverse_capture {
-        for m in all_moves_to_end_at_board_no_captures(&prev, Black) {
-            let mut b = prev.clone();
-            b.swap(m.from, m.to);
-            if iterate_black_once(tablebase, &mut out_tablebase, &b) {
-                next_boards.no_reverse_capture.push(b);
-            }
-        }
-    }
-    for prev in previous_boards.maybe_reverse_capture {
-        for m in all_moves_to_end_at_board_no_captures(&prev, Black) {
-            let mut b = prev.clone();
-            b.swap(m.from, m.to);
-            if iterate_black_once(tablebase, &mut out_tablebase, &b) {
-                next_boards.maybe_reverse_capture.push(b);
-            }
-        }
-    }
-    (out_tablebase, next_boards)
-}
-
-fn iterate_white_once<const W: i8, const H: i8>(
-    tablebase: &Tablebase<W, H>,
-    out_tablebase: &mut Tablebase<W, H>,
-    board: &TBBoard<W, H>,
-) -> bool {
-    if tablebase.contains_impl(White, board) || out_tablebase.contains_impl(White, board) {
-        return false;
-    }
+    // For white:
     // None means no forced win
     // Some(depth) means forced win in depth moves
-    let mut min_depth = None;
+    // For black:
+    // None means no forced loss
+    // Some(depth) means forced loss in depth moves
+    let mut best_depth = match player {
+        White => None,
+        Black => Some(0),
+    };
     let mut best_move = None;
-    let white_moves = all_moves(board, White);
-    if white_moves.is_empty() {
+    let all_moves = all_moves(board, player);
+    if all_moves.is_empty() {
         // loss?
         return false;
     }
-    for white_move in white_moves {
+    for m in all_moves {
         let mut clone = board.clone();
-        clone.make_move(white_move, White);
+        clone.make_move(m, player);
 
-        if let Some(depth) = tablebase.depth_impl(Black, &clone) {
-            min_depth = Some(match min_depth {
-                Some(md) => {
-                    // use move that forces checkmate as quickly as possible
-                    if depth < md {
-                        best_move = Some(white_move);
-                        depth
-                    } else {
-                        md
-                    }
+        match player {
+            White => {
+                if let Some(depth) = tablebase.depth_impl(Black, &clone) {
+                    best_depth = Some(match best_depth {
+                        Some(md) => {
+                            // use move that forces checkmate as quickly as possible
+                            if depth < md {
+                                best_move = Some(m);
+                                depth
+                            } else {
+                                md
+                            }
+                        }
+                        None => {
+                            best_move = Some(m);
+                            depth
+                        }
+                    });
                 }
-                None => {
-                    best_move = Some(white_move);
-                    depth
+            }
+            Black => {
+                if let Some(depth) = tablebase.depth_impl(White, &clone) {
+                    best_depth = Some(match best_depth {
+                        Some(md) => {
+                            // use move that prolongs/forces checkmate as long as possible
+                            if depth > md {
+                                best_move = Some(m);
+                                depth
+                            } else {
+                                md
+                            }
+                        }
+                        None => {
+                            best_move = Some(m);
+                            depth
+                        }
+                    });
+                } else {
+                    best_depth = None;
+                    break;
                 }
-            });
+            }
         }
     }
-    if let Some(min_depth) = min_depth {
-        out_tablebase.add_impl(White, board, best_move.unwrap(), min_depth + 1);
+    if let Some(best_depth) = best_depth {
+        out_tablebase.add_impl(player, board, best_move.unwrap(), best_depth + 1);
         return true;
     }
     false
 }
 
-fn iterate_white<const W: i8, const H: i8>(
+fn iterate<const W: i8, const H: i8>(
     tablebase: &Tablebase<W, H>,
     previous_boards: BoardsToVisit<W, H>,
     piece_sets: &PieceSets,
+    player: Player,
 ) -> (Tablebase<W, H>, BoardsToVisit<W, H>) {
     let mut next_boards = BoardsToVisit::default();
     let mut out_tablebase = Tablebase::default();
     for prev in previous_boards.no_reverse_capture {
-        for m in all_moves_to_end_at_board_no_captures(&prev, White) {
+        for m in all_moves_to_end_at_board_no_captures(&prev, player) {
             let mut b = prev.clone();
             b.swap(m.from, m.to);
-            if iterate_white_once(tablebase, &mut out_tablebase, &b) {
+            if iterate_once(tablebase, &mut out_tablebase, player, &b) {
                 next_boards.no_reverse_capture.push(b);
             }
         }
         // FIXME: this should also be in maybe_reverse_capture below
+        // FIXME: work with black pawns too
         if piece_sets.has_white_pawn {
             let mut visit_maybe_reverse_promotion = |b: &TBBoard<W, H>, c: Coord| {
                 debug_assert_eq!(c.y, b.height() - 1);
@@ -768,7 +728,7 @@ fn iterate_white<const W: i8, const H: i8>(
                     clone.clear(c);
                     clone.add_piece(reverse_coord, Piece::new(White, Pawn));
 
-                    if iterate_white_once(tablebase, &mut out_tablebase, &clone) {
+                    if iterate_once(tablebase, &mut out_tablebase, White, &clone) {
                         next_boards.no_reverse_capture.push(clone);
                     }
                 }
@@ -850,39 +810,41 @@ fn iterate_white<const W: i8, const H: i8>(
         PieceSet::new(&set)
     }
     for prev in previous_boards.maybe_reverse_capture {
-        for m in all_moves_to_end_at_board_no_captures(&prev, White) {
+        for m in all_moves_to_end_at_board_no_captures(&prev, player) {
             let mut b = prev.clone();
             b.swap(m.from, m.to);
-            if iterate_white_once(tablebase, &mut out_tablebase, &b) {
+            if iterate_once(tablebase, &mut out_tablebase, player, &b) {
                 next_boards.maybe_reverse_capture.push(b);
             }
         }
 
-        for black_piece in &piece_sets.black_pieces_to_add {
-            prev.foreach_piece(|p, c| {
-                if p.player() == White {
-                    // TODO: make more ergonomic
-                    let mut moves = Vec::new();
-                    add_moves_for_piece_to_end_at_board_no_captures(&mut moves, &prev, p, c);
-                    for m in moves {
-                        let mut clone = prev.clone();
-                        assert_eq!(clone.get(m), None);
-                        clone.swap(m, c);
-                        clone.add_piece(c, *black_piece);
-                        if iterate_white_once(tablebase, &mut out_tablebase, &clone) {
-                            // TODO: optimize this
-                            if piece_sets
-                                .maybe_reverse_capture
-                                .contains(&board_pieces(&clone))
-                            {
-                                next_boards.maybe_reverse_capture.push(clone);
-                            } else {
-                                next_boards.no_reverse_capture.push(clone);
+        for piece_to_add in &piece_sets.pieces_to_add {
+            if piece_to_add.player() != player {
+                prev.foreach_piece(|p, c| {
+                    if p.player() == player {
+                        // TODO: make more ergonomic
+                        let mut moves = Vec::new();
+                        add_moves_for_piece_to_end_at_board_no_captures(&mut moves, &prev, p, c);
+                        for m in moves {
+                            let mut clone = prev.clone();
+                            assert_eq!(clone.get(m), None);
+                            clone.swap(m, c);
+                            clone.add_piece(c, *piece_to_add);
+                            if iterate_once(tablebase, &mut out_tablebase, player, &clone) {
+                                // TODO: optimize this
+                                if piece_sets
+                                    .maybe_reverse_capture
+                                    .contains(&board_pieces(&clone))
+                                {
+                                    next_boards.maybe_reverse_capture.push(clone);
+                                } else {
+                                    next_boards.no_reverse_capture.push(clone);
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+            }
         }
     }
 
@@ -915,26 +877,18 @@ fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) 
     for b in &all {
         populate_initial_wins_one(&mut tablebase, b);
     }
+    let mut player = Black;
     loop {
         let mut changed = false;
         let mut black_out = Tablebase::default();
         for b in &all {
-            changed |= iterate_black_once(&tablebase, &mut black_out, b);
+            changed |= iterate_once(&tablebase, &mut black_out, player, b);
         }
         if !changed {
             break;
         }
         tablebase.merge(black_out);
-
-        changed = false;
-        let mut white_out = Tablebase::default();
-        for b in &all {
-            changed |= iterate_white_once(&tablebase, &mut white_out, b);
-        }
-        if !changed {
-            break;
-        }
-        tablebase.merge(white_out);
+        player = next_player(player);
     }
     tablebase
 }
@@ -967,7 +921,7 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
     let mut maybe_reverse_capture_set = HashSet::new();
     for pieces in &visited {
         for &p in pieces.iter() {
-            if p.player() == Black && p.ty() != King {
+            if p.ty() != King {
                 let mut subset = pieces.clone();
                 subset.remove(p);
                 maybe_reverse_capture_set.insert(subset);
@@ -976,13 +930,14 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
     }
 
     let mut ret = PieceSets::default();
-    let mut black_non_king_pieces = HashSet::new();
+    let mut pieces_to_add = HashSet::new();
     for pieces in visited {
         for &p in &pieces {
-            if p.player() == Black && p.ty() != King {
-                black_non_king_pieces.insert(p);
-            } else if p == Piece::new(White, Pawn) {
-                ret.has_white_pawn = true;
+            if p.ty() != King {
+                pieces_to_add.insert(p);
+                if p == Piece::new(White, Pawn) {
+                    ret.has_white_pawn = true;
+                }
             }
         }
         if maybe_reverse_capture_set.contains(&pieces) {
@@ -991,7 +946,7 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
             ret.no_reverse_capture.push(pieces);
         }
     }
-    ret.black_pieces_to_add = black_non_king_pieces.into_iter().collect();
+    ret.pieces_to_add = pieces_to_add.into_iter().collect();
     ret
 }
 
@@ -1011,25 +966,18 @@ pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> 
     let mut boards_to_check = populate_initial_wins(&mut tablebase, &piece_sets);
     info_tablebase(&tablebase);
     let mut i = 0;
+    let mut player = Black;
     loop {
-        info!("iteration {}", i);
-        info!("iterate_black");
-        let black_out;
-        (black_out, boards_to_check) = iterate_black(&tablebase, boards_to_check);
+        info!("iteration {} ({:?})", i, player);
+        let out;
+        (out, boards_to_check) = iterate(&tablebase, boards_to_check, &piece_sets, player);
         info_tablebase(&tablebase);
         if boards_to_check.is_empty() {
             break;
         }
-        tablebase.merge(black_out);
+        tablebase.merge(out);
+        player = next_player(player);
 
-        info!("iterate_white");
-        let white_out;
-        (white_out, boards_to_check) = iterate_white(&tablebase, boards_to_check, &piece_sets);
-        tablebase.merge(white_out);
-        info_tablebase(&tablebase);
-        if boards_to_check.is_empty() {
-            break;
-        }
         i += 1;
     }
     info!("done");
@@ -1078,17 +1026,18 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     info_tablebase(&tablebase);
 
     let mut i = 0;
+    let mut player = Black;
     loop {
-        info!("iteration {}", i);
-        info!("iterate_black");
+        info!("iteration {} {:?}", i, player);
         boards_to_check = {
             let tablebase_arc = Arc::new(tablebase);
             let (tx, rx) = channel();
             for boards_clone in boards_to_check.split(pool_count) {
                 let tablebase_clone = tablebase_arc.clone();
+                let piece_sets_clone = piece_sets.clone();
                 let tx = tx.clone();
                 pool.execute(move || {
-                    let ret = iterate_black(&tablebase_clone, boards_clone);
+                    let ret = iterate(&tablebase_clone, boards_clone, &piece_sets_clone, player);
                     tx.send(ret).unwrap();
                 });
             }
@@ -1113,40 +1062,8 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
             break;
         }
 
-        info!("iterate_white");
-        boards_to_check = {
-            let tablebase_arc = Arc::new(tablebase);
-            let (tx, rx) = channel();
-            for boards_clone in boards_to_check.split(pool_count) {
-                let tablebase_clone = tablebase_arc.clone();
-                let piece_sets_clone = piece_sets.clone();
-                let tx = tx.clone();
-                pool.execute(move || {
-                    let ret = iterate_white(&tablebase_clone, boards_clone, &piece_sets_clone);
-                    tx.send(ret).unwrap();
-                });
-            }
-            drop(tx);
-            let mut boards_to_check = BoardsToVisit::<W, H>::default();
-            let mut tablebases_to_merge = Vec::new();
-            for (tablebase_to_merge, boards) in rx {
-                boards_to_check.merge(boards);
-                tablebases_to_merge.push(tablebase_to_merge);
-            }
-            tablebase = match Arc::try_unwrap(tablebase_arc) {
-                Ok(t) => t,
-                Err(_) => panic!("threads didn't finish using tablebase?"),
-            };
-            for to_merge in tablebases_to_merge {
-                tablebase.merge(to_merge);
-            }
-            boards_to_check
-        };
-        info_tablebase(&tablebase);
-        if boards_to_check.is_empty() {
-            break;
-        }
         i += 1;
+        player = next_player(player);
     }
     info!("done");
     tablebase
@@ -1160,6 +1077,7 @@ mod tests {
     use crate::player::next_player;
 
     const WK: Piece = Piece::new(White, King);
+    const WB: Piece = Piece::new(White, Bishop);
     const WQ: Piece = Piece::new(White, Queen);
     const WP: Piece = Piece::new(White, Pawn);
     const WA: Piece = Piece::new(White, Amazon);
@@ -1426,10 +1344,11 @@ mod tests {
         }
         {
             let s = calculate_piece_sets(&[kqk.clone()]);
-            assert!(s.maybe_reverse_capture.is_empty());
-            assert_eq!(s.no_reverse_capture.len(), 2);
-            assert!(s.no_reverse_capture.contains(&kk));
-            assert!(s.no_reverse_capture.contains(&kqk));
+            assert_eq!(s.maybe_reverse_capture, vec![kk.clone()]);
+            assert_eq!(s.no_reverse_capture, vec![kqk.clone()]);
+            // assert_eq!(s.no_reverse_capture.len(), 2);
+            // assert!(s.no_reverse_capture.contains(&kk));
+            // assert!(s.no_reverse_capture.contains(&kqk));
         }
         {
             let s = calculate_piece_sets(&[kkq.clone()]);
@@ -1446,25 +1365,29 @@ mod tests {
         }
         {
             let s = calculate_piece_sets(&[kpk.clone()]);
-            assert_eq!(s.maybe_reverse_capture, vec![]);
+            assert_eq!(s.maybe_reverse_capture, vec![kk.clone()]);
             assert_eq!(
                 s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
-                [kpk.clone(), kqk.clone(), kk.clone()].into_iter().collect()
+                [kpk.clone(), kqk.clone()].into_iter().collect()
             );
         }
         {
             let s = calculate_piece_sets(&[kpkr.clone()]);
             assert_eq!(
                 s.maybe_reverse_capture.into_iter().collect::<HashSet<_>>(),
-                [kk.clone(), kpk.clone(), kqk.clone(), kk.clone()]
-                    .into_iter()
-                    .collect()
+                [
+                    kk.clone(),
+                    kpk.clone(),
+                    kqk.clone(),
+                    kk.clone(),
+                    kkr.clone()
+                ]
+                .into_iter()
+                .collect()
             );
             assert_eq!(
                 s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
-                [kpkr.clone(), kkr.clone(), kqkr.clone()]
-                    .into_iter()
-                    .collect()
+                [kpkr.clone(), kqkr.clone()].into_iter().collect()
             );
         }
     }
@@ -1786,6 +1709,12 @@ mod tests {
     fn test_qk() {
         let qk = PieceSet::new(&[WQ, BK]);
         test_tablebase::<4, 4>(&[qk]);
+    }
+
+    #[test]
+    fn test_qbk() {
+        let set = PieceSet::new(&[WQ, WB, BK]);
+        test_tablebase::<4, 4>(&[set]);
     }
 
     #[test]
