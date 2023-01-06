@@ -993,10 +993,12 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
         if !visited.insert(s.clone()) {
             continue;
         }
+        let mut last_p = None;
         for (i, &p) in s.iter().enumerate() {
-            if p.ty() == King {
+            if p.ty() == King || Some(p) == last_p {
                 continue;
             }
+            last_p = Some(p);
             let mut clone = s.clone();
             clone.remove(p);
             if let Some(pta) = pieces_to_add.get_mut(&clone) {
@@ -1444,6 +1446,7 @@ mod tests {
         let kpkr = PieceSet::new(&[WK, WP, BK, BR]);
         let kkr = PieceSet::new(&[WK, BK, BR]);
         let bk = PieceSet::new(&[WB, BK]);
+        let bbk = PieceSet::new(&[WB, WB, BK]);
         {
             let s = calculate_piece_sets(&[kk.clone()]);
             assert!(s.maybe_reverse_capture.is_empty());
@@ -1478,9 +1481,14 @@ mod tests {
         {
             let s = calculate_piece_sets(&[bk.clone()]);
             assert_eq!(s.maybe_reverse_capture, vec![]);
+            assert_eq!(s.no_reverse_capture, vec![bk.clone()]);
+        }
+        {
+            let s = calculate_piece_sets(&[bbk.clone()]);
+            assert_eq!(s.maybe_reverse_capture, vec![bk.clone()]);
             assert_eq!(
                 s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
-                [bk.clone()].into_iter().collect()
+                [bbk.clone()].into_iter().collect()
             );
         }
         {
