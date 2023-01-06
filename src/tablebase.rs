@@ -6,6 +6,7 @@ use crate::moves::{
 };
 use crate::piece::Piece;
 use crate::piece::Type::*;
+use crate::player::Player;
 use crate::player::Player::*;
 use arrayvec::ArrayVec;
 use log::info;
@@ -136,43 +137,36 @@ pub struct Tablebase<const W: i8, const H: i8> {
 }
 
 impl<const W: i8, const H: i8> Tablebase<W, H> {
-    pub fn white_result(&self, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
+    pub fn result(&self, player: Player, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
         let (hash, sym) = canonical_board(board);
-        self.white_tablebase
+        self.tablebase_for_player(player)
             .get(&hash)
             .map(|e| (unflip_move(e.0, sym, W, H), e.1))
     }
-    pub fn black_result(&self, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
+    fn tablebase_for_player(&self, player: Player) -> &MapTy {
+        match player {
+            White => &self.white_tablebase,
+            Black => &self.black_tablebase,
+        }
+    }
+    fn tablebase_for_player_mut(&mut self, player: Player) -> &mut MapTy {
+        match player {
+            White => &mut self.white_tablebase,
+            Black => &mut self.black_tablebase,
+        }
+    }
+    fn add_impl(&mut self, player: Player, board: &TBBoard<W, H>, m: Move, depth: u16) {
+        let map = self.tablebase_for_player_mut(player);
         let (hash, sym) = canonical_board(board);
-        self.black_tablebase
-            .get(&hash)
-            .map(|e| (unflip_move(e.0, sym, W, H), e.1))
+        debug_assert!(!map.contains_key(&hash));
+        map.insert(hash, (flip_move::<W, H>(m, sym), depth));
     }
-    fn white_add_impl(&mut self, board: &TBBoard<W, H>, m: Move, depth: u16) {
-        let (hash, sym) = canonical_board(board);
-        debug_assert!(!self.white_tablebase.contains_key(&hash));
-        self.white_tablebase
-            .insert(hash, (flip_move::<W, H>(m, sym), depth));
+    fn contains_impl(&self, player: Player, board: &TBBoard<W, H>) -> bool {
+        self.tablebase_for_player(player)
+            .contains_key(&canonical_board(board).0)
     }
-    fn white_contains_impl(&self, board: &TBBoard<W, H>) -> bool {
-        self.white_tablebase.contains_key(&canonical_board(board).0)
-    }
-    fn white_depth_impl(&self, board: &TBBoard<W, H>) -> Option<u16> {
-        self.white_tablebase
-            .get(&canonical_board(board).0)
-            .map(|e| e.1)
-    }
-    fn black_add_impl(&mut self, board: &TBBoard<W, H>, m: Move, depth: u16) {
-        let (hash, sym) = canonical_board(board);
-        debug_assert!(!self.black_tablebase.contains_key(&hash));
-        self.black_tablebase
-            .insert(hash, (flip_move::<W, H>(m, sym), depth));
-    }
-    fn black_contains_impl(&self, board: &TBBoard<W, H>) -> bool {
-        self.black_tablebase.contains_key(&canonical_board(board).0)
-    }
-    fn black_depth_impl(&self, board: &TBBoard<W, H>) -> Option<u16> {
-        self.black_tablebase
+    fn depth_impl(&self, player: Player, board: &TBBoard<W, H>) -> Option<u16> {
+        self.tablebase_for_player(player)
             .get(&canonical_board(board).0)
             .map(|e| e.1)
     }
@@ -566,10 +560,11 @@ fn populate_initial_wins_one<const W: i8, const H: i8>(
     b: &TBBoard<W, H>,
 ) -> bool {
     // white can capture black's king
-    if !tablebase.white_contains_impl(b) {
+    if !tablebase.contains_impl(White, b) {
         let opponent_king_coord = b.king_coord(Black);
         if let Some(c) = under_attack_from_coord(b, opponent_king_coord, Black) {
-            tablebase.white_add_impl(
+            tablebase.add_impl(
+                White,
                 b,
                 Move {
                     from: c,
@@ -584,10 +579,11 @@ fn populate_initial_wins_one<const W: i8, const H: i8>(
     #[cfg(not(tablebase_stalemate_win))]
     debug_assert!(!all_moves(b, Black).is_empty());
     #[cfg(tablebase_stalemate_win)]
-    if !tablebase.black_contains_impl(b) {
+    if !tablebase.contains_impl(Black, b) {
         // stalemate is a win
         if all_moves(b, Black).is_empty() {
-            tablebase.black_add_impl(
+            tablebase.add_impl(
+                Black,
                 b,
                 // arbitrary move
                 Move {
@@ -629,7 +625,7 @@ fn iterate_black_once<const W: i8, const H: i8>(
     out_tablebase: &mut Tablebase<W, H>,
     board: &TBBoard<W, H>,
 ) -> bool {
-    if tablebase.black_contains_impl(board) || out_tablebase.black_contains_impl(board) {
+    if tablebase.contains_impl(Black, board) || out_tablebase.contains_impl(Black, board) {
         return false;
     }
     // None means no forced loss
@@ -645,7 +641,7 @@ fn iterate_black_once<const W: i8, const H: i8>(
         let mut clone = board.clone();
         clone.make_move(black_move, Black);
 
-        if let Some(depth) = tablebase.white_depth_impl(&clone) {
+        if let Some(depth) = tablebase.depth_impl(White, &clone) {
             max_depth = Some(match max_depth {
                 Some(md) => {
                     // use move that prolongs checkmate as long as possible
@@ -667,7 +663,7 @@ fn iterate_black_once<const W: i8, const H: i8>(
         }
     }
     if let Some(max_depth) = max_depth {
-        out_tablebase.black_add_impl(board, best_move.unwrap(), max_depth + 1);
+        out_tablebase.add_impl(Black, board, best_move.unwrap(), max_depth + 1);
         return true;
     }
     false
@@ -705,7 +701,7 @@ fn iterate_white_once<const W: i8, const H: i8>(
     out_tablebase: &mut Tablebase<W, H>,
     board: &TBBoard<W, H>,
 ) -> bool {
-    if tablebase.white_contains_impl(board) || out_tablebase.white_contains_impl(board) {
+    if tablebase.contains_impl(White, board) || out_tablebase.contains_impl(White, board) {
         return false;
     }
     // None means no forced win
@@ -721,7 +717,7 @@ fn iterate_white_once<const W: i8, const H: i8>(
         let mut clone = board.clone();
         clone.make_move(white_move, White);
 
-        if let Some(depth) = tablebase.black_depth_impl(&clone) {
+        if let Some(depth) = tablebase.depth_impl(Black, &clone) {
             min_depth = Some(match min_depth {
                 Some(md) => {
                     // use move that forces checkmate as quickly as possible
@@ -740,7 +736,7 @@ fn iterate_white_once<const W: i8, const H: i8>(
         }
     }
     if let Some(min_depth) = min_depth {
-        out_tablebase.white_add_impl(board, best_move.unwrap(), min_depth + 1);
+        out_tablebase.add_impl(White, board, best_move.unwrap(), min_depth + 1);
         return true;
     }
     false
@@ -1323,8 +1319,8 @@ mod tests {
             to: Coord::new(2, 0),
         };
         let mut tablebase = Tablebase::default();
-        tablebase.white_add_impl(&board, m, 1);
-        assert_eq!(tablebase.white_result(&board), Some((m, 1)));
+        tablebase.add_impl(White, &board, m, 1);
+        assert_eq!(tablebase.result(White, &board), Some((m, 1)));
     }
     #[test]
     fn test_canonical_board() {
@@ -1558,20 +1554,24 @@ mod tests {
             let mut tablebase = Tablebase::default();
             populate_initial_wins(&mut tablebase, &[WK, BP, BK]);
             assert_eq!(
-                tablebase.black_depth_impl(&TBBoard::<1, 8>::with_pieces(&[
-                    (Coord::new(0, 7), WK),
-                    (Coord::new(0, 1), BP),
-                    (Coord::new(0, 0), BK),
-                ])),
+                tablebase.depth_impl(
+                    Black,
+                    &TBBoard::<1, 8>::with_pieces(&[
+                        (Coord::new(0, 7), WK),
+                        (Coord::new(0, 1), BP),
+                        (Coord::new(0, 0), BK),
+                    ])
+                ),
                 Some(0)
             );
-            assert!(
-                !tablebase.black_contains_impl(&TBBoard::<1, 8>::with_pieces(&[
+            assert!(!tablebase.contains_impl(
+                Black,
+                &TBBoard::<1, 8>::with_pieces(&[
                     (Coord::new(0, 7), WK),
                     (Coord::new(0, 2), BP),
                     (Coord::new(0, 0), BK),
-                ]))
-            );
+                ])
+            ));
         }
     }
 
@@ -1608,16 +1608,12 @@ mod tests {
         }
 
         let mut board = board.clone();
-        if let Some((_, mut expected_depth)) = tablebase.white_result(&board) {
+        if let Some((_, mut expected_depth)) = tablebase.result(White, &board) {
             let mut player = White;
 
             while expected_depth > 0 {
                 assert!(black_king_exists(&board));
-                let (m, depth) = match player {
-                    White => tablebase.white_result(&board),
-                    Black => tablebase.black_result(&board),
-                }
-                .unwrap();
+                let (m, depth) = tablebase.result(player, &board).unwrap();
                 assert_eq!(depth, expected_depth);
                 board.make_move(m, player);
                 expected_depth -= 1;
@@ -1634,21 +1630,21 @@ mod tests {
     ) {
         for set in piece_sets {
             for b in generate_all_boards::<W, H>(set) {
-                let w1 = tb1.white_result(&b).map(|(_, d)| d);
-                let w2 = tb2.white_result(&b).map(|(_, d)| d);
+                let w1 = tb1.result(White, &b).map(|(_, d)| d);
+                let w2 = tb2.result(White, &b).map(|(_, d)| d);
                 if w1 != w2 {
                     println!("{:?}", &b);
                     println!("w1: {:?}", w1);
                     println!("w2: {:?}", w2);
-                    panic!("white_result mismatch");
+                    panic!("result(White) mismatch");
                 }
-                let b1 = tb1.black_result(&b).map(|(_, d)| d);
-                let b2 = tb2.black_result(&b).map(|(_, d)| d);
+                let b1 = tb1.result(Black, &b).map(|(_, d)| d);
+                let b2 = tb2.result(Black, &b).map(|(_, d)| d);
                 if b1 != b2 {
                     println!("{:?}", &b);
                     println!("b1: {:?}", b1);
                     println!("b2: {:?}", b2);
-                    panic!("black_result mismatch");
+                    panic!("result(Black) mismatch");
                 }
                 verify_board_tablebase(&b, tb1);
             }
@@ -1661,8 +1657,8 @@ mod tests {
         let tablebase = test_tablebase(&[set.clone()]);
 
         for b in generate_all_boards::<4, 4>(&set) {
-            let wd = tablebase.white_result(&b);
-            let bd = tablebase.black_result(&b);
+            let wd = tablebase.result(White, &b);
+            let bd = tablebase.result(Black, &b);
             assert!(wd.unwrap().1 % 2 == 1);
             assert!(bd.is_none() || bd.unwrap().1 % 2 == 0);
         }
@@ -1699,10 +1695,10 @@ mod tests {
         let tablebase = test_tablebase(&[kk]);
 
         assert_eq!(
-            tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
-                (Coord::new(0, 0), WK),
-                (Coord::new(3, 0), BK)
-            ])),
+            tablebase.result(
+                White,
+                &TBBoard::<5, 1>::with_pieces(&[(Coord::new(0, 0), WK), (Coord::new(3, 0), BK)])
+            ),
             Some((
                 Move {
                     from: Coord::new(0, 0),
@@ -1712,10 +1708,10 @@ mod tests {
             ))
         );
         assert_eq!(
-            tablebase.black_result(&TBBoard::<5, 1>::with_pieces(&[
-                (Coord::new(1, 0), WK),
-                (Coord::new(3, 0), BK)
-            ])),
+            tablebase.result(
+                Black,
+                &TBBoard::<5, 1>::with_pieces(&[(Coord::new(1, 0), WK), (Coord::new(3, 0), BK)])
+            ),
             Some((
                 Move {
                     from: Coord::new(3, 0),
@@ -1725,10 +1721,10 @@ mod tests {
             ))
         );
         assert_eq!(
-            tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
-                (Coord::new(1, 0), WK),
-                (Coord::new(4, 0), BK)
-            ])),
+            tablebase.result(
+                White,
+                &TBBoard::<5, 1>::with_pieces(&[(Coord::new(1, 0), WK), (Coord::new(4, 0), BK)])
+            ),
             Some((
                 Move {
                     from: Coord::new(1, 0),
@@ -1738,10 +1734,10 @@ mod tests {
             ))
         );
         assert_eq!(
-            tablebase.black_result(&TBBoard::<5, 1>::with_pieces(&[
-                (Coord::new(2, 0), WK),
-                (Coord::new(4, 0), BK)
-            ])),
+            tablebase.result(
+                Black,
+                &TBBoard::<5, 1>::with_pieces(&[(Coord::new(2, 0), WK), (Coord::new(4, 0), BK)])
+            ),
             Some((
                 Move {
                     from: Coord::new(4, 0),
@@ -1751,10 +1747,10 @@ mod tests {
             ))
         );
         assert_eq!(
-            tablebase.white_result(&TBBoard::<5, 1>::with_pieces(&[
-                (Coord::new(2, 0), WK),
-                (Coord::new(3, 0), BK)
-            ])),
+            tablebase.result(
+                White,
+                &TBBoard::<5, 1>::with_pieces(&[(Coord::new(2, 0), WK), (Coord::new(3, 0), BK)])
+            ),
             Some((
                 Move {
                     from: Coord::new(2, 0),
@@ -1773,11 +1769,11 @@ mod tests {
             // If white king couldn't capture on first move, no forced win.
             for b in generate_all_boards(&pieces) {
                 if is_under_attack(&b, b.king_coord(Black), Black) {
-                    assert_eq!(tablebase.white_result(&b).unwrap().1, 1);
+                    assert_eq!(tablebase.result(White, &b).unwrap().1, 1);
                 } else {
-                    assert_eq!(tablebase.white_result(&b), None);
+                    assert_eq!(tablebase.result(White, &b), None);
                 }
-                assert_eq!(tablebase.black_result(&b), None);
+                assert_eq!(tablebase.result(Black, &b), None);
             }
         }
         test::<6, 6>();
@@ -1815,12 +1811,15 @@ mod tests {
         // .K..
         // r..Q
         // Don't capture the rook, it's slower to checkmate overall.
-        let res = tablebase.white_result(&TBBoard::with_pieces(&[
-            (Coord::new(0, 0), BR),
-            (Coord::new(3, 0), WQ),
-            (Coord::new(1, 1), WK),
-            (Coord::new(2, 3), BK),
-        ]));
+        let res = tablebase.result(
+            White,
+            &TBBoard::with_pieces(&[
+                (Coord::new(0, 0), BR),
+                (Coord::new(3, 0), WQ),
+                (Coord::new(1, 1), WK),
+                (Coord::new(2, 3), BK),
+            ]),
+        );
         assert_ne!(res.unwrap().0.to, Coord::new(0, 0));
         assert_eq!(res.unwrap().1, 5);
     }
