@@ -41,4 +41,16 @@ fn test_derive() {
     assert_eq!(Struct5::from_u8(0), Some(Struct5::One));
     assert_eq!(Struct5::from_u8(1), Some(Struct5::Two));
     assert_eq!(Struct5::from_u8(2), None);
+
+    let mut it3 = Struct3::all();
+    assert_eq!(it3.next(), None);
+
+    let mut it4 = Struct4::all();
+    assert_eq!(it4.next(), Some(Struct4::One));
+    assert_eq!(it4.next(), None);
+
+    let mut it5 = Struct5::all();
+    assert_eq!(it5.next(), Some(Struct5::One));
+    assert_eq!(it5.next(), Some(Struct5::Two));
+    assert_eq!(it5.next(), None);
 }

@@ -1898,15 +1898,16 @@ mod tests {
     #[test]
     #[ignore]
     fn test_all_sets() {
+        use derive_enum::EnumFrom;
         let mut all_pieces = Vec::new();
-        for ty in [
-            Bishop, Knight, Rook, Queen, Cardinal, Empress, Amazon, Nightrider, Pawn,
-        ] {
-            for pl in [White, Black] {
-                all_pieces.push(Piece::new(pl, ty));
+        for ty in Type::all() {
+            for pl in Player::all() {
+                let p = Piece::new(pl, ty);
+                if p != Piece::new(Black, King) {
+                    all_pieces.push(p);
+                }
             }
         }
-        all_pieces.push(WK);
         for &p1 in &all_pieces {
             for &p2 in &all_pieces {
                 let set = PieceSet::new(dbg!(&[p1, p2, BK]));
