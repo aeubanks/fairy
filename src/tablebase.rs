@@ -427,8 +427,7 @@ const MIN_SPLIT_COUNT: usize = 10000;
 
 #[derive(Default, Clone)]
 struct PieceSets {
-    maybe_reverse_capture: Vec<PieceSet>,
-    no_reverse_capture: Vec<PieceSet>,
+    piece_sets: Vec<PieceSet>,
     // FIXME: this should be per-PieceSet
     pieces_to_add: HashMap<PieceSet, Vec<Piece>>,
     // FIXME: this should be per-PieceSet
@@ -437,37 +436,29 @@ struct PieceSets {
 
 struct PieceSetsSplitIter<'a> {
     remaining: usize,
-    no_slice: &'a [PieceSet],
-    no_per_slice_count: usize,
-    maybe_slice: &'a [PieceSet],
-    maybe_per_slice_count: usize,
+    slice: &'a [PieceSet],
+    per_slice_count: usize,
 }
 
 impl<'a> Iterator for PieceSetsSplitIter<'a> {
     type Item = PieceSets;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining == 0 || (self.no_slice.is_empty() && self.maybe_slice.is_empty()) {
+        if self.remaining == 0 || self.slice.is_empty() {
             return None;
         }
         self.remaining -= 1;
         if self.remaining == 0 {
             return Some(PieceSets {
-                maybe_reverse_capture: self.maybe_slice.to_vec(),
-                no_reverse_capture: self.no_slice.to_vec(),
+                piece_sets: self.slice.to_vec(),
                 ..Default::default()
             });
         }
-        let this_maybe_slice;
-        (this_maybe_slice, self.maybe_slice) = self
-            .maybe_slice
-            .split_at(self.maybe_per_slice_count.min(self.maybe_slice.len()));
-        let this_no_slice;
-        (this_no_slice, self.no_slice) = self
-            .no_slice
-            .split_at(self.no_per_slice_count.min(self.no_slice.len()));
+        let this_slice;
+        (this_slice, self.slice) = self
+            .slice
+            .split_at(self.per_slice_count.min(self.slice.len()));
         Some(PieceSets {
-            maybe_reverse_capture: this_maybe_slice.to_vec(),
-            no_reverse_capture: this_no_slice.to_vec(),
+            piece_sets: this_slice.to_vec(),
             ..Default::default()
         })
     }
@@ -478,52 +469,41 @@ impl PieceSets {
         assert_ne!(count, 0);
         PieceSetsSplitIter {
             remaining: count,
-            no_slice: self.no_reverse_capture.as_slice(),
-            no_per_slice_count: MIN_SPLIT_COUNT.max(self.no_reverse_capture.len() / count),
-            maybe_slice: self.maybe_reverse_capture.as_slice(),
-            maybe_per_slice_count: MIN_SPLIT_COUNT.max(self.maybe_reverse_capture.len() / count),
+            slice: self.piece_sets.as_slice(),
+            per_slice_count: MIN_SPLIT_COUNT.max(self.piece_sets.len() / count),
         }
     }
 }
 
 #[derive(Default)]
 struct BoardsToVisit<const W: i8, const H: i8> {
-    maybe_reverse_capture: Vec<TBBoard<W, H>>,
-    no_reverse_capture: Vec<TBBoard<W, H>>,
+    boards: Vec<TBBoard<W, H>>,
 }
 
 struct BoardsToVisitSplitIter<'a, const W: i8, const H: i8> {
     remaining: usize,
-    no_slice: &'a [TBBoard<W, H>],
-    no_per_slice_count: usize,
-    maybe_slice: &'a [TBBoard<W, H>],
-    maybe_per_slice_count: usize,
+    slice: &'a [TBBoard<W, H>],
+    per_slice_count: usize,
 }
 
 impl<'a, const W: i8, const H: i8> Iterator for BoardsToVisitSplitIter<'a, W, H> {
     type Item = BoardsToVisit<W, H>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining == 0 || (self.no_slice.is_empty() && self.maybe_slice.is_empty()) {
+        if self.remaining == 0 || self.slice.is_empty() {
             return None;
         }
         self.remaining -= 1;
         if self.remaining == 0 {
             return Some(BoardsToVisit {
-                maybe_reverse_capture: self.maybe_slice.to_vec(),
-                no_reverse_capture: self.no_slice.to_vec(),
+                boards: self.slice.to_vec(),
             });
         }
-        let this_maybe_slice;
-        (this_maybe_slice, self.maybe_slice) = self
-            .maybe_slice
-            .split_at(self.maybe_per_slice_count.min(self.maybe_slice.len()));
-        let this_no_slice;
-        (this_no_slice, self.no_slice) = self
-            .no_slice
-            .split_at(self.no_per_slice_count.min(self.no_slice.len()));
+        let this_slice;
+        (this_slice, self.slice) = self
+            .slice
+            .split_at(self.per_slice_count.min(self.slice.len()));
         Some(BoardsToVisit {
-            maybe_reverse_capture: this_maybe_slice.to_vec(),
-            no_reverse_capture: this_no_slice.to_vec(),
+            boards: this_slice.to_vec(),
         })
     }
 }
@@ -533,25 +513,18 @@ impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
         assert_ne!(count, 0);
         BoardsToVisitSplitIter {
             remaining: count,
-            no_slice: self.no_reverse_capture.as_slice(),
-            no_per_slice_count: MIN_SPLIT_COUNT.max(self.no_reverse_capture.len() / count),
-            maybe_slice: self.maybe_reverse_capture.as_slice(),
-            maybe_per_slice_count: MIN_SPLIT_COUNT.max(self.maybe_reverse_capture.len() / count),
+            slice: self.boards.as_slice(),
+            per_slice_count: MIN_SPLIT_COUNT.max(self.boards.len() / count),
         }
     }
 
     fn is_empty(&self) -> bool {
-        self.maybe_reverse_capture.is_empty() && self.no_reverse_capture.is_empty()
+        self.boards.is_empty()
     }
 
     fn merge(&mut self, other: Self) {
-        self.maybe_reverse_capture
-            .reserve(other.maybe_reverse_capture.len());
-        self.maybe_reverse_capture
-            .extend(other.maybe_reverse_capture);
-        self.no_reverse_capture
-            .reserve(other.no_reverse_capture.len());
-        self.no_reverse_capture.extend(other.no_reverse_capture);
+        self.boards.reserve(other.boards.len());
+        self.boards.extend(other.boards);
     }
 }
 
@@ -603,17 +576,10 @@ fn populate_initial_wins<const W: i8, const H: i8>(
     piece_sets: &PieceSets,
 ) -> BoardsToVisit<W, H> {
     let mut ret = BoardsToVisit::default();
-    for set in &piece_sets.maybe_reverse_capture {
+    for set in &piece_sets.piece_sets {
         for b in generate_all_boards(set) {
             if populate_initial_wins_one(tablebase, &b) {
-                ret.maybe_reverse_capture.push(b);
-            }
-        }
-    }
-    for set in &piece_sets.no_reverse_capture {
-        for b in generate_all_boards(set) {
-            if populate_initial_wins_one(tablebase, &b) {
-                ret.no_reverse_capture.push(b);
+                ret.boards.push(b);
             }
         }
     }
@@ -711,7 +677,6 @@ fn visit_reverse_moves<const W: i8, const H: i8>(
     board: &TBBoard<W, H>,
     player: Player,
     next_boards: &mut BoardsToVisit<W, H>,
-    no_reverse_capture: bool,
 ) {
     board.foreach_piece(|p, c| {
         if p.player() == player {
@@ -721,11 +686,7 @@ fn visit_reverse_moves<const W: i8, const H: i8>(
                 assert_eq!(clone.get(m), None);
                 clone.swap(m, c);
                 if iterate_once(tablebase, out_tablebase, player, &clone) {
-                    if no_reverse_capture {
-                        next_boards.no_reverse_capture.push(clone);
-                    } else {
-                        next_boards.maybe_reverse_capture.push(clone);
-                    }
+                    next_boards.boards.push(clone);
                 }
             }
         }
@@ -757,15 +718,7 @@ fn visit_reverse_promotion<const W: i8, const H: i8>(
                 clone.add_piece(reverse_coord, Piece::new(player, Pawn));
 
                 if iterate_once(tablebase, out_tablebase, player, &clone) {
-                    // TODO: optimize this
-                    if piece_sets
-                        .maybe_reverse_capture
-                        .contains(&board_pieces(&clone))
-                    {
-                        next_boards.maybe_reverse_capture.push(clone);
-                    } else {
-                        next_boards.no_reverse_capture.push(clone);
-                    }
+                    next_boards.boards.push(clone);
                     return true;
                 }
             }
@@ -864,15 +817,7 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
                             clone.swap(m, c);
                             clone.add_piece(c, *piece_to_add);
                             if iterate_once(tablebase, out_tablebase, player, &clone) {
-                                // TODO: optimize this
-                                if piece_sets
-                                    .maybe_reverse_capture
-                                    .contains(&board_pieces(&clone))
-                                {
-                                    next_boards.maybe_reverse_capture.push(clone);
-                                } else {
-                                    next_boards.no_reverse_capture.push(clone);
-                                }
+                                next_boards.boards.push(clone);
                             }
                         }
                     }
@@ -890,32 +835,13 @@ fn iterate<const W: i8, const H: i8>(
 ) -> (Tablebase<W, H>, BoardsToVisit<W, H>) {
     let mut next_boards = BoardsToVisit::default();
     let mut out_tablebase = Tablebase::default();
-    for prev in previous_boards.no_reverse_capture {
+    for prev in previous_boards.boards {
         visit_reverse_moves(
             tablebase,
             &mut out_tablebase,
             &prev,
             player,
             &mut next_boards,
-            true,
-        );
-        visit_reverse_promotion(
-            tablebase,
-            &mut out_tablebase,
-            piece_sets,
-            &prev,
-            player,
-            &mut next_boards,
-        );
-    }
-    for prev in previous_boards.maybe_reverse_capture {
-        visit_reverse_moves(
-            tablebase,
-            &mut out_tablebase,
-            &prev,
-            player,
-            &mut next_boards,
-            false,
         );
 
         visit_reverse_promotion(
@@ -957,10 +883,7 @@ fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) 
     let mut tablebase = Tablebase::default();
     let mut all = Vec::new();
     let piece_sets = calculate_piece_sets(piece_sets);
-    for s in &piece_sets.maybe_reverse_capture {
-        all.extend(generate_literally_all_boards(s));
-    }
-    for s in &piece_sets.no_reverse_capture {
+    for s in &piece_sets.piece_sets {
         all.extend(generate_literally_all_boards(s));
     }
     for b in &all {
@@ -1030,23 +953,15 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
     }
 
     let mut ret = PieceSets::default();
-    for pieces in visited {
-        for &p in &pieces {
-            if p == Piece::new(White, Pawn) {
-                ret.has_white_pawn = true;
-            }
-        }
-        if maybe_reverse_capture_set.contains(&pieces) {
-            ret.maybe_reverse_capture.push(pieces);
-        } else {
-            ret.no_reverse_capture.push(pieces);
-        }
-    }
+    ret.piece_sets = visited.into_iter().collect();
     ret.pieces_to_add = pieces_to_add;
+    ret.has_white_pawn = ret
+        .piece_sets
+        .iter()
+        .any(|ps| ps.iter().any(|&p| p == Piece::new(White, Pawn)));
     #[cfg(debug_assertions)]
     {
-        verify_piece_sets(&ret.maybe_reverse_capture);
-        verify_piece_sets(&ret.no_reverse_capture);
+        verify_piece_sets(&ret.piece_sets);
         for psta in ret.pieces_to_add.values() {
             let mut slice = psta.as_slice();
             while let Some((p, subslice)) = slice.split_last() {
@@ -1210,14 +1125,12 @@ mod tests {
             assert!(iter.next().is_none());
         }
 
-        set.maybe_reverse_capture
-            .resize(MIN_SPLIT_COUNT, PieceSet::default());
+        set.piece_sets.resize(MIN_SPLIT_COUNT, PieceSet::default());
         {
             let mut iter = set.split(1);
             {
                 let v = iter.next().unwrap();
-                assert_eq!(v.maybe_reverse_capture.len(), MIN_SPLIT_COUNT);
-                assert!(v.no_reverse_capture.is_empty());
+                assert_eq!(v.piece_sets.len(), MIN_SPLIT_COUNT);
             }
             assert!(iter.next().is_none());
         }
@@ -1225,20 +1138,18 @@ mod tests {
             let mut iter = set.split(2);
             {
                 let v = iter.next().unwrap();
-                assert_eq!(v.maybe_reverse_capture.len(), MIN_SPLIT_COUNT);
-                assert!(v.no_reverse_capture.is_empty());
+                assert_eq!(v.piece_sets.len(), MIN_SPLIT_COUNT);
             }
             assert!(iter.next().is_none());
         }
 
-        set.no_reverse_capture
+        set.piece_sets
             .resize(MIN_SPLIT_COUNT + 2, PieceSet::default());
         {
             let mut iter = set.split(1);
             {
                 let v = iter.next().unwrap();
-                assert_eq!(v.maybe_reverse_capture.len(), MIN_SPLIT_COUNT);
-                assert_eq!(v.no_reverse_capture.len(), MIN_SPLIT_COUNT + 2);
+                assert_eq!(v.piece_sets.len(), MIN_SPLIT_COUNT + 2);
             }
             assert!(iter.next().is_none());
         }
@@ -1246,13 +1157,11 @@ mod tests {
             let mut iter = set.split(2);
             {
                 let v = iter.next().unwrap();
-                assert_eq!(v.maybe_reverse_capture.len(), MIN_SPLIT_COUNT);
-                assert_eq!(v.no_reverse_capture.len(), MIN_SPLIT_COUNT);
+                assert_eq!(v.piece_sets.len(), MIN_SPLIT_COUNT);
             }
             {
                 let v = iter.next().unwrap();
-                assert_eq!(v.maybe_reverse_capture.len(), 0);
-                assert_eq!(v.no_reverse_capture.len(), 2);
+                assert_eq!(v.piece_sets.len(), 2);
             }
             assert!(iter.next().is_none());
         }
@@ -1449,67 +1358,53 @@ mod tests {
         let kkr = PieceSet::new(&[WK, BK, BR]);
         let bk = PieceSet::new(&[WB, BK]);
         let bbk = PieceSet::new(&[WB, WB, BK]);
+        fn assert_sets_equal(s1: PieceSets, s2: &[PieceSet]) {
+            assert_eq!(
+                s1.piece_sets.into_iter().collect::<HashSet<_>>(),
+                s2.iter().cloned().collect()
+            );
+        }
         {
             let s = calculate_piece_sets(&[kk.clone()]);
-            assert!(s.maybe_reverse_capture.is_empty());
-            assert_eq!(s.no_reverse_capture, vec![kk.clone()]);
+            assert_sets_equal(s, &[kk.clone()]);
         }
         {
             let s = calculate_piece_sets(&[kqk.clone()]);
-            assert_eq!(s.maybe_reverse_capture, vec![kk.clone()]);
-            assert_eq!(s.no_reverse_capture, vec![kqk.clone()]);
+            assert_sets_equal(s, &[kk.clone(), kqk.clone()]);
         }
         {
             let s = calculate_piece_sets(&[kkq.clone()]);
-            assert_eq!(s.maybe_reverse_capture, vec![kk.clone()]);
-            assert_eq!(s.no_reverse_capture, vec![kkq.clone()]);
+            assert_sets_equal(s, &[kk.clone(), kkq.clone()]);
         }
         {
             let s = calculate_piece_sets(&[kkq.clone(), kqk.clone()]);
-            assert_eq!(s.maybe_reverse_capture, vec![kk.clone()]);
-            assert_eq!(
-                s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
-                [kqk.clone(), kkq.clone()].into_iter().collect()
-            );
+            assert_sets_equal(s, &[kk.clone(), kkq.clone(), kqk.clone()]);
         }
         {
             let s = calculate_piece_sets(&[kpk.clone()]);
-            assert_eq!(s.maybe_reverse_capture, vec![kk.clone()]);
-            assert_eq!(
-                s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
-                [kpk.clone(), kqk.clone()].into_iter().collect()
-            );
+            assert_sets_equal(s, &[kk.clone(), kpk.clone(), kqk.clone()]);
         }
         {
             let s = calculate_piece_sets(&[bk.clone()]);
-            assert_eq!(s.maybe_reverse_capture, vec![]);
-            assert_eq!(s.no_reverse_capture, vec![bk.clone()]);
+            assert_sets_equal(s, &[bk.clone()]);
         }
         {
             let s = calculate_piece_sets(&[bbk.clone()]);
-            assert_eq!(s.maybe_reverse_capture, vec![bk.clone()]);
-            assert_eq!(
-                s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
-                [bbk.clone()].into_iter().collect()
-            );
+            assert_sets_equal(s, &[bk.clone(), bbk.clone()]);
         }
         {
             let s = calculate_piece_sets(&[kpkr.clone()]);
-            assert_eq!(
-                s.maybe_reverse_capture.into_iter().collect::<HashSet<_>>(),
-                [
+            assert_sets_equal(
+                s,
+                &[
                     kk.clone(),
                     kpk.clone(),
                     kqk.clone(),
                     kk.clone(),
-                    kkr.clone()
-                ]
-                .into_iter()
-                .collect()
-            );
-            assert_eq!(
-                s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
-                [kpkr.clone(), kqkr.clone()].into_iter().collect()
+                    kkr.clone(),
+                    kpkr.clone(),
+                    kqkr.clone(),
+                ],
             );
         }
     }
