@@ -1,8 +1,8 @@
 use crate::board::{Board, Move};
 use crate::coord::Coord;
 use crate::moves::{
-    add_moves_for_piece_to_end_at_board_no_captures, all_moves,
-    all_moves_to_end_at_board_no_captures, under_attack_from_coord,
+    all_moves, all_moves_to_end_at_board_captures, all_moves_to_end_at_board_no_captures,
+    under_attack_from_coord,
 };
 use crate::piece::Piece;
 use crate::piece::Type::*;
@@ -851,9 +851,7 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
             if piece_to_add.player() != player {
                 board.foreach_piece(|p, c| {
                     if p.player() == player {
-                        // TODO: make more ergonomic
-                        let mut moves = Vec::new();
-                        add_moves_for_piece_to_end_at_board_no_captures(&mut moves, board, p, c);
+                        let moves = all_moves_to_end_at_board_captures(board, p, c);
                         for m in moves {
                             let mut clone = board.clone();
                             assert_eq!(clone.get(m), None);
@@ -1839,6 +1837,14 @@ mod tests {
     fn test_kpk() {
         let kpk = PieceSet::new(&[WK, BK, WP]);
         test_tablebase::<4, 4>(&[kpk]);
+    }
+
+    #[test]
+    // FIXME: promotion+capture on same turn
+    #[ignore]
+    fn test_pkb() {
+        let set = PieceSet::new(&[BK, WP, BB]);
+        test_tablebase::<4, 4>(&[set]);
     }
 
     #[test]

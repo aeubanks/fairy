@@ -444,7 +444,7 @@ fn add_moves_for_leaper_to_end_at_board_no_captures<T: Board>(
     }
 }
 
-pub fn add_moves_for_piece_to_end_at_board_no_captures<T: Board>(
+fn add_moves_for_piece_to_end_at_board_no_captures<T: Board>(
     moves: &mut Vec<Coord>,
     board: &T,
     piece: Piece,
@@ -471,6 +471,31 @@ pub fn add_moves_for_piece_to_end_at_board_no_captures<T: Board>(
             }
         }
     }
+}
+
+pub fn all_moves_to_end_at_board_captures<T: Board>(
+    board: &T,
+    piece: Piece,
+    coord: Coord,
+) -> Vec<Coord> {
+    let mut moves = Vec::new();
+    if piece.ty() == Pawn {
+        let (dy, start_y) = match piece.player() {
+            White => (1, 1),
+            Black => (-1, board.height() - 2),
+        };
+
+        // FIXME: en passant
+        for dx in [-1, 1] {
+            let try_coord = coord + Coord::new(dx, -dy);
+            if coord.y != start_y && board.in_bounds(try_coord) && board.get(try_coord).is_none() {
+                moves.push(try_coord);
+            }
+        }
+    } else {
+        add_moves_for_piece_to_end_at_board_no_captures(&mut moves, board, piece, coord);
+    }
+    moves
 }
 
 #[must_use]
