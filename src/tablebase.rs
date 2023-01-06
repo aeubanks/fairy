@@ -12,7 +12,7 @@ use arrayvec::ArrayVec;
 use log::info;
 use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
@@ -430,7 +430,7 @@ struct PieceSets {
     maybe_reverse_capture: Vec<PieceSet>,
     no_reverse_capture: Vec<PieceSet>,
     // FIXME: this should be per-PieceSet
-    pieces_to_add: Vec<Piece>,
+    pieces_to_add: HashMap<PieceSet, Vec<Piece>>,
     // FIXME: this should be per-PieceSet
     has_white_pawn: bool,
 }
@@ -647,6 +647,11 @@ fn iterate_once<const W: i8, const H: i8>(
     }
     for m in all_moves {
         let mut clone = board.clone();
+        if clone.get(m.to) == Some(Piece::new(Black, King)) {
+            dbg!(m);
+            dbg!(&clone);
+        }
+        debug_assert_ne!(clone.get(m.to), Some(Piece::new(Black, King)));
         clone.make_move(m, player);
 
         match player {
@@ -843,32 +848,34 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
     player: Player,
     next_boards: &mut BoardsToVisit<W, H>,
 ) {
-    for piece_to_add in &piece_sets.pieces_to_add {
-        if piece_to_add.player() != player {
-            board.foreach_piece(|p, c| {
-                if p.player() == player {
-                    // TODO: make more ergonomic
-                    let mut moves = Vec::new();
-                    add_moves_for_piece_to_end_at_board_no_captures(&mut moves, board, p, c);
-                    for m in moves {
-                        let mut clone = board.clone();
-                        assert_eq!(clone.get(m), None);
-                        clone.swap(m, c);
-                        clone.add_piece(c, *piece_to_add);
-                        if iterate_once(tablebase, out_tablebase, player, &clone) {
-                            // TODO: optimize this
-                            if piece_sets
-                                .maybe_reverse_capture
-                                .contains(&board_pieces(&clone))
-                            {
-                                next_boards.maybe_reverse_capture.push(clone);
-                            } else {
-                                next_boards.no_reverse_capture.push(clone);
+    if let Some(pieces_to_add) = piece_sets.pieces_to_add.get(&board_pieces(board)) {
+        for piece_to_add in pieces_to_add {
+            if piece_to_add.player() != player {
+                board.foreach_piece(|p, c| {
+                    if p.player() == player {
+                        // TODO: make more ergonomic
+                        let mut moves = Vec::new();
+                        add_moves_for_piece_to_end_at_board_no_captures(&mut moves, board, p, c);
+                        for m in moves {
+                            let mut clone = board.clone();
+                            assert_eq!(clone.get(m), None);
+                            clone.swap(m, c);
+                            clone.add_piece(c, *piece_to_add);
+                            if iterate_once(tablebase, out_tablebase, player, &clone) {
+                                // TODO: optimize this
+                                if piece_sets
+                                    .maybe_reverse_capture
+                                    .contains(&board_pieces(&clone))
+                                {
+                                    next_boards.maybe_reverse_capture.push(clone);
+                                } else {
+                                    next_boards.no_reverse_capture.push(clone);
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+            }
         }
     }
 }
@@ -978,6 +985,7 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
 
     let mut visited = HashSet::<PieceSet>::new();
     let mut stack = piece_sets.to_vec();
+    let mut pieces_to_add = HashMap::<PieceSet, Vec<Piece>>::new();
     while let Some(s) = stack.pop() {
         if !s.iter().any(|&p| p.player() == White) {
             continue;
@@ -991,6 +999,11 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
             }
             let mut clone = s.clone();
             clone.remove(p);
+            if let Some(pta) = pieces_to_add.get_mut(&clone) {
+                pta.push(p);
+            } else {
+                pieces_to_add.insert(clone.clone(), vec![p]);
+            }
             stack.push(clone);
             if p.ty() == Pawn {
                 let mut pawn_to_queen = s.iter().as_slice().to_vec();
@@ -1013,14 +1026,10 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
     }
 
     let mut ret = PieceSets::default();
-    let mut pieces_to_add = HashSet::new();
     for pieces in visited {
         for &p in &pieces {
-            if p.ty() != King {
-                pieces_to_add.insert(p);
-                if p == Piece::new(White, Pawn) {
-                    ret.has_white_pawn = true;
-                }
+            if p == Piece::new(White, Pawn) {
+                ret.has_white_pawn = true;
             }
         }
         if maybe_reverse_capture_set.contains(&pieces) {
@@ -1029,9 +1038,20 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
             ret.no_reverse_capture.push(pieces);
         }
     }
-    ret.pieces_to_add = pieces_to_add.into_iter().collect();
+    ret.pieces_to_add = pieces_to_add;
     #[cfg(debug_assertions)]
-    verify_piece_sets(piece_sets);
+    {
+        verify_piece_sets(&ret.maybe_reverse_capture);
+        verify_piece_sets(&ret.no_reverse_capture);
+        for psta in ret.pieces_to_add.values() {
+            let mut slice = psta.as_slice();
+            while let Some((p, subslice)) = slice.split_last() {
+                assert!(!subslice.contains(p));
+                slice = subslice;
+            }
+        }
+    }
+
     ret
 }
 
@@ -1819,6 +1839,12 @@ mod tests {
     fn test_kqkq() {
         let kqkq = PieceSet::new(&[WK, BK, WQ, BQ]);
         test_tablebase::<4, 4>(&[kqkq]);
+    }
+
+    #[test]
+    fn test_bqkb() {
+        let set = PieceSet::new(&[WB, WQ, BK, BB]);
+        test_tablebase::<4, 4>(&[set]);
     }
 
     #[test]
