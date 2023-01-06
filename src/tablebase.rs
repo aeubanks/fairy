@@ -979,6 +979,9 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
     let mut visited = HashSet::<PieceSet>::new();
     let mut stack = piece_sets.to_vec();
     while let Some(s) = stack.pop() {
+        if !s.iter().any(|&p| p.player() == White) {
+            continue;
+        }
         if !visited.insert(s.clone()) {
             continue;
         }
@@ -1027,6 +1030,8 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
         }
     }
     ret.pieces_to_add = pieces_to_add.into_iter().collect();
+    #[cfg(debug_assertions)]
+    verify_piece_sets(piece_sets);
     ret
 }
 
@@ -1167,6 +1172,7 @@ mod tests {
     const BR: Piece = Piece::new(Black, Rook);
     const BP: Piece = Piece::new(Black, Pawn);
     const BA: Piece = Piece::new(Black, Amazon);
+    const BB: Piece = Piece::new(Black, Bishop);
 
     #[test]
     fn test_piece_sets_split_iter() {
@@ -1417,6 +1423,7 @@ mod tests {
         let kqkr = PieceSet::new(&[WK, WQ, BK, BR]);
         let kpkr = PieceSet::new(&[WK, WP, BK, BR]);
         let kkr = PieceSet::new(&[WK, BK, BR]);
+        let bk = PieceSet::new(&[WB, BK]);
         {
             let s = calculate_piece_sets(&[kk.clone()]);
             assert!(s.maybe_reverse_capture.is_empty());
@@ -1426,9 +1433,6 @@ mod tests {
             let s = calculate_piece_sets(&[kqk.clone()]);
             assert_eq!(s.maybe_reverse_capture, vec![kk.clone()]);
             assert_eq!(s.no_reverse_capture, vec![kqk.clone()]);
-            // assert_eq!(s.no_reverse_capture.len(), 2);
-            // assert!(s.no_reverse_capture.contains(&kk));
-            // assert!(s.no_reverse_capture.contains(&kqk));
         }
         {
             let s = calculate_piece_sets(&[kkq.clone()]);
@@ -1449,6 +1453,14 @@ mod tests {
             assert_eq!(
                 s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
                 [kpk.clone(), kqk.clone()].into_iter().collect()
+            );
+        }
+        {
+            let s = calculate_piece_sets(&[bk.clone()]);
+            assert_eq!(s.maybe_reverse_capture, vec![]);
+            assert_eq!(
+                s.no_reverse_capture.into_iter().collect::<HashSet<_>>(),
+                [bk.clone()].into_iter().collect()
             );
         }
         {
