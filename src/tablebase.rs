@@ -105,6 +105,39 @@ fn flip_move<const W: i8, const H: i8>(mut m: Move, sym: Symmetry) -> Move {
 }
 
 #[must_use]
+fn flip_x<const W: i8, const H: i8>(b: &TBBoard<W, H>, c: Coord) -> (TBBoard<W, H>, Coord) {
+    let sym = Symmetry {
+        flip_x: true,
+        flip_y: false,
+        flip_diagonally: false,
+    };
+    (flip_board::<W, H>(b, sym), flip_coord::<W, H>(c, sym))
+}
+
+#[must_use]
+fn flip_y<const W: i8, const H: i8>(b: &TBBoard<W, H>, c: Coord) -> (TBBoard<W, H>, Coord) {
+    let sym = Symmetry {
+        flip_x: false,
+        flip_y: true,
+        flip_diagonally: false,
+    };
+    (flip_board::<W, H>(b, sym), flip_coord::<W, H>(c, sym))
+}
+
+#[must_use]
+fn flip_diagonally<const W: i8, const H: i8>(
+    b: &TBBoard<W, H>,
+    c: Coord,
+) -> (TBBoard<W, H>, Coord) {
+    let sym = Symmetry {
+        flip_x: false,
+        flip_y: false,
+        flip_diagonally: true,
+    };
+    (flip_board::<W, H>(b, sym), flip_coord::<W, H>(c, sym))
+}
+
+#[must_use]
 fn unflip_coord(mut c: Coord, sym: Symmetry, width: i8, height: i8) -> Coord {
     if sym.flip_diagonally {
         std::mem::swap(&mut c.x, &mut c.y);
@@ -722,52 +755,22 @@ fn visit_reverse_promotion<const W: i8, const H: i8, F>(
             } else if c.y == H - 1 || c.y == 0 {
                 let mut clone = board.clone();
                 if c.y == 0 {
-                    let sym = Symmetry {
-                        flip_x: false,
-                        flip_y: true,
-                        flip_diagonally: false,
-                    };
-                    clone = flip_board(&clone, sym);
-                    c = flip_coord::<W, H>(c, sym);
+                    (clone, c) = flip_y(&clone, c);
                 }
                 callback(&clone, c);
                 if c.x == 0 || c.x == W - 1 {
                     if c.x == 0 {
-                        let sym = Symmetry {
-                            flip_x: true,
-                            flip_y: false,
-                            flip_diagonally: false,
-                        };
-                        clone = flip_board(&clone, sym);
-                        c = flip_coord::<W, H>(c, sym);
+                        (clone, c) = flip_x(&clone, c);
                     }
-                    let sym = Symmetry {
-                        flip_x: false,
-                        flip_y: false,
-                        flip_diagonally: true,
-                    };
-                    clone = flip_board(&clone, sym);
-                    c = flip_coord::<W, H>(c, sym);
+                    (clone, c) = flip_diagonally(&clone, c);
                     callback(&clone, c);
                 }
             } else if c.x == W - 1 || c.x == 0 {
                 let mut clone = board.clone();
                 if c.x == 0 {
-                    let sym = Symmetry {
-                        flip_x: true,
-                        flip_y: false,
-                        flip_diagonally: false,
-                    };
-                    clone = flip_board(&clone, sym);
-                    c = flip_coord::<W, H>(c, sym);
+                    (clone, c) = flip_x(&clone, c);
                 }
-                let sym = Symmetry {
-                    flip_x: false,
-                    flip_y: false,
-                    flip_diagonally: true,
-                };
-                clone = flip_board(&clone, sym);
-                c = flip_coord::<W, H>(c, sym);
+                (clone, c) = flip_diagonally(&clone, c);
                 callback(&clone, c);
             }
         }
