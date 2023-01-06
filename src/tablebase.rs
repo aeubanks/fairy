@@ -428,10 +428,8 @@ const MIN_SPLIT_COUNT: usize = 10000;
 #[derive(Default, Clone)]
 struct PieceSets {
     piece_sets: Vec<PieceSet>,
-    // FIXME: this should be per-PieceSet
     pieces_to_add: HashMap<PieceSet, Vec<Piece>>,
-    // FIXME: this should be per-PieceSet
-    has_white_pawn: bool,
+    can_reverse_promote: HashSet<PieceSet>,
 }
 
 struct PieceSetsSplitIter<'a> {
@@ -702,78 +700,56 @@ fn board_pieces<const W: i8, const H: i8>(b: &TBBoard<W, H>) -> PieceSet {
 fn visit_reverse_promotion<const W: i8, const H: i8>(
     tablebase: &Tablebase<W, H>,
     out_tablebase: &mut Tablebase<W, H>,
-    piece_sets: &PieceSets,
     board: &TBBoard<W, H>,
     player: Player,
     next_boards: &mut BoardsToVisit<W, H>,
 ) {
-    if piece_sets.has_white_pawn {
-        let mut visit_maybe_reverse_promotion = |b: &TBBoard<W, H>, c: Coord| {
-            debug_assert_eq!(c.y, b.height() - 1);
-            debug_assert_eq!(b.get(c), Some(Piece::new(player, Queen)));
-            let reverse_coord = c + Coord::new(0, -1);
-            if b.get(reverse_coord).is_none() {
-                let mut clone = b.clone();
-                clone.clear(c);
-                clone.add_piece(reverse_coord, Piece::new(player, Pawn));
+    let mut visit_maybe_reverse_promotion = |b: &TBBoard<W, H>, c: Coord| {
+        debug_assert_eq!(c.y, b.height() - 1);
+        debug_assert_eq!(b.get(c), Some(Piece::new(player, Queen)));
+        let reverse_coord = c + Coord::new(0, -1);
+        if b.get(reverse_coord).is_none() {
+            let mut clone = b.clone();
+            clone.clear(c);
+            clone.add_piece(reverse_coord, Piece::new(player, Pawn));
 
-                if iterate_once(tablebase, out_tablebase, player, &clone) {
-                    next_boards.boards.push(clone);
-                    return true;
-                }
+            if iterate_once(tablebase, out_tablebase, player, &clone) {
+                next_boards.boards.push(clone);
+                return true;
             }
-            false
-        };
-        fn board_has_pawn<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> bool {
-            let mut ret = false;
-            board.foreach_piece(|p, _| {
-                if p.ty() == Pawn {
-                    ret = true;
-                }
-            });
-            ret
         }
-        let has_pawn = board_has_pawn(&board);
-        // FIXME: work with black pawns too
-        board.foreach_piece(|p, mut c| {
-            if p == Piece::new(player, Queen) {
-                if has_pawn {
-                    if c.y == H - 1 {
-                        visit_maybe_reverse_promotion(&board, c);
-                    }
-                } else if c.y == H - 1 || c.y == 0 {
-                    let mut clone = board.clone();
-                    if c.y == 0 {
-                        let sym = Symmetry {
-                            flip_x: false,
-                            flip_y: true,
-                            flip_diagonally: false,
-                        };
-                        clone = flip_board(&clone, sym);
-                        c = flip_coord::<W, H>(c, sym);
-                    }
-                    visit_maybe_reverse_promotion(&clone, c);
-                    if c.x == 0 || c.x == W - 1 {
-                        if c.x == 0 {
-                            let sym = Symmetry {
-                                flip_x: true,
-                                flip_y: false,
-                                flip_diagonally: false,
-                            };
-                            clone = flip_board(&clone, sym);
-                            c = flip_coord::<W, H>(c, sym);
-                        }
-                        let sym = Symmetry {
-                            flip_x: false,
-                            flip_y: false,
-                            flip_diagonally: true,
-                        };
-                        clone = flip_board(&clone, sym);
-                        c = flip_coord::<W, H>(c, sym);
-                        visit_maybe_reverse_promotion(&clone, c);
-                    }
-                } else if c.x == W - 1 || c.x == 0 {
-                    let mut clone = board.clone();
+        false
+    };
+    fn board_has_pawn<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> bool {
+        let mut ret = false;
+        board.foreach_piece(|p, _| {
+            if p.ty() == Pawn {
+                ret = true;
+            }
+        });
+        ret
+    }
+    let has_pawn = board_has_pawn(&board);
+    // FIXME: work with black pawns too
+    board.foreach_piece(|p, mut c| {
+        if p == Piece::new(player, Queen) {
+            if has_pawn {
+                if c.y == H - 1 {
+                    visit_maybe_reverse_promotion(&board, c);
+                }
+            } else if c.y == H - 1 || c.y == 0 {
+                let mut clone = board.clone();
+                if c.y == 0 {
+                    let sym = Symmetry {
+                        flip_x: false,
+                        flip_y: true,
+                        flip_diagonally: false,
+                    };
+                    clone = flip_board(&clone, sym);
+                    c = flip_coord::<W, H>(c, sym);
+                }
+                visit_maybe_reverse_promotion(&clone, c);
+                if c.x == 0 || c.x == W - 1 {
                     if c.x == 0 {
                         let sym = Symmetry {
                             flip_x: true,
@@ -792,37 +768,54 @@ fn visit_reverse_promotion<const W: i8, const H: i8>(
                     c = flip_coord::<W, H>(c, sym);
                     visit_maybe_reverse_promotion(&clone, c);
                 }
+            } else if c.x == W - 1 || c.x == 0 {
+                let mut clone = board.clone();
+                if c.x == 0 {
+                    let sym = Symmetry {
+                        flip_x: true,
+                        flip_y: false,
+                        flip_diagonally: false,
+                    };
+                    clone = flip_board(&clone, sym);
+                    c = flip_coord::<W, H>(c, sym);
+                }
+                let sym = Symmetry {
+                    flip_x: false,
+                    flip_y: false,
+                    flip_diagonally: true,
+                };
+                clone = flip_board(&clone, sym);
+                c = flip_coord::<W, H>(c, sym);
+                visit_maybe_reverse_promotion(&clone, c);
             }
-        });
-    }
+        }
+    });
 }
 
 fn visit_reverse_capture<const W: i8, const H: i8>(
     tablebase: &Tablebase<W, H>,
     out_tablebase: &mut Tablebase<W, H>,
-    piece_sets: &PieceSets,
+    pieces_to_add: &[Piece],
     board: &TBBoard<W, H>,
     player: Player,
     next_boards: &mut BoardsToVisit<W, H>,
 ) {
-    if let Some(pieces_to_add) = piece_sets.pieces_to_add.get(&board_pieces(board)) {
-        for piece_to_add in pieces_to_add {
-            if piece_to_add.player() != player {
-                board.foreach_piece(|p, c| {
-                    if p.player() == player {
-                        let moves = all_moves_to_end_at_board_captures(board, p, c);
-                        for m in moves {
-                            let mut clone = board.clone();
-                            assert_eq!(clone.get(m), None);
-                            clone.swap(m, c);
-                            clone.add_piece(c, *piece_to_add);
-                            if iterate_once(tablebase, out_tablebase, player, &clone) {
-                                next_boards.boards.push(clone);
-                            }
+    for piece_to_add in pieces_to_add {
+        if piece_to_add.player() != player {
+            board.foreach_piece(|p, c| {
+                if p.player() == player {
+                    let moves = all_moves_to_end_at_board_captures(board, p, c);
+                    for m in moves {
+                        let mut clone = board.clone();
+                        assert_eq!(clone.get(m), None);
+                        clone.swap(m, c);
+                        clone.add_piece(c, *piece_to_add);
+                        if iterate_once(tablebase, out_tablebase, player, &clone) {
+                            next_boards.boards.push(clone);
                         }
                     }
-                });
-            }
+                }
+            });
         }
     }
 }
@@ -844,23 +837,27 @@ fn iterate<const W: i8, const H: i8>(
             &mut next_boards,
         );
 
-        visit_reverse_promotion(
-            tablebase,
-            &mut out_tablebase,
-            piece_sets,
-            &prev,
-            player,
-            &mut next_boards,
-        );
+        let prev_piece_set = board_pieces(&prev);
+        if piece_sets.can_reverse_promote.contains(&prev_piece_set) {
+            visit_reverse_promotion(
+                tablebase,
+                &mut out_tablebase,
+                &prev,
+                player,
+                &mut next_boards,
+            );
+        }
 
-        visit_reverse_capture(
-            tablebase,
-            &mut out_tablebase,
-            piece_sets,
-            &prev,
-            player,
-            &mut next_boards,
-        );
+        if let Some(pieces_to_add) = piece_sets.pieces_to_add.get(&prev_piece_set) {
+            visit_reverse_capture(
+                tablebase,
+                &mut out_tablebase,
+                pieces_to_add,
+                &prev,
+                player,
+                &mut next_boards,
+            );
+        }
     }
 
     (out_tablebase, next_boards)
@@ -911,6 +908,7 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
     let mut visited = HashSet::<PieceSet>::new();
     let mut stack = piece_sets.to_vec();
     let mut pieces_to_add = HashMap::<PieceSet, Vec<Piece>>::new();
+    let mut can_reverse_promote = HashSet::new();
     while let Some(s) = stack.pop() {
         if !s.iter().any(|&p| p.player() == White) {
             continue;
@@ -936,6 +934,7 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
                 let mut pawn_to_queen = s.iter().as_slice().to_vec();
                 pawn_to_queen[i] = Piece::new(p.player(), Queen);
                 let clone2 = PieceSet::new(&pawn_to_queen);
+                can_reverse_promote.insert(clone2.clone());
                 stack.push(clone2);
             }
         }
@@ -953,12 +952,16 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
     }
 
     let mut ret = PieceSets::default();
+
     ret.piece_sets = visited.into_iter().collect();
+    ret.piece_sets.shrink_to_fit();
+
     ret.pieces_to_add = pieces_to_add;
-    ret.has_white_pawn = ret
-        .piece_sets
-        .iter()
-        .any(|ps| ps.iter().any(|&p| p == Piece::new(White, Pawn)));
+    ret.pieces_to_add.shrink_to_fit();
+
+    ret.can_reverse_promote = can_reverse_promote;
+    ret.can_reverse_promote.shrink_to_fit();
+
     #[cfg(debug_assertions)]
     {
         verify_piece_sets(&ret.piece_sets);
