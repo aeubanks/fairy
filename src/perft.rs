@@ -14,7 +14,7 @@ fn perft_impl<T: Board>(board: &T, player: Player, depth: u64) -> u64 {
     let mut sum = 0;
     for m in moves {
         let mut copy = board.clone();
-        copy.make_move(m, player);
+        copy.make_move(m);
         if is_in_check(&copy, player) {
             continue;
         }
@@ -61,7 +61,7 @@ fn perft_all_impl<T: Board>(board: &T, player: Player, depth: u64) -> u64 {
             }
         }
         let mut copy = board.clone();
-        copy.make_move(m, player);
+        copy.make_move(m);
         if depth == 1 {
             sum += 1
         } else {

@@ -689,7 +689,7 @@ fn visit_board<const W: i8, const H: i8>(
             dbg!(&clone);
             panic!();
         }
-        clone.make_move(m, player);
+        clone.make_move(m);
 
         match player {
             White => {
@@ -1711,7 +1711,7 @@ mod tests {
                 assert!(black_king_exists(&board));
                 let (m, depth) = tablebase.result(player, &board).unwrap();
                 assert_eq!(depth, expected_depth);
-                board.make_move(m, player);
+                board.make_move(m);
                 expected_depth -= 1;
                 player = next_player(player);
             }

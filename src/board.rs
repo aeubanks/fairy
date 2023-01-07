@@ -57,9 +57,9 @@ pub trait Board: Default + Debug + Clone {
     // TODO: make side into enum
     fn get_castling_rights(&self, player: Player, side: bool) -> Option<Coord>;
 
-    fn make_move(&mut self, m: Move, player: Player) {
+    fn make_move(&mut self, m: Move) {
         assert_ne!(m.from, m.to);
-        assert!(self.existing_piece_result(m.from, player) == ExistingPieceResult::Friend);
+        let player = self.get(m.from).unwrap().player();
         let to_res = self.existing_piece_result(m.to, player);
         let mut piece = self.take(m.from).unwrap();
         // pawn double moves
@@ -743,13 +743,10 @@ mod tests {
             board.add_piece(Coord::new(1, 0), p);
             assert_eq!(board.get(Coord::new(1, 0)), Some(p));
             assert_eq!(board.get(Coord::new(1, 1)), None);
-            board.make_move(
-                Move {
-                    from: Coord::new(1, 0),
-                    to: Coord::new(1, 1),
-                },
-                White,
-            );
+            board.make_move(Move {
+                from: Coord::new(1, 0),
+                to: Coord::new(1, 1),
+            });
             assert_eq!(board.get(Coord::new(1, 1)), Some(p));
             assert_eq!(board.get(Coord::new(1, 0)), None);
         }
@@ -765,32 +762,23 @@ mod tests {
         assert_eq!(board.get_last_pawn_double_move(), None);
         assert!(board.get(Coord::new(2, 1)).is_some());
 
-        board.make_move(
-            Move {
-                from: Coord::new(2, 1),
-                to: Coord::new(2, 3),
-            },
-            White,
-        );
+        board.make_move(Move {
+            from: Coord::new(2, 1),
+            to: Coord::new(2, 3),
+        });
         assert!(board.get(Coord::new(2, 1)).is_none());
         assert!(board.get(Coord::new(2, 3)).is_some());
         assert_eq!(board.get_last_pawn_double_move(), Some(Coord::new(2, 3)));
-        board.make_move(
-            Move {
-                from: Coord::new(3, 6),
-                to: Coord::new(3, 4),
-            },
-            Black,
-        );
+        board.make_move(Move {
+            from: Coord::new(3, 6),
+            to: Coord::new(3, 4),
+        });
         assert_eq!(board.get_last_pawn_double_move(), Some(Coord::new(3, 4)));
 
-        board.make_move(
-            Move {
-                from: Coord::new(2, 3),
-                to: Coord::new(2, 4),
-            },
-            White,
-        );
+        board.make_move(Move {
+            from: Coord::new(2, 3),
+            to: Coord::new(2, 4),
+        });
         assert_eq!(board.get_last_pawn_double_move(), None);
     }
 
@@ -802,13 +790,10 @@ mod tests {
             board.add_piece(Coord::new(3, 4), Piece::new(Black, Pawn));
             assert!(board.get(Coord::new(3, 4)).is_some());
 
-            board.make_move(
-                Move {
-                    from: Coord::new(2, 4),
-                    to: Coord::new(3, 5),
-                },
-                White,
-            );
+            board.make_move(Move {
+                from: Coord::new(2, 4),
+                to: Coord::new(3, 5),
+            });
             assert!(board.get(Coord::new(3, 4)).is_none());
         }
         test::<BoardSquare<8, 8>>();
@@ -822,40 +807,28 @@ mod tests {
             board.add_piece(Coord::new(2, 5), Piece::new(White, Pawn));
             board.add_piece(Coord::new(3, 2), Piece::new(Black, Pawn));
 
-            board.make_move(
-                Move {
-                    from: Coord::new(2, 5),
-                    to: Coord::new(2, 6),
-                },
-                White,
-            );
+            board.make_move(Move {
+                from: Coord::new(2, 5),
+                to: Coord::new(2, 6),
+            });
             assert!(board.get(Coord::new(2, 6)).unwrap().ty() == Pawn);
 
-            board.make_move(
-                Move {
-                    from: Coord::new(3, 2),
-                    to: Coord::new(3, 1),
-                },
-                Black,
-            );
+            board.make_move(Move {
+                from: Coord::new(3, 2),
+                to: Coord::new(3, 1),
+            });
             assert!(board.get(Coord::new(3, 1)).unwrap().ty() == Pawn);
 
-            board.make_move(
-                Move {
-                    from: Coord::new(2, 6),
-                    to: Coord::new(2, 7),
-                },
-                White,
-            );
+            board.make_move(Move {
+                from: Coord::new(2, 6),
+                to: Coord::new(2, 7),
+            });
             assert!(board.get(Coord::new(2, 7)).unwrap().ty() == Queen);
 
-            board.make_move(
-                Move {
-                    from: Coord::new(3, 1),
-                    to: Coord::new(3, 0),
-                },
-                Black,
-            );
+            board.make_move(Move {
+                from: Coord::new(3, 1),
+                to: Coord::new(3, 0),
+            });
             assert!(board.get(Coord::new(3, 0)).unwrap().ty() == Queen);
         }
         test::<BoardSquare<8, 8>>();
@@ -880,35 +853,26 @@ mod tests {
         ];
         {
             let mut board2 = board.clone();
-            board2.make_move(
-                Move {
-                    from: Coord::new(4, 0),
-                    to: Coord::new(4, 1),
-                },
-                White,
-            );
+            board2.make_move(Move {
+                from: Coord::new(4, 0),
+                to: Coord::new(4, 1),
+            });
             assert_eq!(
                 board2.castling_rights,
                 [None, None, Some(Coord::new(0, 7)), Some(Coord::new(7, 7))]
             );
-            board2.make_move(
-                Move {
-                    from: Coord::new(4, 7),
-                    to: Coord::new(4, 6),
-                },
-                Black,
-            );
+            board2.make_move(Move {
+                from: Coord::new(4, 7),
+                to: Coord::new(4, 6),
+            });
             assert_eq!(board2.castling_rights, [None, None, None, None]);
         }
         {
             let mut board2 = board.clone();
-            board2.make_move(
-                Move {
-                    from: Coord::new(0, 0),
-                    to: Coord::new(1, 0),
-                },
-                White,
-            );
+            board2.make_move(Move {
+                from: Coord::new(0, 0),
+                to: Coord::new(1, 0),
+            });
             assert_eq!(
                 board2.castling_rights,
                 [
@@ -918,24 +882,18 @@ mod tests {
                     Some(Coord::new(7, 7)),
                 ]
             );
-            board2.make_move(
-                Move {
-                    from: Coord::new(0, 7),
-                    to: Coord::new(0, 6),
-                },
-                Black,
-            );
+            board2.make_move(Move {
+                from: Coord::new(0, 7),
+                to: Coord::new(0, 6),
+            });
             assert_eq!(
                 board2.castling_rights,
                 [None, Some(Coord::new(7, 0)), None, Some(Coord::new(7, 7))]
             );
-            board2.make_move(
-                Move {
-                    from: Coord::new(7, 0),
-                    to: Coord::new(7, 7),
-                },
-                White,
-            );
+            board2.make_move(Move {
+                from: Coord::new(7, 0),
+                to: Coord::new(7, 7),
+            });
             assert_eq!(board2.castling_rights, [None, None, None, None]);
         }
     }
@@ -953,13 +911,10 @@ mod tests {
             ]);
             {
                 let mut board2 = board.clone();
-                board2.make_move(
-                    Move {
-                        from: Coord::new(4, 0),
-                        to: Coord::new(0, 0),
-                    },
-                    White,
-                );
+                board2.make_move(Move {
+                    from: Coord::new(4, 0),
+                    to: Coord::new(0, 0),
+                });
                 assert_eq!(board2.get(Coord::new(2, 0)).unwrap().ty(), King);
                 assert_eq!(board2.get(Coord::new(3, 0)).unwrap().ty(), Rook);
                 assert_eq!(board2.get(Coord::new(7, 0)).unwrap().ty(), Rook);
@@ -968,13 +923,10 @@ mod tests {
             }
             {
                 let mut board2 = board.clone();
-                board2.make_move(
-                    Move {
-                        from: Coord::new(4, 0),
-                        to: Coord::new(7, 0),
-                    },
-                    White,
-                );
+                board2.make_move(Move {
+                    from: Coord::new(4, 0),
+                    to: Coord::new(7, 0),
+                });
                 assert_eq!(board2.get(Coord::new(0, 0)).unwrap().ty(), Rook);
                 assert_eq!(board2.get(Coord::new(5, 0)).unwrap().ty(), Rook);
                 assert_eq!(board2.get(Coord::new(6, 0)).unwrap().ty(), King);
@@ -983,13 +935,10 @@ mod tests {
             }
             {
                 let mut board2 = board.clone();
-                board2.make_move(
-                    Move {
-                        from: Coord::new(4, 7),
-                        to: Coord::new(0, 7),
-                    },
-                    Black,
-                );
+                board2.make_move(Move {
+                    from: Coord::new(4, 7),
+                    to: Coord::new(0, 7),
+                });
                 assert_eq!(board2.get(Coord::new(2, 7)).unwrap().ty(), King);
                 assert_eq!(board2.get(Coord::new(3, 7)).unwrap().ty(), Rook);
                 assert_eq!(board2.get(Coord::new(7, 7)).unwrap().ty(), Rook);
@@ -998,13 +947,10 @@ mod tests {
             }
             {
                 let mut board2 = board.clone();
-                board2.make_move(
-                    Move {
-                        from: Coord::new(4, 7),
-                        to: Coord::new(7, 7),
-                    },
-                    Black,
-                );
+                board2.make_move(Move {
+                    from: Coord::new(4, 7),
+                    to: Coord::new(7, 7),
+                });
                 assert_eq!(board2.get(Coord::new(0, 7)).unwrap().ty(), Rook);
                 assert_eq!(board2.get(Coord::new(5, 7)).unwrap().ty(), Rook);
                 assert_eq!(board2.get(Coord::new(6, 7)).unwrap().ty(), King);
@@ -1017,13 +963,10 @@ mod tests {
                     (Coord::new(7, 0), Piece::new(White, Rook)),
                     (Coord::new(1, 0), Piece::new(White, King)),
                 ]);
-                board.make_move(
-                    Move {
-                        from: Coord::new(1, 0),
-                        to: Coord::new(0, 0),
-                    },
-                    White,
-                );
+                board.make_move(Move {
+                    from: Coord::new(1, 0),
+                    to: Coord::new(0, 0),
+                });
                 assert_eq!(board.get(Coord::new(2, 0)).unwrap().ty(), King);
                 assert_eq!(board.get(Coord::new(3, 0)).unwrap().ty(), Rook);
                 assert_eq!(board.get(Coord::new(7, 0)).unwrap().ty(), Rook);
