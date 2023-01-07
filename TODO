@@ -2,7 +2,7 @@ promotion to pieces other than queen
 AI
 add tests for derive crates (https://ferrous-systems.com/blog/testing-proc-macros/)
 tablebase
-  pawn black promotion, en passant, double move, capture into promotion
+  pawn en passant, double move
   add description of how optimizations work
   find case where black needs maybe capture
   work backwards for initial wins
