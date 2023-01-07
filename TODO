@@ -6,3 +6,4 @@ tablebase
   add description of how optimizations work
   work backwards for initial wins
   tune Vec initial capacity
+  don't allow capture of white king
