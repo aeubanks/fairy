@@ -1,8 +1,8 @@
 use crate::board::{Board, Move};
 use crate::coord::Coord;
 use crate::moves::{
-    all_moves, all_moves_to_end_at_board_captures, all_moves_to_end_at_board_no_captures,
-    under_attack_from_coord,
+    all_moves, all_moves_for_piece, all_moves_to_end_at_board_captures,
+    all_moves_to_end_at_board_no_captures, under_attack_from_coord,
 };
 use crate::piece::Piece;
 use crate::piece::Type::*;
@@ -676,64 +676,73 @@ fn visit_board<const W: i8, const H: i8>(
         Black => Some(0),
     };
     let mut best_move = None;
-    let all_moves = all_moves(board, player);
-    if all_moves.is_empty() {
-        // loss?
-        return;
-    }
-    for m in all_moves {
-        let mut clone = board.clone();
-        #[cfg(debug_assertions)]
-        if clone.get(m.to) == Some(BK) {
-            dbg!(m);
-            dbg!(&clone);
-            panic!();
+    let mut done = false;
+    let mut found_move = false;
+    board.foreach_piece(|piece, coord| {
+        if piece.player() != player || done {
+            return;
         }
-        clone.make_move(m);
+        for to in all_moves_for_piece(board, piece, coord) {
+            found_move = true;
 
-        match player {
-            White => {
-                if let Some(depth) = tablebase.depth_impl(Black, &clone) {
-                    best_depth = Some(match best_depth {
-                        Some(md) => {
-                            // use move that forces checkmate as quickly as possible
-                            if depth < md {
-                                best_move = Some(m);
-                                depth
-                            } else {
-                                md
-                            }
-                        }
-                        None => {
-                            best_move = Some(m);
-                            depth
-                        }
-                    });
-                }
+            let m = Move { from: coord, to };
+            let mut clone = board.clone();
+            #[cfg(debug_assertions)]
+            if clone.get(to) == Some(BK) {
+                dbg!(to);
+                dbg!(&clone);
+                panic!();
             }
-            Black => {
-                if let Some(depth) = tablebase.depth_impl(White, &clone) {
-                    best_depth = Some(match best_depth {
-                        Some(md) => {
-                            // use move that prolongs/forces checkmate as long as possible
-                            if depth > md {
+            clone.make_move(m);
+
+            match player {
+                White => {
+                    if let Some(depth) = tablebase.depth_impl(Black, &clone) {
+                        best_depth = Some(match best_depth {
+                            Some(md) => {
+                                // use move that forces checkmate as quickly as possible
+                                if depth < md {
+                                    best_move = Some(m);
+                                    depth
+                                } else {
+                                    md
+                                }
+                            }
+                            None => {
                                 best_move = Some(m);
                                 depth
-                            } else {
-                                md
                             }
-                        }
-                        None => {
-                            best_move = Some(m);
-                            depth
-                        }
-                    });
-                } else {
-                    best_depth = None;
-                    break;
+                        });
+                    }
+                }
+                Black => {
+                    if let Some(depth) = tablebase.depth_impl(White, &clone) {
+                        best_depth = Some(match best_depth {
+                            Some(md) => {
+                                // use move that prolongs/forces checkmate as long as possible
+                                if depth > md {
+                                    best_move = Some(m);
+                                    depth
+                                } else {
+                                    md
+                                }
+                            }
+                            None => {
+                                best_move = Some(m);
+                                depth
+                            }
+                        });
+                    } else {
+                        best_depth = None;
+                        done = true;
+                        break;
+                    }
                 }
             }
         }
+    });
+    if !found_move {
+        return;
     }
     if let Some(best_depth) = best_depth {
         next_boards.boards.push(board.clone());

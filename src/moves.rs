@@ -260,6 +260,13 @@ fn add_moves_for_piece<T: Board>(moves: &mut Vec<Coord>, board: &T, piece: Piece
 }
 
 #[must_use]
+pub fn all_moves_for_piece<T: Board>(board: &T, piece: Piece, coord: Coord) -> Vec<Coord> {
+    let mut moves = Vec::with_capacity(16);
+    add_moves_for_piece(&mut moves, board, piece, coord);
+    moves
+}
+
+#[must_use]
 pub fn all_moves<T: Board>(board: &T, player: Player) -> Vec<Move> {
     let mut moves = Vec::with_capacity(32);
 
