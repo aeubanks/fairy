@@ -1045,7 +1045,6 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
         }
         let mut last_p = None;
         for (i, &p) in s.iter().enumerate() {
-            // TODO: only black king?
             if p.ty() == King || Some(p) == last_p {
                 continue;
             }
