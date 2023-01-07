@@ -745,6 +745,11 @@ fn visit_board<const W: i8, const H: i8>(
         return;
     }
     if let Some(best_depth) = best_depth {
+        #[cfg(debug_assertions)]
+        if board.get(best_move.unwrap().to) == Some(Piece::new(White, King)) {
+            dbg!(board);
+            panic!();
+        }
         next_boards.boards.push(board.clone());
         out_tablebase.add_impl(player, board, best_move.unwrap(), best_depth + 1);
     }
