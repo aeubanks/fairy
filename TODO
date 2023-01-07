@@ -4,5 +4,4 @@ add tests for derive crates (https://ferrous-systems.com/blog/testing-proc-macro
 tablebase
   pawn en passant, double move
   add description of how optimizations work
-  find case where black needs maybe capture
   work backwards for initial wins
