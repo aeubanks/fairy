@@ -347,7 +347,7 @@ impl<const W: i8, const H: i8, const N: usize> Board for BoardPiece<W, H, N> {
         H
     }
     fn get(&self, coord: Coord) -> Option<Piece> {
-        assert!(self.in_bounds(coord));
+        debug_assert!(self.in_bounds(coord));
         for (c, p) in &self.0 {
             if *c == coord {
                 return Some(*p);
@@ -356,13 +356,13 @@ impl<const W: i8, const H: i8, const N: usize> Board for BoardPiece<W, H, N> {
         None
     }
     fn clear(&mut self, coord: Coord) {
-        assert!(self.in_bounds(coord));
+        debug_assert!(self.in_bounds(coord));
         if let Some(idx) = self.0.iter().position(|(c, _)| *c == coord) {
             self.0.swap_remove(idx);
         }
     }
     fn take(&mut self, coord: Coord) -> Option<Piece> {
-        assert!(self.in_bounds(coord));
+        debug_assert!(self.in_bounds(coord));
         if let Some(idx) = self.0.iter().position(|(c, _)| *c == coord) {
             Some(self.0.swap_remove(idx).1)
         } else {
@@ -384,7 +384,7 @@ impl<const W: i8, const H: i8, const N: usize> Board for BoardPiece<W, H, N> {
         None
     }
     fn add_piece(&mut self, coord: Coord, piece: Piece) {
-        assert!(self.in_bounds(coord));
+        debug_assert!(self.in_bounds(coord));
         debug_assert!(!self.0.iter().any(|(c, _)| *c == coord));
         self.0.push((coord, piece));
     }
