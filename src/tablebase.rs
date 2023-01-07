@@ -781,7 +781,7 @@ fn visit_reverse_promotion<const W: i8, const H: i8, F>(
 ) where
     F: FnMut(&TBBoard<W, H>, Coord),
 {
-    let has_pawn = board_has_pawn(&board);
+    let has_pawn = board_has_pawn(board);
     board.foreach_piece(|p, mut c| {
         if p == Piece::new(player, Queen) {
             if has_pawn {
@@ -791,7 +791,7 @@ fn visit_reverse_promotion<const W: i8, const H: i8, F>(
                         Black => 0,
                     }
                 {
-                    callback(&board, c);
+                    callback(board, c);
                 }
             } else if c.y == H - 1 || c.y == 0 {
                 let mut clone = board.clone();
@@ -1078,16 +1078,14 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
         }
     }
 
-    let mut ret = PieceSets::default();
+    pieces_to_add.shrink_to_fit();
+    can_reverse_promote.shrink_to_fit();
 
-    ret.piece_sets = visited.into_iter().collect();
-    ret.piece_sets.shrink_to_fit();
-
-    ret.pieces_to_add = pieces_to_add;
-    ret.pieces_to_add.shrink_to_fit();
-
-    ret.can_reverse_promote = can_reverse_promote;
-    ret.can_reverse_promote.shrink_to_fit();
+    let ret = PieceSets {
+        piece_sets: visited.into_iter().collect(),
+        pieces_to_add,
+        can_reverse_promote,
+    };
 
     #[cfg(debug_assertions)]
     {
