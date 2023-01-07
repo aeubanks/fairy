@@ -501,10 +501,27 @@ pub fn all_moves_to_end_at_board_no_captures<T: Board>(
             Black => (-1, board.height() - 2),
         };
 
-        // FIXME: double move
-        let try_coord = coord + Coord::new(0, -dy);
+        let mut try_coord = coord + Coord::new(0, -dy);
         if coord.y != start_y && board.get(try_coord).is_none() {
             moves.push(try_coord);
+            if try_coord.y != start_y {
+                if match piece.player() {
+                    White => coord.y <= (board.height() - 1) / 2,
+                    Black => coord.y >= (board.height()) / 2,
+                } {
+                    let mut blocked = false;
+                    while try_coord.y != start_y - dy {
+                        if board.get(try_coord).is_some() {
+                            blocked = true;
+                            break;
+                        }
+                        try_coord.y -= dy;
+                    }
+                    if !blocked {
+                        moves.push(Coord::new(coord.x, start_y));
+                    }
+                }
+            }
         }
     } else {
         add_moves_for_non_pawn_piece_end_at_board_no_captures(&mut moves, board, piece, coord);

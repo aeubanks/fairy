@@ -1871,6 +1871,18 @@ mod tests {
     }
 
     #[test]
+    fn test_pawn_double_move() {
+        let set = PieceSet::new(&[BK, WP, BP]);
+        test_tablebase::<3, 7>(&[set]);
+    }
+
+    #[test]
+    fn test_pawn_multiple_move() {
+        let set = PieceSet::new(&[BK, WP]);
+        test_tablebase::<3, 9>(&[set]);
+    }
+
+    #[test]
     fn test_kpk() {
         let kpk = PieceSet::new(&[WK, BK, WP]);
         test_tablebase::<4, 4>(&[kpk]);

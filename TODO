@@ -2,6 +2,6 @@ promotion to pieces other than queen
 AI
 add tests for derive crates (https://ferrous-systems.com/blog/testing-proc-macros/)
 tablebase
-  pawn en passant, double move
+  pawn en passant
   add description of how optimizations work
   work backwards for initial wins
