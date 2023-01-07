@@ -18,6 +18,8 @@ use std::sync::Arc;
 
 const MAX_PIECES: usize = 4;
 
+const BK: Piece = Piece::new(Black, King);
+
 #[derive(Default, PartialEq, Eq, Hash, Clone, Debug)]
 pub struct PieceSet(ArrayVec<Piece, MAX_PIECES>);
 
@@ -366,7 +368,7 @@ impl<const W: i8, const H: i8, const OPT: bool> GenerateAllBoards<W, H, OPT> {
     }
     fn valid_piece_coord(&self, c: Coord, piece: Piece) -> bool {
         // Can do normal symmetry optimizations here.
-        if OPT && piece == Piece::new(Black, King) {
+        if OPT && piece == BK {
             if c.x > (W - 1) / 2 {
                 return false;
             }
@@ -392,13 +394,12 @@ impl<const W: i8, const H: i8, const OPT: bool> GenerateAllBoards<W, H, OPT> {
         None
     }
     fn new(pieces: &[Piece]) -> Self {
-        let bk = Piece::new(Black, King);
         let has_pawn = pieces.iter().any(|p| p.ty() == Pawn);
         // Only support at most one black king if symmetry optimizations are on.
-        assert!(pieces.iter().filter(|&&p| p == bk).count() <= 1);
+        assert!(pieces.iter().filter(|&&p| p == BK).count() <= 1);
         let mut pieces = pieces.iter().copied().collect::<ArrayVec<_, MAX_PIECES>>();
         // Since we deduplicate symmetric positions via the black king, make sure it's placed first.
-        if let Some(idx) = pieces.iter().position(|&p| p == bk) {
+        if let Some(idx) = pieces.iter().position(|&p| p == BK) {
             pieces.swap(idx, 0);
         }
         let mut ret = Self {
@@ -680,7 +681,7 @@ fn visit_board<const W: i8, const H: i8>(
     for m in all_moves {
         let mut clone = board.clone();
         #[cfg(debug_assertions)]
-        if clone.get(m.to) == Some(Piece::new(Black, King)) {
+        if clone.get(m.to) == Some(BK) {
             dbg!(m);
             dbg!(&clone);
             panic!();
@@ -990,7 +991,7 @@ fn verify_piece_sets(piece_sets: &[PieceSet]) {
     for pieces in piece_sets {
         let mut bk_count = 0;
         for &p in pieces {
-            if p == Piece::new(Black, King) {
+            if p == BK {
                 bk_count += 1;
             }
         }
@@ -1239,7 +1240,6 @@ mod tests {
     const WP: Piece = Piece::new(White, Pawn);
     const WA: Piece = Piece::new(White, Amazon);
     const WR: Piece = Piece::new(White, Rook);
-    const BK: Piece = Piece::new(Black, King);
     const BQ: Piece = Piece::new(Black, Queen);
     const BR: Piece = Piece::new(Black, Rook);
     const BP: Piece = Piece::new(Black, Pawn);
