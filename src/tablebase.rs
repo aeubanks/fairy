@@ -635,13 +635,15 @@ fn visit_board_pawn_symmetry<const W: i8, const H: i8>(
     if valid_piece_coord::<W, H>(maybe_pawn_piece, maybe_pawn_coord) {
         visit_board(tablebase, out_tablebase, next_boards, player, &board);
     }
-    (board, maybe_pawn_coord) = flip_diagonally(&board, maybe_pawn_coord);
-    if valid_piece_coord::<W, H>(maybe_pawn_piece, maybe_pawn_coord) {
-        visit_board(tablebase, out_tablebase, next_boards, player, &board);
-    }
-    (board, maybe_pawn_coord) = flip_y(&board, maybe_pawn_coord);
-    if valid_piece_coord::<W, H>(maybe_pawn_piece, maybe_pawn_coord) {
-        visit_board(tablebase, out_tablebase, next_boards, player, &board);
+    if W == H {
+        (board, maybe_pawn_coord) = flip_diagonally(&board, maybe_pawn_coord);
+        if valid_piece_coord::<W, H>(maybe_pawn_piece, maybe_pawn_coord) {
+            visit_board(tablebase, out_tablebase, next_boards, player, &board);
+        }
+        (board, maybe_pawn_coord) = flip_y(&board, maybe_pawn_coord);
+        if valid_piece_coord::<W, H>(maybe_pawn_piece, maybe_pawn_coord) {
+            visit_board(tablebase, out_tablebase, next_boards, player, &board);
+        }
     }
 }
 
@@ -799,20 +801,24 @@ fn visit_reverse_promotion<const W: i8, const H: i8, F>(
                     (clone, c) = flip_y(&clone, c);
                 }
                 callback(&clone, c);
-                if c.x == 0 || c.x == W - 1 {
+                if W == H {
+                    if c.x == 0 || c.x == W - 1 {
+                        if (c.x == 0) == (player == White) {
+                            (clone, c) = flip_x(&clone, c);
+                        }
+                        (clone, c) = flip_diagonally(&clone, c);
+                        callback(&clone, c);
+                    }
+                }
+            } else if c.x == W - 1 || c.x == 0 {
+                if W == H {
+                    let mut clone = board.clone();
                     if (c.x == 0) == (player == White) {
                         (clone, c) = flip_x(&clone, c);
                     }
                     (clone, c) = flip_diagonally(&clone, c);
                     callback(&clone, c);
                 }
-            } else if c.x == W - 1 || c.x == 0 {
-                let mut clone = board.clone();
-                if (c.x == 0) == (player == White) {
-                    (clone, c) = flip_x(&clone, c);
-                }
-                (clone, c) = flip_diagonally(&clone, c);
-                callback(&clone, c);
             }
         }
     });
@@ -1868,6 +1874,13 @@ mod tests {
     fn test_kpk() {
         let kpk = PieceSet::new(&[WK, BK, WP]);
         test_tablebase::<4, 4>(&[kpk]);
+    }
+
+    #[test]
+    fn test_kpk_rect() {
+        let kpk = PieceSet::new(&[WK, BK, WP]);
+        test_tablebase::<5, 4>(&[kpk.clone()]);
+        test_tablebase::<4, 5>(&[kpk]);
     }
 
     #[test]
