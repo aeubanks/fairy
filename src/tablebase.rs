@@ -8,6 +8,7 @@ use crate::piece::Piece;
 use crate::piece::Type::*;
 use crate::player::Player::*;
 use crate::player::{next_player, Player};
+use crate::timer::Timer;
 use arrayvec::ArrayVec;
 use log::info;
 use rustc_hash::FxHashMap;
@@ -1121,18 +1122,29 @@ fn info_tablebase<const W: i8, const H: i8>(tablebase: &Tablebase<W, H>) {
 
 pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> Tablebase<W, H> {
     info!("generating tablebases for {:?}", piece_sets);
+    let mut timer = Timer::new();
     let piece_sets = calculate_piece_sets(piece_sets);
+    info!("took {:?}", timer.elapsed());
+    info!("");
+
     info!("populating initial wins");
     let mut tablebase = Tablebase::default();
+    timer = Timer::new();
     let mut boards_to_check = populate_initial_wins(&mut tablebase, &piece_sets);
+    info!("took {:?}", timer.elapsed());
     info_tablebase(&tablebase);
+    info!("");
+
     let mut i = 0;
     let mut player = Black;
     loop {
         info!("iteration {} ({:?})", i, player);
         let out;
+        timer = Timer::new();
         (out, boards_to_check) = iterate(&tablebase, boards_to_check, &piece_sets, player);
+        info!("took {:?}", timer.elapsed());
         info_tablebase(&tablebase);
+        info!("");
         if boards_to_check.is_empty() {
             break;
         }
@@ -1149,8 +1161,6 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     piece_sets: &[PieceSet],
     parallelism: Option<usize>,
 ) -> Tablebase<W, H> {
-    info!("generating tablebases (in parallel) for {:?}", piece_sets);
-
     use std::sync::mpsc::channel;
 
     let pool = {
@@ -1162,10 +1172,15 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     };
     let pool_count = pool.max_count();
 
+    info!("generating tablebases (in parallel) for {:?}", piece_sets);
+    let mut timer = Timer::new();
     let piece_sets = calculate_piece_sets(piece_sets);
+    info!("took {:?}", timer.elapsed());
+    info!("");
 
     info!("populating initial wins");
     let mut tablebase = Tablebase::default();
+    timer = Timer::new();
     let mut boards_to_check = {
         let (tx, rx) = channel();
         for set_clone in piece_sets.split(pool_count) {
@@ -1184,12 +1199,15 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
         }
         boards_to_check
     };
+    info!("took {:?}", timer.elapsed());
     info_tablebase(&tablebase);
+    info!("");
 
     let mut i = 0;
     let mut player = Black;
     loop {
         info!("iteration {} {:?}", i, player);
+        timer = Timer::new();
         boards_to_check = {
             let tablebase_arc = Arc::new(tablebase);
             let (tx, rx) = channel();
@@ -1218,7 +1236,9 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
             }
             boards_to_check
         };
+        info!("took {:?}", timer.elapsed());
         info_tablebase(&tablebase);
+        info!("");
         if boards_to_check.is_empty() {
             break;
         }

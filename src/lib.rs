@@ -5,3 +5,4 @@ pub mod perft;
 pub mod piece;
 pub mod player;
 pub mod tablebase;
+pub mod timer;
