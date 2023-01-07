@@ -222,7 +222,7 @@ fn add_pawn_moves<T: Board>(moves: &mut Vec<Coord>, board: &T, coord: Coord, pla
             Black => board.height() - 2,
         };
         if coord.y == initial_y {
-            let max_forward = (board.height() / 2 - 2).max(1);
+            let max_forward = ((board.height() - 1) / 2 - 1).max(1);
             let mut front2 = front;
             for _ in 1..max_forward {
                 front2 = front2 + Coord { x: 0, y: dy };
@@ -1020,6 +1020,7 @@ mod tests {
                     Coord::new(2, 3),
                     Coord::new(2, 4),
                     Coord::new(2, 5),
+                    Coord::new(2, 6),
                 ],
                 moves,
             );
