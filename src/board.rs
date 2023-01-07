@@ -122,11 +122,12 @@ pub trait Board: Default + Debug + Clone {
     }
 
     fn king_coord(&self, player: Player) -> Coord {
-        let ret = self
-            .piece_coord(|piece| piece.player() == player && piece.ty() == King)
-            .unwrap();
+        let ret = self.maybe_king_coord(player).unwrap();
         debug_assert_eq!(self.get(ret).unwrap().ty(), King);
         ret
+    }
+    fn maybe_king_coord(&self, player: Player) -> Option<Coord> {
+        self.piece_coord(|piece| piece.player() == player && piece.ty() == King)
     }
     fn with_pieces(pieces: &[(Coord, Piece)]) -> Self {
         let mut board = Self::default();

@@ -2,7 +2,7 @@ use crate::board::{Board, Move};
 use crate::coord::Coord;
 use crate::moves::{
     all_moves, all_moves_for_piece, all_moves_to_end_at_board_captures,
-    all_moves_to_end_at_board_no_captures, under_attack_from_coord,
+    all_moves_to_end_at_board_no_captures, is_under_attack, under_attack_from_coord,
 };
 use crate::piece::Piece;
 use crate::piece::Type::*;
@@ -627,23 +627,52 @@ fn visit_board_pawn_symmetry<const W: i8, const H: i8>(
     board: &TBBoard<W, H>,
     mut maybe_pawn_coord: Coord,
     maybe_pawn_piece: Piece,
+    cur_max_depth: u16,
 ) {
     let mut board = board.clone();
     if valid_piece_coord::<W, H>(maybe_pawn_piece, maybe_pawn_coord) {
-        visit_board(tablebase, out_tablebase, next_boards, player, &board);
+        visit_board(
+            tablebase,
+            out_tablebase,
+            next_boards,
+            player,
+            &board,
+            cur_max_depth,
+        );
     }
     (board, maybe_pawn_coord) = flip_y(&board, maybe_pawn_coord);
     if valid_piece_coord::<W, H>(maybe_pawn_piece, maybe_pawn_coord) {
-        visit_board(tablebase, out_tablebase, next_boards, player, &board);
+        visit_board(
+            tablebase,
+            out_tablebase,
+            next_boards,
+            player,
+            &board,
+            cur_max_depth,
+        );
     }
     if W == H {
         (board, maybe_pawn_coord) = flip_diagonally(&board, maybe_pawn_coord);
         if valid_piece_coord::<W, H>(maybe_pawn_piece, maybe_pawn_coord) {
-            visit_board(tablebase, out_tablebase, next_boards, player, &board);
+            visit_board(
+                tablebase,
+                out_tablebase,
+                next_boards,
+                player,
+                &board,
+                cur_max_depth,
+            );
         }
         (board, maybe_pawn_coord) = flip_y(&board, maybe_pawn_coord);
         if valid_piece_coord::<W, H>(maybe_pawn_piece, maybe_pawn_coord) {
-            visit_board(tablebase, out_tablebase, next_boards, player, &board);
+            visit_board(
+                tablebase,
+                out_tablebase,
+                next_boards,
+                player,
+                &board,
+                cur_max_depth,
+            );
         }
     }
 }
@@ -654,6 +683,7 @@ fn visit_board<const W: i8, const H: i8>(
     next_boards: &mut BoardsToVisit<W, H>,
     player: Player,
     board: &TBBoard<W, H>,
+    cur_max_depth: u16,
 ) {
     if tablebase.contains_impl(player, board) || out_tablebase.contains_impl(player, board) {
         return;
@@ -665,26 +695,13 @@ fn visit_board<const W: i8, const H: i8>(
             assert_ne!(c.y, H - 1);
         }
     });
-    // For white:
-    // None means no forced win
-    // Some(depth) means forced win in depth moves
-    // For black:
-    // None means no forced loss
-    // Some(depth) means forced loss in depth moves
-    let mut best_depth = match player {
-        White => None,
-        Black => Some(0),
-    };
-    let mut best_move = None;
-    let mut done = false;
-    let mut found_move = false;
+    let mut add = player == Black;
+    let mut any_move = None;
     board.foreach_piece(|piece, coord| {
-        if piece.player() != player || done {
+        if piece.player() != player || add != (player == Black) {
             return;
         }
         for to in all_moves_for_piece(board, piece, coord) {
-            found_move = true;
-
             let m = Move { from: coord, to };
             let mut clone = board.clone();
             #[cfg(debug_assertions)]
@@ -694,64 +711,48 @@ fn visit_board<const W: i8, const H: i8>(
                 panic!();
             }
             clone.make_move(m);
+            // Cannot let black capture white king.
+            if player == White {
+                if let Some(wk_coord) = clone.maybe_king_coord(White) {
+                    if is_under_attack(&clone, wk_coord, White) {
+                        continue;
+                    }
+                }
+            }
 
+            let maybe_depth = tablebase.depth_impl(next_player(player), &clone);
             match player {
                 White => {
-                    if let Some(depth) = tablebase.depth_impl(Black, &clone) {
-                        best_depth = Some(match best_depth {
-                            Some(md) => {
-                                // use move that forces checkmate as quickly as possible
-                                if depth < md {
-                                    best_move = Some(m);
-                                    depth
-                                } else {
-                                    md
-                                }
-                            }
-                            None => {
-                                best_move = Some(m);
-                                depth
-                            }
-                        });
+                    if let Some(_d) = maybe_depth {
+                        debug_assert_eq!(_d, cur_max_depth);
+                        any_move = Some(m);
+                        add = true;
+                        break;
                     }
                 }
                 Black => {
-                    if let Some(depth) = tablebase.depth_impl(White, &clone) {
-                        best_depth = Some(match best_depth {
-                            Some(md) => {
-                                // use move that prolongs/forces checkmate as long as possible
-                                if depth > md {
-                                    best_move = Some(m);
-                                    depth
-                                } else {
-                                    md
-                                }
-                            }
-                            None => {
-                                best_move = Some(m);
-                                depth
-                            }
-                        });
+                    if let Some(depth) = maybe_depth {
+                        if depth == cur_max_depth {
+                            any_move = Some(m);
+                        }
                     } else {
-                        best_depth = None;
-                        done = true;
+                        add = false;
                         break;
                     }
                 }
             }
         }
     });
-    if !found_move {
-        return;
-    }
-    if let Some(best_depth) = best_depth {
-        #[cfg(debug_assertions)]
-        if board.get(best_move.unwrap().to) == Some(Piece::new(White, King)) {
-            dbg!(board);
-            panic!();
+    if add {
+        if let Some(m) = any_move {
+            #[cfg(debug_assertions)]
+            if board.get(any_move.unwrap().to) == Some(Piece::new(White, King)) {
+                dbg!(board);
+                panic!();
+            }
+            next_boards.boards.push(board.clone());
+            out_tablebase.add_impl(player, board, m, cur_max_depth + 1);
         }
-        next_boards.boards.push(board.clone());
-        out_tablebase.add_impl(player, board, best_move.unwrap(), best_depth + 1);
     }
 }
 
@@ -761,6 +762,7 @@ fn visit_reverse_moves<const W: i8, const H: i8>(
     board: &TBBoard<W, H>,
     player: Player,
     next_boards: &mut BoardsToVisit<W, H>,
+    cur_max_depth: u16,
 ) {
     board.foreach_piece(|p, c| {
         if p.player() == player {
@@ -769,7 +771,14 @@ fn visit_reverse_moves<const W: i8, const H: i8>(
                 let mut clone = board.clone();
                 assert_eq!(clone.get(m), None);
                 clone.swap(m, c);
-                visit_board(tablebase, out_tablebase, next_boards, player, &clone);
+                visit_board(
+                    tablebase,
+                    out_tablebase,
+                    next_boards,
+                    player,
+                    &clone,
+                    cur_max_depth,
+                );
             }
         }
     });
@@ -853,6 +862,7 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
     board: &TBBoard<W, H>,
     player: Player,
     next_boards: &mut BoardsToVisit<W, H>,
+    cur_max_depth: u16,
 ) {
     let board_has_pawn = board_has_pawn(board);
     for &piece_to_add in pieces_to_add {
@@ -871,7 +881,14 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
                 clone.add_piece(c, piece_to_add);
 
                 if board_has_pawn || piece_to_add.ty() != Pawn {
-                    visit_board(tablebase, out_tablebase, next_boards, player, &clone);
+                    visit_board(
+                        tablebase,
+                        out_tablebase,
+                        next_boards,
+                        player,
+                        &clone,
+                        cur_max_depth,
+                    );
                 } else {
                     // if we introduced a pawn, need to visit more symmetries
                     visit_board_pawn_symmetry(
@@ -882,6 +899,7 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
                         &clone,
                         c,
                         piece_to_add,
+                        cur_max_depth,
                     );
                 }
             }
@@ -894,6 +912,7 @@ fn iterate<const W: i8, const H: i8>(
     previous_boards: BoardsToVisit<W, H>,
     piece_sets: &PieceSets,
     player: Player,
+    cur_max_depth: u16,
 ) -> (Tablebase<W, H>, BoardsToVisit<W, H>) {
     let mut next_boards = BoardsToVisit::default();
     let mut out_tablebase = Tablebase::default();
@@ -904,6 +923,7 @@ fn iterate<const W: i8, const H: i8>(
             &prev,
             player,
             &mut next_boards,
+            cur_max_depth,
         );
 
         let key = (player, board_pieces(&prev));
@@ -931,6 +951,7 @@ fn iterate<const W: i8, const H: i8>(
                             &mut next_boards,
                             player,
                             &clone,
+                            cur_max_depth,
                         );
                     } else {
                         // if we introduced a pawn, need to visit more symmetries
@@ -942,6 +963,7 @@ fn iterate<const W: i8, const H: i8>(
                             &clone,
                             m,
                             pawn,
+                            cur_max_depth,
                         );
                     }
                 }
@@ -955,6 +977,7 @@ fn iterate<const W: i8, const H: i8>(
                 &prev,
                 player,
                 &mut next_boards,
+                cur_max_depth,
             );
 
             if promote {
@@ -985,6 +1008,7 @@ fn iterate<const W: i8, const H: i8>(
                                     &mut next_boards,
                                     player,
                                     &clone,
+                                    cur_max_depth,
                                 );
                             } else {
                                 // if we introduced a pawn, need to visit more symmetries
@@ -996,6 +1020,7 @@ fn iterate<const W: i8, const H: i8>(
                                     &clone,
                                     m,
                                     pawn,
+                                    cur_max_depth,
                                 );
                             }
                         }
@@ -1032,12 +1057,13 @@ fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) 
         populate_initial_wins_one(&mut tablebase, b);
     }
     let mut player = Black;
+    let mut i = 1;
     loop {
         let mut changed = false;
         let mut black_out = Tablebase::default();
         let mut ignore = BoardsToVisit::default();
         for b in &all {
-            visit_board(&tablebase, &mut black_out, &mut ignore, player, b);
+            visit_board(&tablebase, &mut black_out, &mut ignore, player, b, i);
             changed |= !ignore.boards.is_empty();
             ignore.boards.clear();
         }
@@ -1046,6 +1072,7 @@ fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) 
         }
         tablebase.merge(black_out);
         player = next_player(player);
+        i += 1;
     }
     tablebase
 }
@@ -1149,13 +1176,13 @@ pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> 
     info_tablebase(&tablebase);
     info!("");
 
-    let mut i = 0;
+    let mut i = 1;
     let mut player = Black;
     loop {
         info!("iteration {} ({:?})", i, player);
         let out;
         timer = Timer::new();
-        (out, boards_to_check) = iterate(&tablebase, boards_to_check, &piece_sets, player);
+        (out, boards_to_check) = iterate(&tablebase, boards_to_check, &piece_sets, player, i);
         info!("took {:?}", timer.elapsed());
         info_tablebase(&tablebase);
         info!("");
@@ -1217,7 +1244,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     info_tablebase(&tablebase);
     info!("");
 
-    let mut i = 0;
+    let mut i = 1;
     let mut player = Black;
     loop {
         info!("iteration {} {:?}", i, player);
@@ -1230,7 +1257,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
                 let piece_sets_clone = piece_sets.clone();
                 let tx = tx.clone();
                 pool.execute(move || {
-                    let ret = iterate(&tablebase_clone, boards_clone, &piece_sets_clone, player);
+                    let ret = iterate(&tablebase_clone, boards_clone, &piece_sets_clone, player, i);
                     tx.send(ret).unwrap();
                 });
             }
@@ -1755,7 +1782,7 @@ mod tests {
         }
     }
 
-    fn verify_all_three_piece_positions_forced_win(ty: Type) {
+    fn verify_all_three_piece_positions_forced_win(ty: Type) -> Tablebase<4, 4> {
         let set = PieceSet::new(&[WK, BK, Piece::new(White, ty)]);
 
         let tablebase = test_tablebase(&[set.clone()]);
@@ -1766,6 +1793,8 @@ mod tests {
             assert!(wd.unwrap().1 % 2 == 1);
             assert!(bd.is_none() || bd.unwrap().1 % 2 == 0);
         }
+
+        tablebase
     }
 
     #[test]
