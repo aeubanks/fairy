@@ -5,3 +5,4 @@ tablebase
   pawn en passant
   add description of how optimizations work
   work backwards for initial wins
+  tune Vec initial capacity

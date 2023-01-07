@@ -261,11 +261,11 @@ fn add_moves_for_piece<T: Board>(moves: &mut Vec<Coord>, board: &T, piece: Piece
 
 #[must_use]
 pub fn all_moves<T: Board>(board: &T, player: Player) -> Vec<Move> {
-    let mut moves = Vec::new();
+    let mut moves = Vec::with_capacity(32);
 
     board.foreach_piece(|piece, coord| {
         if piece.player() == player {
-            let mut piece_moves = Vec::new();
+            let mut piece_moves = Vec::with_capacity(16);
             add_moves_for_piece(&mut piece_moves, board, piece, coord);
             moves.append(
                 &mut piece_moves
@@ -494,7 +494,7 @@ pub fn all_moves_to_end_at_board_no_captures<T: Board>(
     piece: Piece,
     coord: Coord,
 ) -> Vec<Coord> {
-    let mut moves = Vec::new();
+    let mut moves = Vec::with_capacity(16);
     if piece.ty() == Pawn {
         let (dy, start_y) = match piece.player() {
             White => (1, 1),
