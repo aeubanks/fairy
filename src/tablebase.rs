@@ -1,8 +1,8 @@
 use crate::board::{Board, Move};
 use crate::coord::Coord;
 use crate::moves::{
-    all_moves, all_moves_for_piece, all_moves_to_end_at_board_captures,
-    all_moves_to_end_at_board_no_captures, under_attack_from_coord,
+    all_moves_for_piece, all_moves_to_end_at_board_captures, all_moves_to_end_at_board_no_captures,
+    under_attack_from_coord,
 };
 use crate::piece::Piece;
 use crate::piece::Type::*;
@@ -580,26 +580,6 @@ fn populate_initial_wins_one<const W: i8, const H: i8>(
                     to: opponent_king_coord,
                 },
                 1,
-            );
-            return true;
-        }
-    }
-    // don't support stalemate for now, it doesn't really happen on normal boards with few pieces, and takes up a noticeable chunk of tablebase generation time
-    #[cfg(not(tablebase_stalemate_win))]
-    debug_assert!(!all_moves(b, Black).is_empty());
-    #[cfg(tablebase_stalemate_win)]
-    if !tablebase.contains_impl(Black, b) {
-        // stalemate is a win
-        if all_moves(b, Black).is_empty() {
-            tablebase.add_impl(
-                Black,
-                b,
-                // arbitrary move
-                Move {
-                    from: Coord::new(0, 0),
-                    to: Coord::new(0, 0),
-                },
-                0,
             );
             return true;
         }
@@ -1746,34 +1726,6 @@ mod tests {
             generate_literally_all_boards::<3, 3>(&kpk).count(),
             3 * 8 * 7
         );
-    }
-
-    #[cfg(tablebase_stalemate_win)]
-    mod stalemate {
-        #[test]
-        fn test_populate_initial_tablebases_stalemate() {
-            let mut tablebase = Tablebase::default();
-            populate_initial_wins(&mut tablebase, &[WK, BP, BK]);
-            assert_eq!(
-                tablebase.depth_impl(
-                    Black,
-                    &TBBoard::<1, 8>::with_pieces(&[
-                        (Coord::new(0, 7), WK),
-                        (Coord::new(0, 1), BP),
-                        (Coord::new(0, 0), BK),
-                    ])
-                ),
-                Some(0)
-            );
-            assert!(!tablebase.contains_impl(
-                Black,
-                &TBBoard::<1, 8>::with_pieces(&[
-                    (Coord::new(0, 7), WK),
-                    (Coord::new(0, 2), BP),
-                    (Coord::new(0, 0), BK),
-                ])
-            ));
-        }
     }
 
     fn test_tablebase<const W: i8, const H: i8>(sets: &[PieceSet]) -> Tablebase<W, H> {
