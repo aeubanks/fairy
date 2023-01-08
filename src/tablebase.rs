@@ -367,9 +367,9 @@ impl<const W: i8, const H: i8, const OPT: bool> GenerateAllBoards<W, H, OPT> {
         }
         c
     }
-    fn valid_piece_coord(&self, c: Coord, piece: Piece) -> bool {
+    fn valid_piece_coord(&self, c: Coord, piece: Piece, symmetry_opt: bool) -> bool {
         // Can do normal symmetry optimizations here.
-        if OPT && piece == BK {
+        if OPT && symmetry_opt {
             if c.x > (W - 1) / 2 {
                 return false;
             }
@@ -381,13 +381,17 @@ impl<const W: i8, const H: i8, const OPT: bool> GenerateAllBoards<W, H, OPT> {
                     return false;
                 }
             }
-            return true;
         }
         valid_piece_coord::<W, H>(piece, c)
     }
-    fn first_empty_coord_from(&self, mut c: Coord, piece: Piece) -> Option<Coord> {
+    fn first_empty_coord_from(
+        &self,
+        mut c: Coord,
+        piece: Piece,
+        symmetry_opt: bool,
+    ) -> Option<Coord> {
         while c.y != H {
-            if self.board.get(c).is_none() && self.valid_piece_coord(c, piece) {
+            if self.board.get(c).is_none() && self.valid_piece_coord(c, piece, symmetry_opt) {
                 return Some(c);
             }
             c = Self::next_coord(c);
@@ -396,11 +400,9 @@ impl<const W: i8, const H: i8, const OPT: bool> GenerateAllBoards<W, H, OPT> {
     }
     fn new(pieces: &[Piece]) -> Self {
         let has_pawn = pieces.iter().any(|p| p.ty() == Pawn);
-        // Only support at most one black king if symmetry optimizations are on.
-        assert!(pieces.iter().filter(|&&p| p == BK).count() <= 1);
         let mut pieces = pieces.iter().copied().collect::<ArrayVec<_, MAX_PIECES>>();
-        // Since we deduplicate symmetric positions via the black king, make sure it's placed first.
-        if let Some(idx) = pieces.iter().position(|&p| p == BK) {
+        // Since we deduplicate symmetric positions via non-pawn pieces at the beginning, make sure the first piece is a non-pawn if one exisets.
+        if let Some(idx) = pieces.iter().position(|&p| p.ty() != Pawn) {
             pieces.swap(idx, 0);
         }
         let mut ret = Self {
@@ -409,8 +411,10 @@ impl<const W: i8, const H: i8, const OPT: bool> GenerateAllBoards<W, H, OPT> {
             board: Default::default(),
             has_pawn,
         };
-        for p in &ret.pieces {
-            let c = ret.first_empty_coord_from(Coord::new(0, 0), *p).unwrap();
+        for (i, p) in ret.pieces.iter().enumerate() {
+            let c = ret
+                .first_empty_coord_from(Coord::new(0, 0), *p, i == 0)
+                .unwrap();
             ret.stack.push(c);
             ret.board.add_piece(c, *p);
         }
@@ -432,7 +436,7 @@ impl<const W: i8, const H: i8, const OPT: bool> Iterator for GenerateAllBoards<W
             assert_eq!(self.board.get(self.stack[i]), Some(self.pieces[i]));
             self.board.clear(self.stack[i]);
             if let Some(c) =
-                self.first_empty_coord_from(Self::next_coord(self.stack[i]), self.pieces[i])
+                self.first_empty_coord_from(Self::next_coord(self.stack[i]), self.pieces[i], i == 0)
             {
                 self.board.add_piece(c, self.pieces[i]);
                 self.stack[i] = c;
@@ -448,7 +452,7 @@ impl<const W: i8, const H: i8, const OPT: bool> Iterator for GenerateAllBoards<W
         } else {
             for i in add_from_idx..self.stack.len() {
                 self.stack[i] = self
-                    .first_empty_coord_from(Coord::new(0, 0), self.pieces[i])
+                    .first_empty_coord_from(Coord::new(0, 0), self.pieces[i], i == 0)
                     .unwrap();
                 self.board.add_piece(self.stack[i], self.pieces[i]);
             }
@@ -1626,7 +1630,11 @@ mod tests {
     fn test_generate_all_boards() {
         {
             let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[WK]));
-            assert_eq!(boards.count(), 64);
+            assert_eq!(boards.count(), 10);
+        }
+        {
+            let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[WP]));
+            assert_eq!(boards.count(), 24);
         }
         {
             let mut boards = generate_all_boards::<8, 8>(&PieceSet::new(&[WK, WQ]));
@@ -1642,7 +1650,11 @@ mod tests {
         }
         {
             let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[WK, WQ]));
-            assert_eq!(boards.count(), 64 * 63);
+            assert_eq!(boards.count(), 10 * 63);
+        }
+        {
+            let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[WP, WQ]));
+            assert_eq!(boards.count(), 24 * 63);
         }
         {
             for b in generate_all_boards::<4, 4>(&PieceSet::new(&[WK, WP, WP])) {
