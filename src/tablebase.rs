@@ -889,8 +889,9 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
             let moves = all_moves_to_end_at_board_captures(board, p, c);
             for m in moves {
                 let mut clone = board.clone();
-                assert_eq!(clone.get(m), None);
-                clone.swap(m, c);
+                debug_assert_eq!(clone.get(m), None);
+                let take = clone.take(c);
+                clone.add_piece(m, take.unwrap());
                 clone.add_piece(c, piece_to_add);
 
                 if board_has_pawn || piece_to_add.ty() != Pawn {
