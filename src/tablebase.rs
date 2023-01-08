@@ -2,7 +2,7 @@ use crate::board::{Board, Move};
 use crate::coord::Coord;
 use crate::moves::{
     all_moves, all_moves_for_piece, all_moves_to_end_at_board_captures,
-    all_moves_to_end_at_board_no_captures, is_under_attack, under_attack_from_coord,
+    all_moves_to_end_at_board_no_captures, under_attack_from_coord,
 };
 use crate::piece::Piece;
 use crate::piece::Type::*;
@@ -706,22 +706,13 @@ fn visit_board<const W: i8, const H: i8>(
         if let Some(m) = m {
             let mut clone = board.clone();
             clone.make_move(m);
-            let mut ok = true;
             #[cfg(debug_assertions)]
             debug_assert_eq!(
                 tablebase.depth_impl(next_player(player), &clone).unwrap(),
                 cur_max_depth
             );
-            // TODO: is this necessary?
-            if let Some(wk_coord) = clone.maybe_king_coord(White) {
-                if is_under_attack(&clone, wk_coord, White) {
-                    ok = false;
-                }
-            }
-            if ok {
-                add = true;
-                any_move = Some(m);
-            }
+            add = true;
+            any_move = Some(m);
         }
     }
     if any_move.is_none() {
@@ -739,14 +730,6 @@ fn visit_board<const W: i8, const H: i8>(
                     panic!();
                 }
                 clone.make_move(m);
-                // Cannot let black capture white king.
-                if player == White {
-                    if let Some(wk_coord) = clone.maybe_king_coord(White) {
-                        if is_under_attack(&clone, wk_coord, White) {
-                            continue;
-                        }
-                    }
-                }
 
                 let maybe_depth = tablebase.depth_impl(next_player(player), &clone);
                 match player {
