@@ -4,6 +4,5 @@ add tests for derive crates (https://ferrous-systems.com/blog/testing-proc-macro
 tablebase
   pawn en passant
   add description of how optimizations work
-  work backwards for initial wins
   tune Vec initial capacity
   don't allow capture of white king

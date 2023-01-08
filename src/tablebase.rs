@@ -613,10 +613,45 @@ fn populate_initial_wins<const W: i8, const H: i8>(
 ) -> BoardsToVisit<W, H> {
     let mut ret = BoardsToVisit::default();
     for set in &piece_sets.piece_sets {
-        for b in generate_all_boards(set) {
-            if populate_initial_wins_one(tablebase, &b) {
-                ret.boards.push(b);
-            }
+        let mut set_without_bk = set.clone();
+        set_without_bk.remove(BK);
+        let can_reverse_promote = piece_sets
+            .can_reverse_promote
+            .contains(&(White, set.clone()));
+
+        for board in generate_all_boards(&set_without_bk) {
+            board.foreach_piece(|p, c| {
+                if p.player() != White {
+                    return;
+                }
+                let moves = all_moves_to_end_at_board_captures(&board, p, c);
+                for m in moves {
+                    let mut clone = board.clone();
+                    debug_assert_eq!(clone.get(m), None);
+                    let take = clone.take(c);
+                    clone.add_piece(m, take.unwrap());
+                    clone.add_piece(c, BK);
+                    if populate_initial_wins_one(tablebase, &clone) {
+                        ret.boards.push(clone);
+                    }
+                }
+                if can_reverse_promote && p == Piece::new(White, Queen) {
+                    visit_reverse_promotion(&board, White, |b, c| {
+                        let moves =
+                            all_moves_to_end_at_board_captures(b, Piece::new(White, Pawn), c);
+                        for m in moves {
+                            let mut clone = b.clone();
+                            debug_assert_eq!(clone.get(m), None);
+                            clone.clear(c);
+                            clone.add_piece(m, Piece::new(White, Pawn));
+                            clone.add_piece(c, BK);
+                            if populate_initial_wins_one(tablebase, &clone) {
+                                ret.boards.push(clone);
+                            }
+                        }
+                    });
+                }
+            });
         }
     }
     ret
