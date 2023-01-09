@@ -5,4 +5,3 @@ tablebase
   pawn en passant
   add description of how optimizations work
   tune Vec initial capacity
-  don't allow capture of white king
