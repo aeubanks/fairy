@@ -14,6 +14,12 @@ pub enum ExistingPieceResult {
     Opponent,
 }
 
+#[derive(Clone, Copy)]
+pub enum CastleSide {
+    Left,
+    Right,
+}
+
 pub trait Board: Default + Debug + Clone {
     fn width(&self) -> i8;
     fn height(&self) -> i8;
@@ -54,8 +60,7 @@ pub trait Board: Default + Debug + Clone {
     fn set_last_pawn_double_move(&mut self, c: Option<Coord>);
     fn get_last_pawn_double_move(&self) -> Option<Coord>;
     fn set_castling_rights(&mut self, m: Move, piece: Piece);
-    // TODO: make side into enum
-    fn get_castling_rights(&self, player: Player, side: bool) -> Option<Coord>;
+    fn get_castling_rights(&self, player: Player, side: CastleSide) -> Option<Coord>;
 
     fn make_move(&mut self, m: Move) {
         assert_ne!(m.from, m.to);
@@ -319,12 +324,13 @@ impl<const W: usize, const H: usize> Board for BoardSquare<W, H> {
             }
         }
     }
-    fn get_castling_rights(&self, player: Player, side: bool) -> Option<Coord> {
+    fn get_castling_rights(&self, player: Player, side: CastleSide) -> Option<Coord> {
+        use CastleSide::*;
         self.castling_rights[match (player, side) {
-            (White, false) => 0,
-            (White, true) => 1,
-            (Black, false) => 2,
-            (Black, true) => 3,
+            (White, Left) => 0,
+            (White, Right) => 1,
+            (Black, Left) => 2,
+            (Black, Right) => 3,
         }]
     }
 }
@@ -380,7 +386,7 @@ impl<const W: i8, const H: i8, const N: usize> Board for BoardPiece<W, H, N> {
     fn set_castling_rights(&mut self, _: Move, _: Piece) {
         // not implemented
     }
-    fn get_castling_rights(&self, _: Player, _: bool) -> Option<Coord> {
+    fn get_castling_rights(&self, _: Player, _: CastleSide) -> Option<Coord> {
         // not implemented
         None
     }

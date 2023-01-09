@@ -1,4 +1,4 @@
-use crate::board::{Board, ExistingPieceResult, Move};
+use crate::board::{Board, CastleSide, ExistingPieceResult, Move};
 use crate::coord::Coord;
 use crate::piece::{Piece, Type, Type::*};
 use crate::player::{next_player, Player, Player::*};
@@ -157,15 +157,16 @@ fn add_castling_moves<T: Board>(moves: &mut Vec<Coord>, board: &T, coord: Coord,
     }
 
     // make sure the first value is the left rook and the second value is the right rook
-    if let Some(a) = board.get_castling_rights(player, false) {
-        if let Some(b) = board.get_castling_rights(player, true) {
-            assert!(a.x < b.x);
+    #[cfg(debug_assertions)]
+    if let Some(a) = board.get_castling_rights(player, CastleSide::Left) {
+        if let Some(b) = board.get_castling_rights(player, CastleSide::Right) {
+            debug_assert!(a.x < b.x);
         }
     }
     for (rook_coord, king_dest_x, rook_dest_x) in [
-        (board.get_castling_rights(player, false), 2, 3),
+        (board.get_castling_rights(player, CastleSide::Left), 2, 3),
         (
-            board.get_castling_rights(player, true),
+            board.get_castling_rights(player, CastleSide::Right),
             board.width() - 2,
             board.width() - 3,
         ),
