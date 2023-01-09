@@ -215,15 +215,15 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
             .extend(other.black_tablebase.iter().map(|(k, v)| (k.clone(), *v)));
     }
     pub fn dump_stats(&self) {
-        println!("white positions: {}", self.white_tablebase.len());
-        println!("black positions: {}", self.black_tablebase.len());
+        info!("white positions: {}", self.white_tablebase.len());
+        info!("black positions: {}", self.black_tablebase.len());
         let mut max_depth = 0;
         for v in self.white_tablebase.values() {
             if v.1 > max_depth {
                 max_depth = v.1;
             }
         }
-        println!("max depth: {}", max_depth);
+        info!("max depth: {}", max_depth);
     }
 }
 
