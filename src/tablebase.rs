@@ -474,6 +474,8 @@ struct PieceSetsSplitIter<'a> {
     remaining: usize,
     slice: &'a [PieceSet],
     per_slice_count: usize,
+    pieces_to_add: HashMap<(Player, PieceSet), Vec<Piece>>,
+    can_reverse_promote: HashSet<(Player, PieceSet)>,
 }
 
 impl<'a> Iterator for PieceSetsSplitIter<'a> {
@@ -495,7 +497,8 @@ impl<'a> Iterator for PieceSetsSplitIter<'a> {
             .split_at(self.per_slice_count.min(self.slice.len()));
         Some(PieceSets {
             piece_sets: this_slice.to_vec(),
-            ..Default::default()
+            pieces_to_add: self.pieces_to_add.clone(),
+            can_reverse_promote: self.can_reverse_promote.clone(),
         })
     }
 }
@@ -507,6 +510,8 @@ impl PieceSets {
             remaining: count,
             slice: self.piece_sets.as_slice(),
             per_slice_count: MIN_SPLIT_COUNT.max(self.piece_sets.len() / count),
+            pieces_to_add: self.pieces_to_add.clone(),
+            can_reverse_promote: self.can_reverse_promote.clone(),
         }
     }
 }
@@ -2038,6 +2043,12 @@ mod tests {
     fn test_kqkr_parallel() {
         let kqkr = PieceSet::new(&[WK, BK, WQ, BR]);
         test_tablebase_parallel::<4, 4>(&[kqkr]);
+    }
+
+    #[test]
+    fn test_kpk_parallel() {
+        let set = PieceSet::new(&[WK, BK, WP]);
+        test_tablebase_parallel::<4, 4>(&[set]);
     }
 
     #[test]
