@@ -1276,6 +1276,9 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
         }
         boards_to_check
     };
+    if pool.panic_count() != 0 {
+        panic!();
+    }
     info!("took {:?}", timer.elapsed());
     info_tablebase(&tablebase);
     info!("");
@@ -1310,6 +1313,9 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
             };
             for to_merge in tablebases_to_merge {
                 tablebase.merge(to_merge);
+            }
+            if pool.panic_count() != 0 {
+                panic!();
             }
             boards_to_check
         };
