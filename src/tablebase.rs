@@ -1944,8 +1944,8 @@ mod tests {
 
     #[test]
     fn test_qk() {
-        let qk = PieceSet::new(&[WQ, BK]);
-        test_tablebase::<4, 4>(&[qk]);
+        let set = PieceSet::new(&[WQ, BK]);
+        test_tablebase::<4, 4>(&[set]);
     }
 
     #[test]
@@ -1974,15 +1974,15 @@ mod tests {
 
     #[test]
     fn test_kpk() {
-        let kpk = PieceSet::new(&[WK, BK, WP]);
-        test_tablebase::<4, 4>(&[kpk]);
+        let set = PieceSet::new(&[WK, BK, WP]);
+        test_tablebase::<4, 4>(&[set]);
     }
 
     #[test]
     fn test_kpk_rect() {
-        let kpk = PieceSet::new(&[WK, BK, WP]);
-        test_tablebase::<5, 4>(&[kpk.clone()]);
-        test_tablebase::<4, 5>(&[kpk]);
+        let set = PieceSet::new(&[WK, BK, WP]);
+        test_tablebase::<5, 4>(&[set.clone()]);
+        test_tablebase::<4, 5>(&[set]);
     }
 
     #[test]
@@ -2005,8 +2005,8 @@ mod tests {
 
     #[test]
     fn test_kqkq() {
-        let kqkq = PieceSet::new(&[WK, BK, WQ, BQ]);
-        test_tablebase::<4, 4>(&[kqkq]);
+        let set = PieceSet::new(&[WK, BK, WQ, BQ]);
+        test_tablebase::<4, 4>(&[set]);
     }
 
     #[test]
@@ -2017,9 +2017,9 @@ mod tests {
 
     #[test]
     fn test_kqkr() {
-        let kqkr = PieceSet::new(&[WK, BK, WQ, BR]);
+        let set = PieceSet::new(&[WK, BK, WQ, BR]);
 
-        let tablebase = test_tablebase::<4, 4>(&[kqkr]);
+        let tablebase = test_tablebase::<4, 4>(&[set]);
 
         // ..k.
         // ....
@@ -2041,8 +2041,8 @@ mod tests {
 
     #[test]
     fn test_kqkr_parallel() {
-        let kqkr = PieceSet::new(&[WK, BK, WQ, BR]);
-        test_tablebase_parallel::<4, 4>(&[kqkr]);
+        let set = PieceSet::new(&[WK, BK, WQ, BR]);
+        test_tablebase_parallel::<4, 4>(&[set]);
     }
 
     #[test]
