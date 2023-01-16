@@ -462,60 +462,11 @@ impl<const W: i8, const H: i8, const OPT: bool> Iterator for GenerateAllBoards<W
     }
 }
 
-const MIN_SPLIT_COUNT: usize = 10000;
-
 #[derive(Default, Clone)]
 struct PieceSets {
     piece_sets: Vec<PieceSet>,
     pieces_to_add: HashMap<(Player, PieceSet), Vec<Piece>>,
     can_reverse_promote: HashSet<(Player, PieceSet)>,
-}
-
-struct PieceSetsSplitIter<'a> {
-    remaining: usize,
-    slice: &'a [PieceSet],
-    per_slice_count: usize,
-    pieces_to_add: HashMap<(Player, PieceSet), Vec<Piece>>,
-    can_reverse_promote: HashSet<(Player, PieceSet)>,
-}
-
-impl<'a> Iterator for PieceSetsSplitIter<'a> {
-    type Item = PieceSets;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining == 0 || self.slice.is_empty() {
-            return None;
-        }
-        self.remaining -= 1;
-        if self.remaining == 0 {
-            return Some(PieceSets {
-                piece_sets: self.slice.to_vec(),
-                pieces_to_add: self.pieces_to_add.clone(),
-                can_reverse_promote: self.can_reverse_promote.clone(),
-            });
-        }
-        let this_slice;
-        (this_slice, self.slice) = self
-            .slice
-            .split_at(self.per_slice_count.min(self.slice.len()));
-        Some(PieceSets {
-            piece_sets: this_slice.to_vec(),
-            pieces_to_add: self.pieces_to_add.clone(),
-            can_reverse_promote: self.can_reverse_promote.clone(),
-        })
-    }
-}
-
-impl PieceSets {
-    fn split(&self, count: usize) -> PieceSetsSplitIter {
-        assert_ne!(count, 0);
-        PieceSetsSplitIter {
-            remaining: count,
-            slice: self.piece_sets.as_slice(),
-            per_slice_count: MIN_SPLIT_COUNT.max(self.piece_sets.len() / count),
-            pieces_to_add: self.pieces_to_add.clone(),
-            can_reverse_promote: self.can_reverse_promote.clone(),
-        }
-    }
 }
 
 #[derive(Default)]
@@ -1254,11 +1205,20 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     let mut timer = Timer::new();
     let mut boards_to_check = {
         let (tx, rx) = channel();
-        for set_clone in piece_sets.split(pool_count) {
-            let mut tablebase_clone = Tablebase::default();
+        let mut sets = piece_sets.piece_sets.clone();
+        let per_count = sets.len() / pool_count + 1;
+        while !sets.is_empty() {
+            let split_off = sets.len() - per_count.min(sets.len());
+            let this_sets = sets.split_off(split_off);
+            let this_piece_sets = PieceSets {
+                piece_sets: this_sets,
+                pieces_to_add: piece_sets.pieces_to_add.clone(),
+                can_reverse_promote: piece_sets.can_reverse_promote.clone(),
+            };
             let tx = tx.clone();
             pool.execute(move || {
-                let boards = populate_initial_wins(&mut tablebase_clone, &set_clone);
+                let mut tablebase_clone = Tablebase::default();
+                let boards = populate_initial_wins(&mut tablebase_clone, &this_piece_sets);
                 tx.send((boards, tablebase_clone)).unwrap();
             });
         }
@@ -1286,7 +1246,8 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
             let tablebase_arc = Arc::new(tablebase);
             let (tx, rx) = channel();
             let mut to_check = boards_to_check.to_vec();
-            let per_slice_count = MIN_SPLIT_COUNT.max(to_check.len() / pool_count);
+            const MIN_SPLIT_COUNT: usize = 10000;
+            let per_slice_count = MIN_SPLIT_COUNT.max(to_check.len() / pool_count + 1);
             while !to_check.is_empty() {
                 let split_off = to_check.len() - per_slice_count.min(to_check.len());
                 let batch = to_check.split_off(split_off);
@@ -1350,59 +1311,6 @@ mod tests {
     const BA: Piece = Piece::new(Black, Amazon);
     const BB: Piece = Piece::new(Black, Bishop);
 
-    #[test]
-    fn test_piece_sets_split_iter() {
-        let mut set = PieceSets::default();
-        {
-            let mut iter = set.split(1);
-            assert!(iter.next().is_none());
-        }
-        {
-            let mut iter = set.split(2);
-            assert!(iter.next().is_none());
-        }
-
-        set.piece_sets.resize(MIN_SPLIT_COUNT, PieceSet::default());
-        {
-            let mut iter = set.split(1);
-            {
-                let v = iter.next().unwrap();
-                assert_eq!(v.piece_sets.len(), MIN_SPLIT_COUNT);
-            }
-            assert!(iter.next().is_none());
-        }
-        {
-            let mut iter = set.split(2);
-            {
-                let v = iter.next().unwrap();
-                assert_eq!(v.piece_sets.len(), MIN_SPLIT_COUNT);
-            }
-            assert!(iter.next().is_none());
-        }
-
-        set.piece_sets
-            .resize(MIN_SPLIT_COUNT + 2, PieceSet::default());
-        {
-            let mut iter = set.split(1);
-            {
-                let v = iter.next().unwrap();
-                assert_eq!(v.piece_sets.len(), MIN_SPLIT_COUNT + 2);
-            }
-            assert!(iter.next().is_none());
-        }
-        {
-            let mut iter = set.split(2);
-            {
-                let v = iter.next().unwrap();
-                assert_eq!(v.piece_sets.len(), MIN_SPLIT_COUNT);
-            }
-            {
-                let v = iter.next().unwrap();
-                assert_eq!(v.piece_sets.len(), 2);
-            }
-            assert!(iter.next().is_none());
-        }
-    }
     #[test]
     fn test_flip_coord() {
         assert_eq!(
