@@ -1204,14 +1204,11 @@ fn info_tablebase<const W: i8, const H: i8>(tablebase: &Tablebase<W, H>) {
 
 pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> Tablebase<W, H> {
     info!("generating tablebases for {:?}", piece_sets);
-    let mut timer = Timer::new();
     let piece_sets = calculate_piece_sets(piece_sets);
-    info!("took {:?}", timer.elapsed());
-    info!("");
 
     info!("populating initial wins");
     let mut tablebase = Tablebase::default();
-    timer = Timer::new();
+    let mut timer = Timer::new();
     let mut boards_to_check = populate_initial_wins(&mut tablebase, &piece_sets);
     info!("took {:?}", timer.elapsed());
     info_tablebase(&tablebase);
@@ -1255,14 +1252,11 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     let pool_count = pool.max_count();
 
     info!("generating tablebases (in parallel) for {:?}", piece_sets);
-    let mut timer = Timer::new();
     let piece_sets = calculate_piece_sets(piece_sets);
-    info!("took {:?}", timer.elapsed());
-    info!("");
 
     info!("populating initial wins");
     let mut tablebase = Tablebase::default();
-    timer = Timer::new();
+    let mut timer = Timer::new();
     let mut boards_to_check = {
         let (tx, rx) = channel();
         for set_clone in piece_sets.split(pool_count) {
