@@ -20,7 +20,7 @@ fn tablebase<const N: i8, const M: i8>(parallel: usize, only_three: bool) {
     use fairy::tablebase::*;
 
     let mut all_pieces = Vec::new();
-    for ty in [Bishop, Knight, Rook, Queen, Cardinal, Empress, Amazon] {
+    for ty in [Pawn, Knight, Bishop, Rook, Queen] {
         for pl in [White, Black] {
             all_pieces.push(Piece::new(pl, ty));
         }
