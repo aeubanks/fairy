@@ -519,44 +519,60 @@ impl PieceSets {
 
 #[derive(Default)]
 struct BoardsToVisit<const W: i8, const H: i8> {
-    boards: Vec<TBBoard<W, H>>,
+    boards: HashSet<KeyTy>,
 }
 
-struct BoardsToVisitSplitIter<'a, const W: i8, const H: i8> {
+impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
+    fn add(&mut self, board: TBBoard<W, H>) {
+        let key = board_key(&board, Symmetry::default());
+        self.boards.insert(key);
+    }
+
+    fn to_vec(self) -> Vec<TBBoard<W, H>> {
+        self.boards
+            .into_iter()
+            .map(|k| {
+                let mut b = TBBoard::default();
+                for (c, p) in k {
+                    b.add_piece(Coord::new(c % W, c / W), p);
+                }
+                b
+            })
+            .collect()
+    }
+}
+
+struct BoardsToVisitSplitIter<const W: i8, const H: i8> {
+    boards: Vec<TBBoard<W, H>>,
     remaining: usize,
-    slice: &'a [TBBoard<W, H>],
     per_slice_count: usize,
 }
 
-impl<'a, const W: i8, const H: i8> Iterator for BoardsToVisitSplitIter<'a, W, H> {
-    type Item = BoardsToVisit<W, H>;
+impl<'a, const W: i8, const H: i8> Iterator for BoardsToVisitSplitIter<W, H> {
+    type Item = Vec<TBBoard<W, H>>;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining == 0 || self.slice.is_empty() {
+        if self.remaining == 0 || self.boards.is_empty() {
             return None;
         }
         self.remaining -= 1;
         if self.remaining == 0 {
-            return Some(BoardsToVisit {
-                boards: self.slice.to_vec(),
-            });
+            let mut ret = Vec::new();
+            std::mem::swap(&mut ret, &mut self.boards);
+            return Some(ret);
         }
-        let this_slice;
-        (this_slice, self.slice) = self
-            .slice
-            .split_at(self.per_slice_count.min(self.slice.len()));
-        Some(BoardsToVisit {
-            boards: this_slice.to_vec(),
-        })
+        let split_off = self.boards.len() - self.per_slice_count.min(self.boards.len());
+        Some(self.boards.split_off(split_off))
     }
 }
 
 impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
-    fn split(&self, count: usize) -> BoardsToVisitSplitIter<W, H> {
+    fn split(self, count: usize) -> BoardsToVisitSplitIter<W, H> {
         assert_ne!(count, 0);
+        let per_slice_count = MIN_SPLIT_COUNT.max(self.boards.len() / count);
         BoardsToVisitSplitIter {
+            boards: self.to_vec(),
             remaining: count,
-            slice: self.boards.as_slice(),
-            per_slice_count: MIN_SPLIT_COUNT.max(self.boards.len() / count),
+            per_slice_count,
         }
     }
 
@@ -618,7 +634,7 @@ fn populate_initial_wins<const W: i8, const H: i8>(
                     clone.add_piece(m, take.unwrap());
                     clone.add_piece(c, BK);
                     if populate_initial_wins_one(tablebase, &clone) {
-                        ret.boards.push(clone);
+                        ret.add(clone);
                     }
                 }
                 if can_reverse_promote && p == Piece::new(White, Queen) {
@@ -632,7 +648,7 @@ fn populate_initial_wins<const W: i8, const H: i8>(
                             clone.add_piece(m, Piece::new(White, Pawn));
                             clone.add_piece(c, BK);
                             if populate_initial_wins_one(tablebase, &clone) {
-                                ret.boards.push(clone);
+                                ret.add(clone);
                             }
                         }
                     });
@@ -787,7 +803,7 @@ fn visit_board<const W: i8, const H: i8>(
                 dbg!(board);
                 panic!();
             }
-            next_boards.boards.push(board.clone());
+            next_boards.add(board.clone());
             out_tablebase.add_impl(player, board, m, cur_max_depth + 1);
         }
     }
@@ -949,14 +965,14 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
 
 fn iterate<const W: i8, const H: i8>(
     tablebase: &Tablebase<W, H>,
-    previous_boards: BoardsToVisit<W, H>,
+    previous_boards: &[TBBoard<W, H>],
     piece_sets: &PieceSets,
     player: Player,
     cur_max_depth: u16,
 ) -> (Tablebase<W, H>, BoardsToVisit<W, H>) {
     let mut next_boards = BoardsToVisit::default();
     let mut out_tablebase = Tablebase::default();
-    for prev in previous_boards.boards {
+    for prev in previous_boards.to_vec() {
         visit_reverse_moves(
             tablebase,
             &mut out_tablebase,
@@ -1221,7 +1237,13 @@ pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> 
         info!("iteration {} ({:?})", i, player);
         let out;
         timer = Timer::new();
-        (out, boards_to_check) = iterate(&tablebase, boards_to_check, &piece_sets, player, i);
+        (out, boards_to_check) = iterate(
+            &tablebase,
+            &boards_to_check.to_vec(),
+            &piece_sets,
+            player,
+            i,
+        );
         info!("took {:?}", timer.elapsed());
         info_tablebase(&tablebase);
         info!("");
@@ -1296,7 +1318,13 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
                 let piece_sets_clone = piece_sets.clone();
                 let tx = tx.clone();
                 pool.execute(move || {
-                    let ret = iterate(&tablebase_clone, boards_clone, &piece_sets_clone, player, i);
+                    let ret = iterate(
+                        &tablebase_clone,
+                        &boards_clone,
+                        &piece_sets_clone,
+                        player,
+                        i,
+                    );
                     tx.send(ret).unwrap();
                 });
             }
