@@ -12,6 +12,7 @@ use crate::timer::Timer;
 use arrayvec::ArrayVec;
 use log::info;
 use rustc_hash::FxHashMap;
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::ops::{Deref, DerefMut};
@@ -164,7 +165,7 @@ fn unflip_move(mut m: Move, sym: Symmetry, width: i8, height: i8) -> Move {
 type KeyTy = ArrayVec<(i8, Piece), MAX_PIECES>;
 type MapTy = FxHashMap<KeyTy, (Move, u16)>;
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Tablebase<const W: i8, const H: i8> {
     // table of best move to play on white's turn to force a win
     white_tablebase: MapTy,
@@ -2067,5 +2068,14 @@ mod tests {
                 test_tablebase::<4, 4>(&[set]);
             }
         }
+    }
+
+    #[test]
+    fn test_serde() {
+        let tablebase = generate_tablebase::<4, 4>(&[PieceSet::new(&[WK, BK])]);
+        let bytes = postcard::to_stdvec(&tablebase).unwrap();
+        let tablebase2 = postcard::from_bytes::<Tablebase<4, 4>>(&bytes).unwrap();
+        assert_eq!(tablebase.white_tablebase, tablebase2.white_tablebase);
+        assert_eq!(tablebase.black_tablebase, tablebase2.black_tablebase);
     }
 }

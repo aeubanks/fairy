@@ -19,13 +19,15 @@ incremental = false
 [dependencies]
 derive_rand = { path = "derive_rand" }
 derive_enum = { path = "derive_enum" }
-arrayvec = "0.7"
+arrayvec = { version = "0.7", features = [ "serde" ] }
 rand = "0.8"
 static_assertions = "1.1"
 rustc-hash = "1.1"
 threadpool = "1.8"
 log = "0.4"
 env_logger = "0.10"
+serde = { version = "1.0", features = [ "std", "derive" ] }
+postcard = { version = "1.0", default-features = false, features = [ "use-std" ] }
 
 [dev-dependencies]
 criterion = { version = "0.4", default-features = false }
