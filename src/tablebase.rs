@@ -1658,14 +1658,14 @@ mod tests {
         {
             let mut boards = generate_all_boards::<8, 8>(&PieceSet::new(&[WK, WQ]));
             let b0 = boards.next().unwrap();
-            assert_eq!(b0.get(Coord::new(0, 0)), Some(WQ));
-            assert_eq!(b0.get(Coord::new(1, 0)), Some(WK));
+            assert_eq!(b0.get(Coord::new(0, 0)), Some(WK));
+            assert_eq!(b0.get(Coord::new(1, 0)), Some(WQ));
             assert_eq!(b0.get(Coord::new(2, 0)), None);
 
             let b1 = boards.next().unwrap();
-            assert_eq!(b1.get(Coord::new(0, 0)), Some(WQ));
+            assert_eq!(b1.get(Coord::new(0, 0)), Some(WK));
             assert_eq!(b1.get(Coord::new(1, 0)), None);
-            assert_eq!(b1.get(Coord::new(2, 0)), Some(WK));
+            assert_eq!(b1.get(Coord::new(2, 0)), Some(WQ));
         }
         {
             let boards = generate_all_boards::<8, 8>(&PieceSet::new(&[WK, WQ]));

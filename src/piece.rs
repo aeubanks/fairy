@@ -8,32 +8,32 @@ use std::num::NonZeroU8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Rand, Hash, EnumFrom, EnumCount)]
 pub enum Type {
-    Pawn,
-    Knight,
-    Bishop,
-    Rook,
-    Queen,
     King,
+    Amazon,
+    Queen,
     Empress,
     Cardinal,
-    Amazon,
+    Rook,
     Nightrider,
+    Bishop,
+    Knight,
+    Pawn,
 }
 
 impl Type {
     pub fn char(&self) -> char {
         use Type::*;
         let ret = match self {
-            Pawn => 'P',
-            Knight => 'N',
-            Bishop => 'B',
-            Rook => 'R',
-            Queen => 'Q',
             King => 'K',
+            Amazon => 'A',
+            Queen => 'Q',
             Empress => 'E',
             Cardinal => 'C',
-            Amazon => 'A',
+            Rook => 'R',
             Nightrider => 'D',
+            Bishop => 'B',
+            Knight => 'N',
+            Pawn => 'P',
         };
         assert!(ret.is_uppercase());
         ret
