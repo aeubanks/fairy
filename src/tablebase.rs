@@ -542,40 +542,7 @@ impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
     }
 }
 
-struct BoardsToVisitSplitIter<const W: i8, const H: i8> {
-    boards: Vec<TBBoard<W, H>>,
-    remaining: usize,
-    per_slice_count: usize,
-}
-
-impl<'a, const W: i8, const H: i8> Iterator for BoardsToVisitSplitIter<W, H> {
-    type Item = Vec<TBBoard<W, H>>;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining == 0 || self.boards.is_empty() {
-            return None;
-        }
-        self.remaining -= 1;
-        if self.remaining == 0 {
-            let mut ret = Vec::new();
-            std::mem::swap(&mut ret, &mut self.boards);
-            return Some(ret);
-        }
-        let split_off = self.boards.len() - self.per_slice_count.min(self.boards.len());
-        Some(self.boards.split_off(split_off))
-    }
-}
-
 impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
-    fn split(self, count: usize) -> BoardsToVisitSplitIter<W, H> {
-        assert_ne!(count, 0);
-        let per_slice_count = MIN_SPLIT_COUNT.max(self.boards.len() / count);
-        BoardsToVisitSplitIter {
-            boards: self.to_vec(),
-            remaining: count,
-            per_slice_count,
-        }
-    }
-
     fn is_empty(&self) -> bool {
         self.boards.is_empty()
     }
@@ -1313,18 +1280,16 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
         boards_to_check = {
             let tablebase_arc = Arc::new(tablebase);
             let (tx, rx) = channel();
-            for boards_clone in boards_to_check.split(pool_count) {
+            let mut to_check = boards_to_check.to_vec();
+            let per_slice_count = MIN_SPLIT_COUNT.max(to_check.len() / pool_count);
+            while !to_check.is_empty() {
+                let split_off = to_check.len() - per_slice_count.min(to_check.len());
+                let batch = to_check.split_off(split_off);
                 let tablebase_clone = tablebase_arc.clone();
                 let piece_sets_clone = piece_sets.clone();
                 let tx = tx.clone();
                 pool.execute(move || {
-                    let ret = iterate(
-                        &tablebase_clone,
-                        &boards_clone,
-                        &piece_sets_clone,
-                        player,
-                        i,
-                    );
+                    let ret = iterate(&tablebase_clone, &batch, &piece_sets_clone, player, i);
                     tx.send(ret).unwrap();
                 });
             }
