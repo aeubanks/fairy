@@ -488,7 +488,8 @@ impl<'a> Iterator for PieceSetsSplitIter<'a> {
         if self.remaining == 0 {
             return Some(PieceSets {
                 piece_sets: self.slice.to_vec(),
-                ..Default::default()
+                pieces_to_add: self.pieces_to_add.clone(),
+                can_reverse_promote: self.can_reverse_promote.clone(),
             });
         }
         let this_slice;
@@ -2043,6 +2044,12 @@ mod tests {
     fn test_kpk_parallel() {
         let set = PieceSet::new(&[WK, BK, WP]);
         test_tablebase_parallel::<4, 4>(&[set]);
+    }
+
+    #[test]
+    fn test_kpk_parallel_1() {
+        generate_tablebase::<4, 4>(&[PieceSet::new(&[WK, BK, WP])]);
+        generate_tablebase_parallel::<4, 4>(&[PieceSet::new(&[WK, BK, WP])], Some(1));
     }
 
     #[test]
