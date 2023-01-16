@@ -940,20 +940,20 @@ fn iterate<const W: i8, const H: i8>(
 ) -> (Tablebase<W, H>, BoardsToVisit<W, H>) {
     let mut next_boards = BoardsToVisit::default();
     let mut out_tablebase = Tablebase::default();
-    for prev in previous_boards.to_vec() {
+    for prev in previous_boards {
         visit_reverse_moves(
             tablebase,
             &mut out_tablebase,
-            &prev,
+            prev,
             player,
             &mut next_boards,
             cur_max_depth,
         );
 
-        let key = (player, board_pieces(&prev));
+        let key = (player, board_pieces(prev));
         let promote = piece_sets.can_reverse_promote.contains(&key);
         if promote {
-            visit_reverse_promotion(&prev, player, |b: &TBBoard<W, H>, c: Coord| {
+            visit_reverse_promotion(prev, player, |b: &TBBoard<W, H>, c: Coord| {
                 debug_assert_eq!(
                     c.y,
                     match player {
@@ -999,14 +999,14 @@ fn iterate<const W: i8, const H: i8>(
                 tablebase,
                 &mut out_tablebase,
                 pieces_to_add,
-                &prev,
+                prev,
                 player,
                 &mut next_boards,
                 cur_max_depth,
             );
 
             if promote {
-                visit_reverse_promotion(&prev, player, |b: &TBBoard<W, H>, c: Coord| {
+                visit_reverse_promotion(prev, player, |b: &TBBoard<W, H>, c: Coord| {
                     debug_assert_eq!(
                         c.y,
                         match player {
