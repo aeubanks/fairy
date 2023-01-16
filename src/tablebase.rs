@@ -1188,6 +1188,8 @@ fn info_tablebase<const W: i8, const H: i8>(tablebase: &Tablebase<W, H>) {
 }
 
 pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> Tablebase<W, H> {
+    let total_timer = Timer::new();
+
     info!("generating tablebases for {:?}", piece_sets);
     let piece_sets = calculate_piece_sets(piece_sets);
 
@@ -1223,7 +1225,7 @@ pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> 
 
         i += 1;
     }
-    info!("done");
+    info!("done in {:?}", total_timer.elapsed());
     tablebase
 }
 
@@ -1232,6 +1234,8 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     parallelism: Option<usize>,
 ) -> Tablebase<W, H> {
     use std::sync::mpsc::channel;
+
+    let total_timer = Timer::new();
 
     let pool = {
         let mut builder = threadpool::Builder::new();
@@ -1323,7 +1327,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
         i += 1;
         player = next_player(player);
     }
-    info!("done");
+    info!("done in {:?}", total_timer.elapsed());
     tablebase
 }
 
