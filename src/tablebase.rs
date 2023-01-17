@@ -214,6 +214,62 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         self.black_tablebase
             .extend(other.black_tablebase.iter().map(|(k, v)| (k.clone(), *v)));
     }
+    pub fn serialize(&self) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(
+            8 + (1 + 2 * MAX_PIECES + 4)
+                * (self.white_tablebase.len() + self.black_tablebase.len()),
+        );
+        buf.extend((self.white_tablebase.len() as u64).to_be_bytes());
+        for (k, v) in self
+            .white_tablebase
+            .iter()
+            .chain(self.black_tablebase.iter())
+        {
+            buf.push(k.len() as u8);
+            for (a, b) in k {
+                buf.push(*a as u8);
+                buf.push(b.val());
+            }
+            buf.push((v.0.from.x + v.0.from.y * W) as u8);
+            buf.push((v.0.to.x + v.0.to.y * W) as u8);
+            buf.extend(v.1.to_be_bytes());
+        }
+        buf
+    }
+    pub fn deserialize(mut buf: &[u8]) -> Option<Self> {
+        let mut tb = Self::default();
+        if buf.len() < 8 {
+            return None;
+        }
+        let white_len = u64::from_be_bytes(buf[..8].try_into().unwrap()) as usize;
+        buf = &buf[8..];
+        while !buf.is_empty() {
+            let k_len = buf[0] as usize;
+            buf = &buf[1..];
+            if buf.len() < k_len * 2 + 4 {
+                return None;
+            }
+            let mut k = KeyTy::new();
+            for _ in 0..k_len {
+                k.push((buf[0] as i8, Piece::from_val(buf[1])));
+                buf = &buf[2..];
+            }
+            let from = Coord::new(buf[0] as i8 % W, buf[0] as i8 / W);
+            let to = Coord::new(buf[1] as i8 % W, buf[1] as i8 / W);
+            let depth = u16::from_be_bytes(buf[2..4].try_into().unwrap());
+            buf = &buf[4..];
+            let tb_to_add = if tb.white_tablebase.len() < white_len {
+                &mut tb.white_tablebase
+            } else {
+                &mut tb.black_tablebase
+            };
+            tb_to_add.insert(k, (Move { from, to }, depth));
+        }
+        if tb.white_tablebase.len() != white_len {
+            return None;
+        }
+        Some(tb)
+    }
     pub fn dump_stats(&self) {
         info!("white positions: {}", self.white_tablebase.len());
         info!("black positions: {}", self.black_tablebase.len());
@@ -1979,5 +2035,14 @@ mod tests {
                 test_tablebase::<4, 4>(&[set]);
             }
         }
+    }
+    #[test]
+    fn test_serde() {
+        let tb = generate_tablebase::<4, 4>(&[PieceSet::new(&[WK, BK])]);
+        let buf = tb.serialize();
+        let tb2 = Tablebase::<4, 4>::deserialize(&buf).unwrap();
+        assert_eq!(tb.white_tablebase, tb2.white_tablebase);
+        assert_eq!(tb.black_tablebase, tb2.black_tablebase);
+        assert!(Tablebase::<4, 4>::deserialize(&[]).is_none());
     }
 }

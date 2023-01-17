@@ -114,6 +114,15 @@ impl Piece {
     pub fn val(&self) -> u8 {
         self.val.get()
     }
+
+    pub fn from_val(val: u8) -> Self {
+        Self {
+            val: match NonZeroU8::new(val) {
+                Some(v) => v,
+                None => panic!(),
+            },
+        }
+    }
 }
 
 impl std::fmt::Debug for Piece {
