@@ -235,10 +235,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
             buf.push((v.0.to.x + v.0.to.y * W) as u8);
             buf.extend(v.1.to_be_bytes());
         }
-        let ret = miniz_oxide::deflate::compress_to_vec(
-            &buf,
-            miniz_oxide::deflate::CompressionLevel::DefaultLevel as u8,
-        );
+        let ret = miniz_oxide::deflate::compress_to_vec(&buf, 1);
         info!(
             "compression ratio: {} / {} = {:.2}%",
             ret.len(),
@@ -249,6 +246,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         ret
     }
     pub fn deserialize(buf: &[u8]) -> Option<Self> {
+        let timer = Timer::new();
         let decompressed = match miniz_oxide::inflate::decompress_to_vec(buf) {
             Ok(b) => b,
             Err(_) => return None,
@@ -285,6 +283,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         if tb.white_tablebase.len() != white_len {
             return None;
         }
+        info!("decompression took {:?}", timer.elapsed());
         Some(tb)
     }
     pub fn dump_stats(&self) {
