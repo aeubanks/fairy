@@ -478,7 +478,7 @@ impl Presets {
         pieces[i] = Some(ty);
     }
 
-    pub fn chess960<R: Rng + ?Sized>(rng: &mut R) -> BoardSquare<8, 8> {
+    pub fn chess960<R: Rng>(rng: &mut R) -> BoardSquare<8, 8> {
         let mut pieces = [None; 8];
         Self::set_nth_empty(rng.gen_range(0..4) * 2, &mut pieces, Bishop);
         Self::set_nth_empty(rng.gen_range(0..4) * 2 + 1, &mut pieces, Bishop);
@@ -492,7 +492,7 @@ impl Presets {
         BoardSquare::<8, 8>::setup_with_pawns(true, &pieces.map(|p| p.unwrap()))
     }
 
-    pub fn capablanca_random<R: Rng + ?Sized>(rng: &mut R) -> BoardSquare<10, 8> {
+    pub fn capablanca_random<R: Rng>(rng: &mut R) -> BoardSquare<10, 8> {
         let mut evens = [None; 5];
         let mut odds = [None; 5];
         evens[rng.gen_range(0..5)] = Some(Bishop);
