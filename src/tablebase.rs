@@ -552,7 +552,7 @@ impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
         self.boards.insert(key);
     }
 
-    fn to_vec(self) -> Vec<TBBoard<W, H>> {
+    fn consume_as_vec(self) -> Vec<TBBoard<W, H>> {
         self.boards
             .into_iter()
             .map(|k| {
@@ -1232,7 +1232,7 @@ pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> 
         timer = Timer::new();
         (out, boards_to_check) = iterate(
             &tablebase,
-            &boards_to_check.to_vec(),
+            &boards_to_check.consume_as_vec(),
             &piece_sets,
             player,
             i,
@@ -1317,7 +1317,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
         boards_to_check = {
             let tablebase_arc = Arc::new(tablebase);
             let (tx, rx) = channel();
-            let mut to_check = boards_to_check.to_vec();
+            let mut to_check = boards_to_check.consume_as_vec();
             const MIN_SPLIT_COUNT: usize = 10000;
             let per_slice_count = MIN_SPLIT_COUNT.max(to_check.len() / pool_count + 1);
             while !to_check.is_empty() {
