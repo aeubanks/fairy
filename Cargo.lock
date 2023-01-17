@@ -22,9 +22,6 @@ name = "arrayvec"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "atty"
@@ -114,12 +111,6 @@ checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
 dependencies = [
  "os_str_bytes",
 ]
-
-[[package]]
-name = "cobs"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67ba02a97a2bd10f4b59b25c7973101c79642302776489e030cd13cdab09ed15"
 
 [[package]]
 name = "criterion"
@@ -231,10 +222,8 @@ dependencies = [
  "env_logger",
  "log",
  "perf-event",
- "postcard",
  "rand",
  "rustc-hash",
- "serde",
  "static_assertions",
  "threadpool",
 ]
@@ -414,16 +403,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c44fb1c7651a45a3652c4afc6e754e40b3d6e6556f1487e2b230bfc4f33c2a8"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "postcard"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c2b180dc0bade59f03fd005cb967d3f1e5f69b13922dad0cd6e047cb8af2363"
-dependencies = [
- "cobs",
- "serde",
 ]
 
 [[package]]

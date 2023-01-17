@@ -3,7 +3,6 @@ use crate::player::Player;
 use arrayvec::ArrayVec;
 use derive_enum::{EnumCount, EnumFrom};
 use derive_rand::Rand;
-use serde::{Deserialize, Serialize};
 use std::num::NonZeroU8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Rand, Hash, EnumFrom, EnumCount)]
@@ -80,7 +79,7 @@ impl Type {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Piece {
     val: NonZeroU8,
 }

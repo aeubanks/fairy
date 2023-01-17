@@ -1,6 +1,4 @@
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default, Deserialize, Serialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Coord {
     pub x: i8,
     pub y: i8,

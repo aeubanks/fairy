@@ -4,7 +4,6 @@ use crate::player::{Player, Player::*};
 use arrayvec::ArrayVec;
 use derive_enum::EnumCount;
 use rand::Rng;
-use serde::{Deserialize, Serialize};
 use static_assertions::const_assert_eq;
 use std::fmt::Debug;
 
@@ -432,7 +431,7 @@ impl<const W: i8, const H: i8, const N: usize> Debug for BoardPiece<W, H, N> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Move {
     pub from: Coord,
     pub to: Coord,

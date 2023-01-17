@@ -1,9 +1,5 @@
 use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
-use log::info;
-use std::env;
-use std::fs;
-use std::path::PathBuf;
 
 fn run_perft() {
     use fairy::board::Presets;
@@ -49,13 +45,6 @@ fn tablebase<const N: i8, const M: i8>(parallel: usize, only_three: bool) {
         generate_tablebase(&sets)
     };
     tablebase.dump_stats();
-    if let Ok(home) = env::var("HOME") {
-        let mut path = PathBuf::new();
-        path.push(home);
-        path.push("tb");
-        info!("writing tablebase to {:?}", path);
-        fs::write(path, postcard::to_stdvec(&tablebase).unwrap()).unwrap();
-    }
 }
 
 fn main() {
