@@ -1,5 +1,6 @@
 use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
+use fairy::timer::Timer;
 use log::info;
 use std::env;
 use std::fs;
@@ -50,11 +51,14 @@ fn tablebase<const N: i8, const M: i8>(parallel: usize, only_three: bool) {
     };
     tablebase.dump_stats();
     if let Ok(home) = env::var("HOME") {
+        let buf = tablebase.serialize();
         let mut path = PathBuf::new();
         path.push(home);
         path.push("tb");
         info!("writing tablebase to {:?}", path);
-        fs::write(path, &tablebase.serialize()).unwrap();
+        let timer = Timer::new();
+        fs::write(path, buf).unwrap();
+        info!("writing took {:?}", timer.elapsed());
     }
 }
 

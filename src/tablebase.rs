@@ -215,6 +215,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
             .extend(other.black_tablebase.iter().map(|(k, v)| (k.clone(), *v)));
     }
     pub fn serialize(&self) -> Vec<u8> {
+        let timer = Timer::new();
         let mut buf = Vec::with_capacity(
             8 + (1 + 2 * MAX_PIECES + 4)
                 * (self.white_tablebase.len() + self.black_tablebase.len()),
@@ -234,9 +235,25 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
             buf.push((v.0.to.x + v.0.to.y * W) as u8);
             buf.extend(v.1.to_be_bytes());
         }
-        buf
+        let ret = miniz_oxide::deflate::compress_to_vec(
+            &buf,
+            miniz_oxide::deflate::CompressionLevel::DefaultLevel as u8,
+        );
+        info!(
+            "compression ratio: {} / {} = {:.2}%",
+            ret.len(),
+            buf.len(),
+            ret.len() as f64 / buf.len() as f64 * 100.0
+        );
+        info!("compression took {:?}", timer.elapsed());
+        ret
     }
-    pub fn deserialize(mut buf: &[u8]) -> Option<Self> {
+    pub fn deserialize(buf: &[u8]) -> Option<Self> {
+        let decompressed = match miniz_oxide::inflate::decompress_to_vec(buf) {
+            Ok(b) => b,
+            Err(_) => return None,
+        };
+        let mut buf = decompressed.as_slice();
         let mut tb = Self::default();
         if buf.len() < 8 {
             return None;
