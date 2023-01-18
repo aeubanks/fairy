@@ -1363,6 +1363,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
     tablebase
 }
 
+#[allow(clippy::redundant_clone)]
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -553,6 +553,7 @@ impl<const W: usize, const H: usize> BoardSquare<W, H> {
     }
 }
 
+#[allow(clippy::redundant_clone)]
 #[cfg(test)]
 mod tests {
     use super::*;
