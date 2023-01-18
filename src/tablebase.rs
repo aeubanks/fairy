@@ -217,9 +217,12 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
     pub fn serialize(&self) -> Vec<u8> {
         let timer = Timer::new();
         let mut buf = Vec::with_capacity(
-            8 + (1 + 2 * MAX_PIECES + 4)
+            10 + (1 + 2 * MAX_PIECES + 4)
                 * (self.white_tablebase.len() + self.black_tablebase.len()),
         );
+        let cap = buf.capacity();
+        buf.push(W as u8);
+        buf.push(H as u8);
         buf.extend((self.white_tablebase.len() as u64).to_be_bytes());
         for (k, v) in self
             .white_tablebase
@@ -235,6 +238,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
             buf.push((v.0.to.x + v.0.to.y * W) as u8);
             buf.extend(v.1.to_be_bytes());
         }
+        assert_eq!(buf.capacity(), cap);
         let ret = miniz_oxide::deflate::compress_to_vec(&buf, 1);
         info!(
             "compression ratio: {} / {} = {:.2}%",
@@ -253,11 +257,14 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         };
         let mut buf = decompressed.as_slice();
         let mut tb = Self::default();
-        if buf.len() < 8 {
+        if buf.len() < 10 {
             return None;
         }
-        let white_len = u64::from_be_bytes(buf[..8].try_into().unwrap()) as usize;
-        buf = &buf[8..];
+        if buf[0] as i8 != W || buf[1] as i8 != H {
+            return None;
+        }
+        let white_len = u64::from_be_bytes(buf[2..10].try_into().unwrap()) as usize;
+        buf = &buf[10..];
         while !buf.is_empty() {
             let k_len = buf[0] as usize;
             buf = &buf[1..];
@@ -2060,6 +2067,7 @@ mod tests {
         let tb2 = Tablebase::<4, 4>::deserialize(&buf).unwrap();
         assert_eq!(tb.white_tablebase, tb2.white_tablebase);
         assert_eq!(tb.black_tablebase, tb2.black_tablebase);
+        assert!(Tablebase::<4, 8>::deserialize(&buf).is_none());
         assert!(Tablebase::<4, 4>::deserialize(&[]).is_none());
     }
 }
