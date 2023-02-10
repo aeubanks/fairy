@@ -147,14 +147,7 @@ pub trait Board: Default + Debug + Clone {
             for x in 0..self.width() {
                 let c = match self.get(Coord::new(x, y)) {
                     None => '.',
-                    Some(p) => {
-                        let c = p.ty().char();
-                        if p.player() == White {
-                            c
-                        } else {
-                            c.to_lowercase().next().unwrap()
-                        }
-                    }
+                    Some(p) => p.char(),
                 };
                 ret.push(c);
             }

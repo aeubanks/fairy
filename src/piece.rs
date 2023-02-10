@@ -20,7 +20,7 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn char(&self) -> char {
+    fn char(&self) -> char {
         use Type::*;
         let ret = match self {
             King => 'K',
