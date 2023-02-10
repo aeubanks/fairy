@@ -1,7 +1,7 @@
 use crate::board::{Board, CastleSide, ExistingPieceResult, Move};
 use crate::coord::Coord;
 use crate::piece::{Piece, Type, Type::*};
-use crate::player::{next_player, Player, Player::*};
+use crate::player::{Player, Player::*};
 use arrayvec::ArrayVec;
 
 fn add_move_if_result<T: Board>(
@@ -338,7 +338,7 @@ pub fn under_attack_from_coord<T: Board>(board: &T, coord: Coord, player: Player
         assert_eq!(p.player(), player);
     }
 
-    let pts = board.piece_types_of_player(next_player(player));
+    let pts = board.piece_types_of_player(player.next());
     // TODO: figure out a way to automatically unroll/constprop this from just rider_offsets/leaper_offsets.
     let has_type = |ty: Type| -> bool { pts[ty as usize] };
     if has_type(Nightrider) {
@@ -1652,7 +1652,7 @@ mod tests {
 
     fn check_player_is_in_check<T: Board>(board: &T, player: Player) {
         let king_coord = board.king_coord(player);
-        let is_check = all_moves(board, next_player(player))
+        let is_check = all_moves(board, player.next())
             .into_iter()
             .any(|om| om.to == king_coord);
         if is_in_check(board, player) != is_check {

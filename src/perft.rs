@@ -2,7 +2,7 @@ use crate::board::{Board, BoardSquare};
 use crate::coord::Coord;
 use crate::moves::*;
 use crate::piece::{Piece, Type::*};
-use crate::player::{next_player, Player, Player::*};
+use crate::player::{Player, Player::*};
 
 fn is_in_check<T: Board>(board: &T, player: Player) -> bool {
     is_under_attack(board, board.king_coord(player), player)
@@ -18,7 +18,7 @@ fn perft_impl<T: Board>(board: &T, player: Player, depth: u64) -> u64 {
         if is_in_check(&copy, player) {
             continue;
         }
-        let next_player = next_player(player);
+        let next_player = player.next();
         if board.get(m.from).unwrap().ty() == Pawn && (m.to.y == 0 || m.to.y == board.height() - 1)
         {
             for ty in [Knight, Bishop, Rook] {
@@ -65,7 +65,7 @@ fn perft_all_impl<T: Board>(board: &T, player: Player, depth: u64) -> u64 {
         if depth == 1 {
             sum += 1
         } else {
-            sum += perft_all_impl(&copy, next_player(player), depth - 1);
+            sum += perft_all_impl(&copy, player.next(), depth - 1);
         }
     }
     sum

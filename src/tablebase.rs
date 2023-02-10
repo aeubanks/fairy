@@ -6,8 +6,8 @@ use crate::moves::{
 };
 use crate::piece::Piece;
 use crate::piece::Type::*;
+use crate::player::Player;
 use crate::player::Player::*;
-use crate::player::{next_player, Player};
 use crate::timer::Timer;
 use arrayvec::ArrayVec;
 use log::info;
@@ -746,7 +746,7 @@ fn visit_board<const W: i8, const H: i8>(
             clone.make_move(m);
             #[cfg(debug_assertions)]
             debug_assert_eq!(
-                tablebase.depth_impl(next_player(player), &clone).unwrap(),
+                tablebase.depth_impl(player.next(), &clone).unwrap(),
                 cur_max_depth
             );
             add = true;
@@ -769,7 +769,7 @@ fn visit_board<const W: i8, const H: i8>(
                 }
                 clone.make_move(m);
 
-                let maybe_depth = tablebase.depth_impl(next_player(player), &clone);
+                let maybe_depth = tablebase.depth_impl(player.next(), &clone);
                 match player {
                     White => {
                         if let Some(_d) = maybe_depth {
@@ -1126,7 +1126,7 @@ fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) 
             break;
         }
         tablebase.merge(black_out);
-        player = next_player(player);
+        player = player.next();
         i += 1;
     }
     tablebase
@@ -1155,7 +1155,7 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
             let mut captured = s.clone();
             captured.remove(p);
             let set_to_add_to = pieces_to_add
-                .entry((next_player(p.player()), captured.clone()))
+                .entry((p.player().next(), captured.clone()))
                 .or_default();
             set_to_add_to.push(p);
             stack.push(captured);
@@ -1250,7 +1250,7 @@ pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> 
             break;
         }
         tablebase.merge(out);
-        player = next_player(player);
+        player = player.next();
 
         i += 1;
     }
@@ -1364,7 +1364,7 @@ pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
         }
 
         i += 1;
-        player = next_player(player);
+        player = player.next();
     }
     info!("done in {:?}", total_timer.elapsed());
     tablebase
@@ -1376,7 +1376,6 @@ mod tests {
     use super::*;
     use crate::moves::is_under_attack;
     use crate::piece::Type;
-    use crate::player::next_player;
 
     const WK: Piece = Piece::new(White, King);
     const WB: Piece = Piece::new(White, Bishop);
@@ -1761,7 +1760,7 @@ mod tests {
                 assert_eq!(depth, expected_depth);
                 board.make_move(m);
                 expected_depth -= 1;
-                player = next_player(player);
+                player = player.next();
             }
             assert!(!black_king_exists(&board));
         }

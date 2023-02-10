@@ -7,10 +7,12 @@ pub enum Player {
     Black,
 }
 
-pub fn next_player(player: Player) -> Player {
-    use Player::*;
-    match player {
-        White => Black,
-        Black => White,
+impl Player {
+    pub fn next(self) -> Player {
+        use Player::*;
+        match self {
+            White => Black,
+            Black => White,
+        }
     }
 }
