@@ -64,6 +64,7 @@ fn tablebase<const N: i8, const M: i8>(parallel: usize, only_three: bool) {
 
 fn main() {
     use env_logger::{Builder, Env};
+    use std::process::exit;
     Builder::from_env(Env::default().default_filter_or("info")).init();
 
     use std::env::args;
@@ -82,8 +83,10 @@ fn main() {
             run_perft();
         } else {
             println!("unexpected arg '{}'", str);
+            exit(1);
         }
     } else {
         println!("specify 'tablebase' or 'perft' as first arg");
+        exit(1);
     }
 }
