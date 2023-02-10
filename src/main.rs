@@ -1,13 +1,95 @@
+use fairy::board::{Board, Move, Presets};
+use fairy::coord::Coord;
+use fairy::moves::all_moves;
 use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
 use fairy::timer::Timer;
 use log::info;
 use std::env;
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 
+fn play_game() -> std::io::Result<()> {
+    let mut board = Presets::los_alamos();
+    let mut player = White;
+    fn read_move(line: &str) -> Option<Move> {
+        let split: Vec<_> = line.split_whitespace().collect();
+        if split.len() != 4 {
+            return None;
+        }
+        let a = split[0].parse::<i8>().ok()?;
+        let b = split[1].parse::<i8>().ok()?;
+        let c = split[2].parse::<i8>().ok()?;
+        let d = split[3].parse::<i8>().ok()?;
+        Some(Move {
+            from: Coord::new(a, b),
+            to: Coord::new(c, d),
+        })
+    }
+    loop {
+        println!("------------");
+        println!();
+        print!("  ");
+        for x in 0..board.width() {
+            print!("{}", x);
+        }
+        println!();
+        println!();
+        for y in (0..board.height()).rev() {
+            print!("{} ", y);
+            for x in 0..board.width() {
+                print!(
+                    "{}",
+                    match board.get(Coord::new(x, y)) {
+                        None => '.',
+                        Some(p) => p.char(),
+                    }
+                );
+            }
+            println!(" {}", y);
+        }
+        println!();
+        print!("  ");
+        for x in 0..board.width() {
+            print!("{}", x);
+        }
+        println!();
+        println!();
+        if board.maybe_king_coord(player).is_none() {
+            break;
+        }
+
+        println!("{:?} turn", player);
+        print!("> ");
+        std::io::stdout().flush()?;
+
+        let mut buf = Default::default();
+        std::io::stdin().read_line(&mut buf)?;
+
+        let line = buf.trim();
+        if line == "exit" {
+            break;
+        } else if line == "help" {
+            println!("exit");
+            println!("help");
+            println!("x_from y_from x_to y_to");
+        } else if let Some(m) = read_move(line) {
+            let all_moves = all_moves(&board, player);
+            if all_moves.contains(&m) {
+                board.make_move(m);
+                player = player.next();
+            } else {
+                println!("invalid move");
+            }
+        } else if !line.is_empty() {
+            println!("invalid input");
+        }
+    }
+    Ok(())
+}
+
 fn run_perft() {
-    use fairy::board::Presets;
     use fairy::perft::{perft, Position};
     println!(
         "perft(4): {}",
@@ -81,12 +163,16 @@ fn main() {
             tablebase::<6, 6>(parallel, only_three);
         } else if str == "perft" {
             run_perft();
+        } else if str == "play" {
+            if play_game().is_err() {
+                exit(1);
+            }
         } else {
             println!("unexpected arg '{}'", str);
             exit(1);
         }
     } else {
-        println!("specify 'tablebase' or 'perft' as first arg");
+        println!("specify 'tablebase', 'perft', or 'play' as first arg");
         exit(1);
     }
 }
