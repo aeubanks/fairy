@@ -10,7 +10,7 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
-fn play_game() -> std::io::Result<()> {
+fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
     let mut board = Presets::los_alamos();
     let mut player = White;
     fn read_move(line: &str) -> Option<Move> {
@@ -61,29 +61,38 @@ fn play_game() -> std::io::Result<()> {
         }
 
         println!("{:?} turn", player);
-        print!("> ");
-        std::io::stdout().flush()?;
+        if cpu_as_black && player == Black {
+            use rand::Rng;
+            let all = all_moves(&board, player);
+            let m = all[rand::thread_rng().gen_range(0..all.len())];
+            println!("CPU made {:?}", m);
+            board.make_move(m);
+            player = player.next();
+        } else {
+            print!("> ");
+            std::io::stdout().flush()?;
 
-        let mut buf = Default::default();
-        std::io::stdin().read_line(&mut buf)?;
+            let mut buf = Default::default();
+            std::io::stdin().read_line(&mut buf)?;
 
-        let line = buf.trim();
-        if line == "exit" {
-            break;
-        } else if line == "help" {
-            println!("exit");
-            println!("help");
-            println!("x_from y_from x_to y_to");
-        } else if let Some(m) = read_move(line) {
-            let all_moves = all_moves(&board, player);
-            if all_moves.contains(&m) {
-                board.make_move(m);
-                player = player.next();
-            } else {
-                println!("invalid move");
+            let line = buf.trim();
+            if line == "exit" {
+                break;
+            } else if line == "help" {
+                println!("exit");
+                println!("help");
+                println!("x_from y_from x_to y_to");
+            } else if let Some(m) = read_move(line) {
+                let all_moves = all_moves(&board, player);
+                if all_moves.contains(&m) {
+                    board.make_move(m);
+                    player = player.next();
+                } else {
+                    println!("invalid move");
+                }
+            } else if !line.is_empty() {
+                println!("invalid input");
             }
-        } else if !line.is_empty() {
-            println!("invalid input");
         }
     }
     Ok(())
@@ -164,7 +173,7 @@ fn main() {
         } else if str == "perft" {
             run_perft();
         } else if str == "play" {
-            if play_game().is_err() {
+            if play_game(args().nth(2).map(|a| a == "cpu").unwrap_or(false)).is_err() {
                 exit(1);
             }
         } else {
