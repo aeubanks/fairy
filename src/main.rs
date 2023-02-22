@@ -1,3 +1,4 @@
+use clap::{Parser, Subcommand};
 use fairy::board::{Board, Move, Presets};
 use fairy::coord::Coord;
 use fairy::moves::all_moves;
@@ -112,8 +113,11 @@ fn run_perft() {
     );
 }
 
-fn tablebase<const N: i8, const M: i8>(parallel: usize, only_three: bool) {
+fn tablebase<const N: i8, const M: i8>(parallel: Option<usize>, num_pieces: usize) {
     use fairy::tablebase::*;
+
+    assert!(num_pieces >= 1);
+    assert!(num_pieces <= 5);
 
     let mut all_pieces = Vec::new();
     for ty in [Pawn, Knight, Bishop, Rook, Queen] {
@@ -123,22 +127,26 @@ fn tablebase<const N: i8, const M: i8>(parallel: usize, only_three: bool) {
     }
     let wk = Piece::new(White, King);
     let bk = Piece::new(Black, King);
-    let mut sets = Vec::<PieceSet>::new();
-    if only_three {
-        for &p in &all_pieces {
-            sets.push(PieceSet::new(&[wk, bk, p]));
-        }
-    } else {
-        for &p1 in &all_pieces {
-            for &p2 in &all_pieces {
-                sets.push(PieceSet::new(&[wk, bk, p1, p2]));
+    let mut sets = vec![vec![wk, bk]];
+    for _ in 2..num_pieces {
+        let copy = sets;
+        sets = Vec::new();
+        for c in copy {
+            for p in &all_pieces {
+                let mut clone = c.clone();
+                clone.push(*p);
+                sets.push(clone);
             }
         }
     }
-    let tablebase = if parallel != 0 {
-        generate_tablebase_parallel::<N, M>(&sets, Some(parallel))
+    let piece_sets = sets
+        .into_iter()
+        .map(|v| PieceSet::new(&v))
+        .collect::<Vec<_>>();
+    let tablebase = if parallel.is_some() {
+        generate_tablebase_parallel::<N, M>(&piece_sets, parallel)
     } else {
-        generate_tablebase(&sets)
+        generate_tablebase(&piece_sets)
     };
     tablebase.dump_stats();
     if let Ok(home) = env::var("HOME") {
@@ -153,35 +161,40 @@ fn tablebase<const N: i8, const M: i8>(parallel: usize, only_three: bool) {
     }
 }
 
-fn main() {
+#[derive(Parser)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    Tablebase {
+        #[arg(long, short, default_value = "3")]
+        num_pieces: usize,
+        #[arg(long, short)]
+        parallel: Option<usize>,
+    },
+    Perft,
+    Play {
+        #[arg(long = "cpu", short)]
+        cpu_as_black: bool,
+    },
+}
+
+fn main() -> std::io::Result<()> {
     use env_logger::{Builder, Env};
-    use std::process::exit;
     Builder::from_env(Env::default().default_filter_or("info")).init();
 
-    use std::env::args;
-    if let Some(str) = args().nth(1) {
-        if str == "tablebase" {
-            let parallel = args()
-                .nth(2)
-                .map(|s| s.parse::<usize>().unwrap())
-                .unwrap_or(0);
-            let only_three = args()
-                .nth(3)
-                .map(|s| s.parse::<bool>().unwrap())
-                .unwrap_or(true);
-            tablebase::<6, 6>(parallel, only_three);
-        } else if str == "perft" {
-            run_perft();
-        } else if str == "play" {
-            if play_game(args().nth(2).map(|a| a == "cpu").unwrap_or(false)).is_err() {
-                exit(1);
-            }
-        } else {
-            println!("unexpected arg '{}'", str);
-            exit(1);
-        }
-    } else {
-        println!("specify 'tablebase', 'perft', or 'play' as first arg");
-        exit(1);
+    use Command::*;
+    match Cli::parse().command {
+        Tablebase {
+            num_pieces,
+            parallel,
+        } => tablebase::<6, 6>(parallel, num_pieces),
+        Perft => run_perft(),
+        Play { cpu_as_black } => play_game(cpu_as_black)?,
     }
+
+    Ok(())
 }
