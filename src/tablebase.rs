@@ -31,7 +31,7 @@ use log::info;
 use rustc_hash::FxHashMap;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 use std::sync::Arc;
 
 const MAX_PIECES: usize = 4;
@@ -62,12 +62,6 @@ impl Deref for PieceSet {
 
     fn deref(&self) -> &Self::Target {
         self.0.as_slice()
-    }
-}
-
-impl DerefMut for PieceSet {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.as_mut_slice()
     }
 }
 
