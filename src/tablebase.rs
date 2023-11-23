@@ -417,13 +417,6 @@ fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, S
     (min_key, sym)
 }
 
-#[cfg(test)]
-fn generate_literally_all_boards<const W: i8, const H: i8>(
-    pieces: &[Piece],
-) -> GenerateAllBoards<W, H, false> {
-    GenerateAllBoards::new(pieces)
-}
-
 fn generate_all_boards<const W: i8, const H: i8>(
     pieces: &[Piece],
 ) -> GenerateAllBoards<W, H, true> {
@@ -1100,38 +1093,6 @@ fn verify_piece_sets(piece_sets: &[PieceSet]) {
     }
 }
 
-#[cfg(test)]
-fn generate_tablebase_no_opt<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> Tablebase<W, H> {
-    let mut tablebase = Tablebase::default();
-    let mut all = Vec::new();
-    let piece_sets = calculate_piece_sets(piece_sets);
-    for s in &piece_sets.piece_sets {
-        all.extend(generate_literally_all_boards(s));
-    }
-    for b in &all {
-        populate_initial_wins_one(&mut tablebase, b);
-    }
-    let mut player = Black;
-    let mut i = 1;
-    loop {
-        let mut changed = false;
-        let mut black_out = Tablebase::default();
-        let mut ignore = BoardsToVisit::default();
-        for b in &all {
-            visit_board(&tablebase, &mut black_out, &mut ignore, player, b, None, i);
-            changed |= !ignore.boards.is_empty();
-            ignore.boards.clear();
-        }
-        if !changed {
-            break;
-        }
-        tablebase.merge(black_out);
-        player = player.next();
-        i += 1;
-    }
-    tablebase
-}
-
 fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
     verify_piece_sets(piece_sets);
 
@@ -1388,6 +1349,45 @@ mod tests {
     const BP: Piece = Piece::new(Black, Pawn);
     const BA: Piece = Piece::new(Black, Amazon);
     const BB: Piece = Piece::new(Black, Bishop);
+
+    fn generate_literally_all_boards<const W: i8, const H: i8>(
+        pieces: &[Piece],
+    ) -> GenerateAllBoards<W, H, false> {
+        GenerateAllBoards::new(pieces)
+    }
+
+    fn generate_tablebase_no_opt<const W: i8, const H: i8>(
+        piece_sets: &[PieceSet],
+    ) -> Tablebase<W, H> {
+        let mut tablebase = Tablebase::default();
+        let mut all = Vec::new();
+        let piece_sets = calculate_piece_sets(piece_sets);
+        for s in &piece_sets.piece_sets {
+            all.extend(generate_literally_all_boards(s));
+        }
+        for b in &all {
+            populate_initial_wins_one(&mut tablebase, b);
+        }
+        let mut player = Black;
+        let mut i = 1;
+        loop {
+            let mut changed = false;
+            let mut black_out = Tablebase::default();
+            let mut ignore = BoardsToVisit::default();
+            for b in &all {
+                visit_board(&tablebase, &mut black_out, &mut ignore, player, b, None, i);
+                changed |= !ignore.boards.is_empty();
+                ignore.boards.clear();
+            }
+            if !changed {
+                break;
+            }
+            tablebase.merge(black_out);
+            player = player.next();
+            i += 1;
+        }
+        tablebase
+    }
 
     #[test]
     fn test_flip_coord() {
