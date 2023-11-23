@@ -92,7 +92,7 @@ fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
                     println!("invalid move");
                 }
             } else if !line.is_empty() {
-                println!("invalid input");
+                println!("invalid input (try \"help\")");
             }
         }
     }
