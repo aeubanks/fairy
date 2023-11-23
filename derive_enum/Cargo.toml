@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 derive_enum_impl = { path = "derive_enum_impl" }
 quote = "1"
-syn = "1"
+syn = "2"
