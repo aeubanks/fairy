@@ -1,3 +1,20 @@
+// Tablebase: given a position, which move should be played to win the quickest (white)/lose the slowest (black) and how many moves until the black king is taken
+//   White is arbitrarily used as player to win, and black to lose
+//   If a position is not in the tablebase, the position is a draw as long as you do not reach another position in the tablebase
+// Creating tablebases:
+//   Canonicalize identical positions by symmetry
+//     If no pawns on board, can mirror along x and y axis, plus flip over diagonal (if board is square)
+//     If pawns on board, can only mirror along x axis
+//   The set of piece sets to include in the tablebase is specified up front
+//     (e.g. all combinations of 3 pieces, [WK, WQ, BK, BR])
+//   Start with all piece sets with black king removed
+//   From all possible positions with piece sets above, find all backwards captures and put a black king there
+//   Now that we have the initial positions, alternate between black moves and white moves
+//     For each position we added in the previous step, add positions from all possible reverse moves, captures, and promotions that can result in the previous position (if they haven't been seen before with the current player moving)
+//   Repeat until no new positions are found
+//   We can parallelize by partitioning the previous positions
+//     There may be overlap in the new positions between partitions so make sure to deduplicate
+
 use crate::board::{Board, Move};
 use crate::coord::Coord;
 use crate::moves::{
