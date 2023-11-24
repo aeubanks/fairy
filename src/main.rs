@@ -4,6 +4,8 @@ use fairy::coord::Coord;
 use fairy::moves::all_moves;
 use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
+use fairy::tablebase::*;
+use fairy::tablebase::{generate_tablebase, Tablebase};
 use fairy::timer::Timer;
 use log::info;
 use std::env;
@@ -12,6 +14,22 @@ use std::io::Write;
 use std::path::PathBuf;
 
 fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
+    fn play_tablebase() -> Tablebase<6, 6> {
+        let mut all_pieces = Vec::new();
+        for ty in [Pawn, Knight, Rook, Queen] {
+            for pl in [White, Black] {
+                all_pieces.push(Piece::new(pl, ty));
+            }
+        }
+        let wk = Piece::new(White, King);
+        let bk = Piece::new(Black, King);
+        let mut sets = vec![];
+        for p in &all_pieces {
+            sets.push(PieceSet::new(&[wk, bk, *p]));
+        }
+        generate_tablebase(&sets)
+    }
+    let tablebase = play_tablebase();
     let mut board = Presets::los_alamos();
     let mut player = White;
     fn read_move(line: &str) -> Option<Move> {
@@ -63,9 +81,31 @@ fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
 
         println!("{:?} turn", player);
         if cpu_as_black && player == Black {
-            use rand::Rng;
-            let all = all_moves(&board, player);
-            let m = all[rand::thread_rng().gen_range(0..all.len())];
+            let rand_move = || {
+                use rand::Rng;
+                println!("randomly moving");
+                let all = all_moves(&board, player);
+                all[rand::thread_rng().gen_range(0..all.len())]
+            };
+            let mut num_pieces = 0;
+            board.foreach_piece(|_, _| num_pieces += 1);
+
+            let m = if num_pieces > 3 {
+                rand_move()
+            } else if let Some((m, depth, move_type)) =
+                tablebase.result_for_real_board(player, &board)
+            {
+                match move_type {
+                    TBMoveType::Win => println!("{} moves until checkmating player", depth),
+                    TBMoveType::Lose => {
+                        println!("{} moves until checkmated by player (optimally)", depth)
+                    }
+                    TBMoveType::Draw => println!("moving to known safe position"),
+                }
+                m
+            } else {
+                rand_move()
+            };
             println!("CPU made {:?}", m);
             board.make_move(m);
             player = player.next();
@@ -114,8 +154,6 @@ fn run_perft() {
 }
 
 fn tablebase<const N: i8, const M: i8>(parallel: Option<usize>, num_pieces: usize) {
-    use fairy::tablebase::*;
-
     assert!(num_pieces >= 1);
     assert!(num_pieces <= 5);
 

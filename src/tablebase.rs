@@ -15,11 +15,11 @@
 //   We can parallelize by partitioning the previous positions
 //     There may be overlap in the new positions between partitions so make sure to deduplicate
 
-use crate::board::{Board, Move};
+use crate::board::{board_square_to_piece, Board, BoardSquare, Move};
 use crate::coord::Coord;
 use crate::moves::{
-    all_moves_for_piece, all_moves_to_end_at_board_captures, all_moves_to_end_at_board_no_captures,
-    under_attack_from_coord,
+    all_moves, all_moves_for_piece, all_moves_to_end_at_board_captures,
+    all_moves_to_end_at_board_no_captures, under_attack_from_coord,
 };
 use crate::piece::Piece;
 use crate::piece::Type::*;
@@ -183,12 +183,75 @@ pub struct Tablebase<const W: i8, const H: i8> {
     black_tablebase: MapTy,
 }
 
+#[derive(PartialEq, Eq, Debug)]
+pub enum TBMoveType {
+    Win,
+    Lose,
+    Draw,
+}
+
 impl<const W: i8, const H: i8> Tablebase<W, H> {
     pub fn result(&self, player: Player, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
         let (hash, sym) = canonical_board(board);
         self.tablebase_for_player(player)
             .get(&hash)
             .map(|e| (unflip_move(e.0, sym, W, H), e.1))
+    }
+    // given a board/player, return the optimal move
+    // assumes that this tablebase can handle the input position
+    pub fn result_for_real_board<const W2: usize, const H2: usize>(
+        &self,
+        player: Player,
+        board: &BoardSquare<W2, H2>,
+    ) -> Option<(Move, u16, TBMoveType)> {
+        let flip_sym = Symmetry {
+            flip_x: false,
+            flip_y: true,
+            flip_diagonally: false,
+        };
+        let flip = |b: TBBoard<W, H>| -> TBBoard<W, H> {
+            let mut flipped = TBBoard::<W, H>::default();
+            b.foreach_piece(|p, c| {
+                flipped.add_piece(
+                    flip_coord::<W, H>(c, flip_sym),
+                    Piece::new(p.player().next(), p.ty()),
+                )
+            });
+            flipped
+        };
+        let mut tb_board: TBBoard<W, H> = board_square_to_piece(board);
+        if player == Black {
+            tb_board = flip(tb_board);
+        }
+        if let Some((mut m, num)) = self.result(White, &tb_board) {
+            if player == Black {
+                m = flip_move::<W, H>(m, flip_sym);
+            }
+            return Some((m, num, TBMoveType::Win));
+        }
+
+        tb_board = flip(tb_board);
+        if let Some((mut m, num)) = self.result(Black, &tb_board) {
+            if player == White {
+                m = flip_move::<W, H>(m, flip_sym);
+            }
+            return Some((m, num, TBMoveType::Lose));
+        }
+
+        // a move may turn a draw into a loss; keep looking through all possible moves until we find one that doesn't end in a win for the opponent
+        let mut all = all_moves(board, player);
+        loop {
+            let try_move = all.pop().unwrap();
+            let mut clone = board.clone();
+            clone.make_move(try_move);
+            tb_board = board_square_to_piece(&clone);
+            if player == White {
+                tb_board = flip(tb_board);
+            }
+            if self.result(White, &tb_board).is_none() {
+                return Some((try_move, 0, TBMoveType::Draw));
+            }
+        }
     }
     fn tablebase_for_player(&self, player: Player) -> &MapTy {
         match player {
@@ -2068,6 +2131,95 @@ mod tests {
                 }
                 test_tablebase::<4, 4>(&[set]);
             }
+        }
+    }
+    #[test]
+    fn test_result_for_real_board_win() {
+        let tablebase = generate_tablebase::<4, 4>(&[PieceSet::new(&[WK, WQ, BK, BQ])]);
+        let board = BoardSquare::<4, 4>::with_pieces(&[
+            (Coord::new(0, 0), WK),
+            (Coord::new(1, 2), WQ),
+            (Coord::new(3, 3), BK),
+            (Coord::new(2, 1), BQ),
+        ]);
+        let r = tablebase.result_for_real_board(White, &board).unwrap();
+        assert_eq!(
+            r.0,
+            Move {
+                from: Coord::new(1, 2),
+                to: Coord::new(2, 1)
+            }
+        );
+        assert_eq!(r.2, TBMoveType::Win);
+
+        let r = tablebase.result_for_real_board(Black, &board).unwrap();
+        assert_eq!(
+            r.0,
+            Move {
+                from: Coord::new(2, 1),
+                to: Coord::new(1, 2)
+            }
+        );
+        assert_eq!(r.2, TBMoveType::Win);
+    }
+    #[test]
+    fn test_result_for_real_board_lose() {
+        let tablebase = generate_tablebase::<4, 4>(&[PieceSet::new(&[WK, WQ, BK, BQ])]);
+        {
+            let board = BoardSquare::<4, 4>::with_pieces(&[
+                (Coord::new(0, 0), WK),
+                (Coord::new(3, 3), BK),
+                (Coord::new(2, 1), BQ),
+            ]);
+            let r = tablebase.result_for_real_board(White, &board).unwrap();
+            assert_eq!(r.0.from, Coord::new(0, 0));
+            assert_eq!(r.2, TBMoveType::Lose);
+        }
+        {
+            let board = BoardSquare::<4, 4>::with_pieces(&[
+                (Coord::new(0, 0), WK),
+                (Coord::new(1, 2), WQ),
+                (Coord::new(3, 3), BK),
+            ]);
+            let r = tablebase.result_for_real_board(Black, &board).unwrap();
+            assert_eq!(r.0.from, Coord::new(3, 3));
+            assert_eq!(r.2, TBMoveType::Lose);
+        }
+    }
+    #[test]
+    fn test_result_for_real_board_draw() {
+        let tablebase = generate_tablebase::<5, 5>(&[PieceSet::new(&[WK, BK])]);
+        {
+            let board =
+                BoardSquare::<5, 5>::with_pieces(&[(Coord::new(0, 2), WK), (Coord::new(2, 2), BK)]);
+            let r = tablebase.result_for_real_board(White, &board).unwrap();
+            assert_eq!(r.0.from, Coord::new(0, 2));
+            assert_eq!(r.0.to.x, 0);
+            assert_eq!(r.2, TBMoveType::Draw);
+        }
+        {
+            let board =
+                BoardSquare::<5, 5>::with_pieces(&[(Coord::new(2, 2), WK), (Coord::new(4, 2), BK)]);
+            let r = tablebase.result_for_real_board(Black, &board).unwrap();
+            assert_eq!(r.0.from, Coord::new(4, 2));
+            assert_eq!(r.0.to.x, 4);
+            assert_eq!(r.2, TBMoveType::Draw);
+        }
+        {
+            let board =
+                BoardSquare::<5, 5>::with_pieces(&[(Coord::new(2, 4), WK), (Coord::new(2, 2), BK)]);
+            let r = tablebase.result_for_real_board(White, &board).unwrap();
+            assert_eq!(r.0.from, Coord::new(2, 4));
+            assert_eq!(r.0.to.y, 4);
+            assert_eq!(r.2, TBMoveType::Draw);
+        }
+        {
+            let board =
+                BoardSquare::<5, 5>::with_pieces(&[(Coord::new(2, 2), WK), (Coord::new(2, 0), BK)]);
+            let r = tablebase.result_for_real_board(Black, &board).unwrap();
+            assert_eq!(r.0.from, Coord::new(2, 0));
+            assert_eq!(r.0.to.y, 0);
+            assert_eq!(r.2, TBMoveType::Draw);
         }
     }
     #[test]

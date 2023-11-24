@@ -424,6 +424,34 @@ impl<const W: i8, const H: i8, const N: usize> Debug for BoardPiece<W, H, N> {
     }
 }
 
+pub fn board_square_to_piece<
+    const W: i8,
+    const H: i8,
+    const N: usize,
+    const W2: usize,
+    const H2: usize,
+>(
+    other: &BoardSquare<W2, H2>,
+) -> BoardPiece<W, H, N> {
+    let mut ret = BoardPiece::default();
+    other.foreach_piece(|p, c| ret.add_piece(c, p));
+    ret
+}
+
+pub fn board_piece_to_square<
+    const W: i8,
+    const H: i8,
+    const N: usize,
+    const W2: usize,
+    const H2: usize,
+>(
+    other: &BoardPiece<W, H, N>,
+) -> BoardSquare<W2, H2> {
+    let mut ret = BoardSquare::default();
+    other.foreach_piece(|p, c| ret.add_piece(c, p));
+    ret
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Move {
     pub from: Coord,
@@ -977,6 +1005,26 @@ mod tests {
         }
         test::<BoardSquare<8, 8>>();
         test::<BoardPiece<8, 8, 4>>();
+    }
+    #[test]
+    fn test_board_square_to_piece() {
+        let b1: BoardSquare<8, 8> = BoardSquare::with_pieces(&[
+            (Coord::new(3, 4), Piece::new(White, King)),
+            (Coord::new(7, 7), Piece::new(Black, King)),
+        ]);
+        let b2: BoardPiece<8, 8, 2> = board_square_to_piece(&b1);
+        assert_eq!(b2.get(Coord::new(3, 4)), Some(Piece::new(White, King)));
+        assert_eq!(b2.get(Coord::new(7, 7)), Some(Piece::new(Black, King)));
+    }
+    #[test]
+    fn test_board_piece_to_square() {
+        let b1: BoardPiece<8, 8, 2> = BoardPiece::with_pieces(&[
+            (Coord::new(3, 4), Piece::new(White, King)),
+            (Coord::new(7, 7), Piece::new(Black, King)),
+        ]);
+        let b2: BoardSquare<8, 8> = board_piece_to_square(&b1);
+        assert_eq!(b2.get(Coord::new(3, 4)), Some(Piece::new(White, King)));
+        assert_eq!(b2.get(Coord::new(7, 7)), Some(Piece::new(Black, King)));
     }
     #[test]
     fn test_premade_boards() {
