@@ -193,9 +193,9 @@ pub enum TBMoveType {
 
 impl<const W: i8, const H: i8> Tablebase<W, H> {
     pub fn result(&self, player: Player, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
-        let (hash, sym) = canonical_board(board);
+        let (key, sym) = canonical_board(board);
         self.tablebase_for_player(player)
-            .get(&hash)
+            .get(&key)
             .map(|e| (unflip_move(e.0, sym, W, H), e.1))
     }
     // given a board/player, return the optimal move
@@ -268,9 +268,9 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
     }
     fn add_impl(&mut self, player: Player, board: &TBBoard<W, H>, m: Move, depth: u16) {
         let map = self.tablebase_for_player_mut(player);
-        let (hash, sym) = canonical_board(board);
-        debug_assert!(!map.contains_key(&hash));
-        map.insert(hash, (flip_move::<W, H>(m, sym), depth));
+        let (key, sym) = canonical_board(board);
+        debug_assert!(!map.contains_key(&key));
+        map.insert(key, (flip_move::<W, H>(m, sym), depth));
     }
     fn contains_impl(&self, player: Player, board: &TBBoard<W, H>) -> bool {
         self.tablebase_for_player(player)
