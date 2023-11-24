@@ -28,7 +28,7 @@ use crate::player::Player::*;
 use crate::timer::Timer;
 use arrayvec::ArrayVec;
 use log::info;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
@@ -174,6 +174,7 @@ fn unflip_move(mut m: Move, sym: Symmetry, width: i8, height: i8) -> Move {
 
 type KeyTy = ArrayVec<(i8, Piece), MAX_PIECES>;
 type MapTy = FxHashMap<KeyTy, (Move, u16)>;
+type VisitedTy = FxHashSet<KeyTy>;
 
 #[derive(Default, Clone)]
 pub struct Tablebase<const W: i8, const H: i8> {
@@ -728,6 +729,7 @@ fn visit_board_pawn_symmetry<const W: i8, const H: i8>(
     tablebase: &Tablebase<W, H>,
     out_tablebase: &mut Tablebase<W, H>,
     next_boards: &mut BoardsToVisit<W, H>,
+    rejected_boards: &mut VisitedTy,
     player: Player,
     board: &TBBoard<W, H>,
     mut maybe_pawn_coord: Coord,
@@ -740,6 +742,7 @@ fn visit_board_pawn_symmetry<const W: i8, const H: i8>(
             tablebase,
             out_tablebase,
             next_boards,
+            rejected_boards,
             player,
             &board,
             None,
@@ -752,6 +755,7 @@ fn visit_board_pawn_symmetry<const W: i8, const H: i8>(
             tablebase,
             out_tablebase,
             next_boards,
+            rejected_boards,
             player,
             &board,
             None,
@@ -765,6 +769,7 @@ fn visit_board_pawn_symmetry<const W: i8, const H: i8>(
                 tablebase,
                 out_tablebase,
                 next_boards,
+                rejected_boards,
                 player,
                 &board,
                 None,
@@ -777,6 +782,7 @@ fn visit_board_pawn_symmetry<const W: i8, const H: i8>(
                 tablebase,
                 out_tablebase,
                 next_boards,
+                rejected_boards,
                 player,
                 &board,
                 None,
@@ -790,12 +796,16 @@ fn visit_board<const W: i8, const H: i8>(
     tablebase: &Tablebase<W, H>,
     out_tablebase: &mut Tablebase<W, H>,
     next_boards: &mut BoardsToVisit<W, H>,
+    rejected_boards: &mut VisitedTy,
     player: Player,
     board: &TBBoard<W, H>,
     m: Option<Move>,
     cur_max_depth: u16,
 ) {
-    if tablebase.contains_impl(player, board) || out_tablebase.contains_impl(player, board) {
+    if tablebase.contains_impl(player, board)
+        || out_tablebase.contains_impl(player, board)
+        || rejected_boards.contains(&canonical_board(board).0)
+    {
         return;
     }
     #[cfg(debug_assertions)]
@@ -880,6 +890,8 @@ fn visit_board<const W: i8, const H: i8>(
             next_boards.add(board.clone());
             out_tablebase.add_impl(player, board, m, cur_max_depth + 1);
         }
+    } else {
+        rejected_boards.insert(canonical_board(board).0);
     }
 }
 
@@ -889,6 +901,7 @@ fn visit_reverse_moves<const W: i8, const H: i8>(
     board: &TBBoard<W, H>,
     player: Player,
     next_boards: &mut BoardsToVisit<W, H>,
+    rejected_boards: &mut VisitedTy,
     cur_max_depth: u16,
 ) {
     board.foreach_piece(|p, c| {
@@ -902,6 +915,7 @@ fn visit_reverse_moves<const W: i8, const H: i8>(
                     tablebase,
                     out_tablebase,
                     next_boards,
+                    rejected_boards,
                     player,
                     &clone,
                     Some(Move { from: m, to: c }),
@@ -990,6 +1004,7 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
     board: &TBBoard<W, H>,
     player: Player,
     next_boards: &mut BoardsToVisit<W, H>,
+    rejected_boards: &mut VisitedTy,
     cur_max_depth: u16,
 ) {
     let board_has_pawn = board_has_pawn(board);
@@ -1014,6 +1029,7 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
                         tablebase,
                         out_tablebase,
                         next_boards,
+                        rejected_boards,
                         player,
                         &clone,
                         Some(Move { from: m, to: c }),
@@ -1025,6 +1041,7 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
                         tablebase,
                         out_tablebase,
                         next_boards,
+                        rejected_boards,
                         player,
                         &clone,
                         c,
@@ -1046,6 +1063,7 @@ fn iterate<const W: i8, const H: i8>(
 ) -> (Tablebase<W, H>, BoardsToVisit<W, H>) {
     let mut next_boards = BoardsToVisit::default();
     let mut out_tablebase = Tablebase::default();
+    let mut rejected_boards = VisitedTy::default();
     for prev in previous_boards {
         visit_reverse_moves(
             tablebase,
@@ -1053,6 +1071,7 @@ fn iterate<const W: i8, const H: i8>(
             prev,
             player,
             &mut next_boards,
+            &mut rejected_boards,
             cur_max_depth,
         );
 
@@ -1079,6 +1098,7 @@ fn iterate<const W: i8, const H: i8>(
                             tablebase,
                             &mut out_tablebase,
                             &mut next_boards,
+                            &mut rejected_boards,
                             player,
                             &clone,
                             Some(Move { from: m, to: c }),
@@ -1090,6 +1110,7 @@ fn iterate<const W: i8, const H: i8>(
                             tablebase,
                             &mut out_tablebase,
                             &mut next_boards,
+                            &mut rejected_boards,
                             player,
                             &clone,
                             m,
@@ -1108,6 +1129,7 @@ fn iterate<const W: i8, const H: i8>(
                 prev,
                 player,
                 &mut next_boards,
+                &mut rejected_boards,
                 cur_max_depth,
             );
 
@@ -1137,6 +1159,7 @@ fn iterate<const W: i8, const H: i8>(
                                     tablebase,
                                     &mut out_tablebase,
                                     &mut next_boards,
+                                    &mut rejected_boards,
                                     player,
                                     &clone,
                                     Some(Move { from: m, to: c }),
@@ -1148,6 +1171,7 @@ fn iterate<const W: i8, const H: i8>(
                                     tablebase,
                                     &mut out_tablebase,
                                     &mut next_boards,
+                                    &mut rejected_boards,
                                     player,
                                     &clone,
                                     m,
@@ -1458,8 +1482,18 @@ mod tests {
             let mut changed = false;
             let mut black_out = Tablebase::default();
             let mut ignore = BoardsToVisit::default();
+            let mut ignore2 = VisitedTy::default();
             for b in &all {
-                visit_board(&tablebase, &mut black_out, &mut ignore, player, b, None, i);
+                visit_board(
+                    &tablebase,
+                    &mut black_out,
+                    &mut ignore,
+                    &mut ignore2,
+                    player,
+                    b,
+                    None,
+                    i,
+                );
                 changed |= !ignore.boards.is_empty();
                 ignore.boards.clear();
             }
