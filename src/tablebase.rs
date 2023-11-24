@@ -809,13 +809,15 @@ fn visit_board<const W: i8, const H: i8>(
     let mut any_move = None;
     if player == White {
         if let Some(m) = m {
-            let mut clone = board.clone();
-            clone.make_move(m);
             #[cfg(debug_assertions)]
-            debug_assert_eq!(
-                tablebase.depth_impl(player.next(), &clone).unwrap(),
-                cur_max_depth
-            );
+            {
+                let mut clone = board.clone();
+                clone.make_move(m);
+                debug_assert_eq!(
+                    tablebase.depth_impl(player.next(), &clone).unwrap(),
+                    cur_max_depth
+                );
+            }
             add = true;
             any_move = Some(m);
         }
