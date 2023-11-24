@@ -381,6 +381,19 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
     }
 }
 
+fn insertion_sort<T: Copy>(slice: &mut [T], less_than: fn(T, T) -> bool) {
+    for i in 1..slice.len() {
+        let val = slice[i];
+        for j in (0..i).rev() {
+            if less_than(val, slice[j]) {
+                slice.swap(j, j + 1);
+            } else {
+                break;
+            }
+        }
+    }
+}
+
 fn board_key<const W: i8, const H: i8>(board: &TBBoard<W, H>, sym: Symmetry) -> KeyTy {
     let mut ret = KeyTy::new();
     board.foreach_piece(|piece, coord| {
@@ -388,7 +401,7 @@ fn board_key<const W: i8, const H: i8>(board: &TBBoard<W, H>, sym: Symmetry) -> 
         ret.push((c.x + c.y * W, piece));
     });
 
-    ret.sort_unstable_by(|(c1, _), (c2, _)| c1.cmp(c2));
+    insertion_sort(&mut ret, |(c1, _), (c2, _)| c1 < c2);
     ret
 }
 
@@ -2275,5 +2288,19 @@ mod tests {
         assert_eq!(tb.black_tablebase, tb2.black_tablebase);
         assert!(Tablebase::<4, 8>::deserialize(&buf).is_none());
         assert!(Tablebase::<4, 4>::deserialize(&[]).is_none());
+    }
+    #[test]
+    fn test_insertion_sort() {
+        let mut arr = [1, 3, 5, 3, 2];
+        insertion_sort(&mut arr, |a, b| a < b);
+        assert_eq!(arr, [1, 2, 3, 3, 5]);
+
+        let mut arr = [5, 4, 3, 2, 1];
+        insertion_sort(&mut arr, |a, b| a < b);
+        assert_eq!(arr, [1, 2, 3, 4, 5]);
+
+        let mut arr = [1, 2, 3, 4, 5];
+        insertion_sort(&mut arr, |a, b| a < b);
+        assert_eq!(arr, [1, 2, 3, 4, 5]);
     }
 }
