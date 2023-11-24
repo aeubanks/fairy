@@ -552,13 +552,13 @@ mod tests {
     }
 
     fn assert_moves_eq(expected: &[Coord], moves: Vec<Coord>) {
-        use std::collections::HashSet;
+        use rustc_hash::FxHashSet;
 
-        let mut set = HashSet::new();
+        let mut set = FxHashSet::default();
         for e in expected {
             assert!(set.insert(*e), "duplicate expected");
         }
-        let mut found = HashSet::new();
+        let mut found = FxHashSet::default();
         for m in moves {
             assert!(found.insert(m), "duplicate move");
         }

@@ -30,7 +30,6 @@ use arrayvec::ArrayVec;
 use log::info;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -624,13 +623,13 @@ impl<const W: i8, const H: i8, const OPT: bool> Iterator for GenerateAllBoards<W
 #[derive(Default, Clone)]
 struct PieceSets {
     piece_sets: Vec<PieceSet>,
-    pieces_to_add: HashMap<(Player, PieceSet), Vec<Piece>>,
-    can_reverse_promote: HashSet<(Player, PieceSet)>,
+    pieces_to_add: FxHashMap<(Player, PieceSet), Vec<Piece>>,
+    can_reverse_promote: FxHashSet<(Player, PieceSet)>,
 }
 
 #[derive(Default)]
 struct BoardsToVisit<const W: i8, const H: i8> {
-    boards: HashSet<KeyTy>,
+    boards: FxHashSet<KeyTy>,
 }
 
 impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
@@ -1217,10 +1216,10 @@ fn verify_piece_sets(piece_sets: &[PieceSet]) {
 fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
     verify_piece_sets(piece_sets);
 
-    let mut visited = HashSet::<PieceSet>::new();
+    let mut visited = FxHashSet::<PieceSet>::default();
     let mut stack = piece_sets.to_vec();
-    let mut pieces_to_add = HashMap::<(Player, PieceSet), Vec<Piece>>::new();
-    let mut can_reverse_promote = HashSet::new();
+    let mut pieces_to_add = FxHashMap::<(Player, PieceSet), Vec<Piece>>::default();
+    let mut can_reverse_promote = FxHashSet::default();
     while let Some(s) = stack.pop() {
         if !s.iter().any(|&p| p.player() == White) {
             continue;
@@ -1252,7 +1251,7 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
         }
     }
 
-    let mut maybe_reverse_capture_set = HashSet::new();
+    let mut maybe_reverse_capture_set = FxHashSet::default();
     for pieces in &visited {
         for &p in pieces.iter() {
             if p.ty() != King {
@@ -1714,7 +1713,7 @@ mod tests {
         let bbk = PieceSet::new(&[WB, WB, BK]);
         fn assert_sets_equal(s1: PieceSets, s2: &[PieceSet]) {
             assert_eq!(
-                s1.piece_sets.into_iter().collect::<HashSet<_>>(),
+                s1.piece_sets.into_iter().collect::<FxHashSet<_>>(),
                 s2.iter().cloned().collect()
             );
         }
