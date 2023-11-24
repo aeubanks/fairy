@@ -807,6 +807,8 @@ fn visit_board<const W: i8, const H: i8>(
     });
     let mut add = player == Black;
     let mut any_move = None;
+    // if we were passed in the move that caused us to get to this position, we can directly use that for white
+    // for black, all possible moves need to lead to mate, so knowing what position lead us here isn't useful
     if player == White {
         if let Some(m) = m {
             #[cfg(debug_assertions)]
@@ -824,7 +826,11 @@ fn visit_board<const W: i8, const H: i8>(
     }
     if any_move.is_none() {
         board.foreach_piece(|piece, coord| {
-            if piece.player() != player || add != (player == Black) {
+            // bail out early if we've made our final decision to add/not add this position to the tablebase
+            if add != (player == Black) {
+                return;
+            }
+            if piece.player() != player {
                 return;
             }
             for to in all_moves_for_piece(board, piece, coord) {
@@ -840,6 +846,7 @@ fn visit_board<const W: i8, const H: i8>(
 
                 let maybe_depth = tablebase.depth_impl(player.next(), &clone);
                 match player {
+                    // if we find any move that leads to mate we're done
                     White => {
                         if let Some(_d) = maybe_depth {
                             debug_assert_eq!(_d, cur_max_depth);
@@ -848,6 +855,7 @@ fn visit_board<const W: i8, const H: i8>(
                             break;
                         }
                     }
+                    // if we find any move that doesn't lead to mate we're done
                     Black => {
                         if let Some(depth) = maybe_depth {
                             if depth == cur_max_depth {
