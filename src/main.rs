@@ -74,10 +74,10 @@ fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
             std::io::stdout().flush()?;
 
             let mut buf = Default::default();
-            std::io::stdin().read_line(&mut buf)?;
+            let bytes_read = std::io::stdin().read_line(&mut buf)?;
 
             let line = buf.trim();
-            if line == "exit" {
+            if bytes_read == 0 || line == "exit" {
                 break;
             } else if line == "help" {
                 println!("exit");
