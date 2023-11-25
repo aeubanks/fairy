@@ -814,9 +814,9 @@ fn visit_board<const W: i8, const H: i8>(
     m: Option<Move>,
     cur_max_depth: u16,
 ) {
-    if tablebase.contains_impl(player, board)
+    if rejected_boards.contains(&canonical_board(board).0)
+        || tablebase.contains_impl(player, board)
         || out_tablebase.contains_impl(player, board)
-        || rejected_boards.contains(&canonical_board(board).0)
     {
         return;
     }
