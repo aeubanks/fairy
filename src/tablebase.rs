@@ -271,13 +271,12 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         debug_assert!(!map.contains_key(&key));
         map.insert(key, (flip_move::<W, H>(m, sym), depth));
     }
-    fn contains_impl(&self, player: Player, board: &TBBoard<W, H>) -> bool {
-        self.tablebase_for_player(player)
-            .contains_key(&canonical_board(board).0)
+    fn contains_impl(&self, player: Player, board_key: &KeyTy) -> bool {
+        self.tablebase_for_player(player).contains_key(board_key)
     }
-    fn depth_impl(&self, player: Player, board: &TBBoard<W, H>) -> Option<u16> {
+    fn depth_impl(&self, player: Player, board_key: &KeyTy) -> Option<u16> {
         self.tablebase_for_player(player)
-            .get(&canonical_board(board).0)
+            .get(board_key)
             .map(|e| e.1)
     }
     fn merge(&mut self, other: Self) {
@@ -668,7 +667,7 @@ fn populate_initial_wins_one<const W: i8, const H: i8>(
     b: &TBBoard<W, H>,
 ) -> bool {
     // white can capture black's king
-    if !tablebase.contains_impl(White, b) {
+    if !tablebase.contains_impl(White, &canonical_board(b).0) {
         let opponent_king_coord = b.king_coord(Black);
         if let Some(c) = under_attack_from_coord(b, opponent_king_coord, Black) {
             tablebase.add_impl(
@@ -814,9 +813,10 @@ fn visit_board<const W: i8, const H: i8>(
     m: Option<Move>,
     cur_max_depth: u16,
 ) {
-    if rejected_boards.contains(&canonical_board(board).0)
-        || tablebase.contains_impl(player, board)
-        || out_tablebase.contains_impl(player, board)
+    let canon_board = canonical_board(board).0;
+    if rejected_boards.contains(&canon_board)
+        || tablebase.contains_impl(player, &canon_board)
+        || out_tablebase.contains_impl(player, &canon_board)
     {
         return;
     }
@@ -838,7 +838,9 @@ fn visit_board<const W: i8, const H: i8>(
                 let mut clone = board.clone();
                 clone.make_move(m);
                 debug_assert_eq!(
-                    tablebase.depth_impl(player.next(), &clone).unwrap(),
+                    tablebase
+                        .depth_impl(player.next(), &canonical_board(&clone).0)
+                        .unwrap(),
                     cur_max_depth
                 );
             }
@@ -866,7 +868,7 @@ fn visit_board<const W: i8, const H: i8>(
                 }
                 clone.make_move(m);
 
-                let maybe_depth = tablebase.depth_impl(player.next(), &clone);
+                let maybe_depth = tablebase.depth_impl(player.next(), &canonical_board(&clone).0);
                 match player {
                     // if we find any move that leads to mate we're done
                     White => {
@@ -903,7 +905,7 @@ fn visit_board<const W: i8, const H: i8>(
             out_tablebase.add_impl(player, board, m, cur_max_depth + 1);
         }
     } else {
-        rejected_boards.insert(canonical_board(board).0);
+        rejected_boards.insert(canon_board);
     }
 }
 
