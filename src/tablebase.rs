@@ -1211,7 +1211,7 @@ fn verify_piece_sets(piece_sets: &[PieceSet]) {
                 bk_count += 1;
             }
         }
-        assert_eq!(bk_count, 1);
+        assert_eq!(bk_count, 1, "must be exactly one black king in PieceSet");
     }
 }
 
@@ -1848,6 +1848,19 @@ mod tests {
             generate_literally_all_boards::<3, 3>(&kpk).count(),
             3 * 8 * 7
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "must be exactly one black king in PieceSet")]
+    fn test_generate_tablebase_panic_no_bk() {
+        let set = PieceSet::new(&[WK, WA, BQ]);
+        generate_tablebase::<6, 6>(&[set]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_piece_set_too_large() {
+        PieceSet::new(&[WK, WA, BQ, BK, BP, WP]);
     }
 
     fn test_tablebase<const W: i8, const H: i8>(sets: &[PieceSet]) -> Tablebase<W, H> {
