@@ -59,8 +59,9 @@ pub trait Board: Default + Debug + Clone {
 
     fn set_last_pawn_double_move(&mut self, c: Option<Coord>);
     fn get_last_pawn_double_move(&self) -> Option<Coord>;
-    fn set_castling_rights(&mut self, m: Move, piece: Piece);
+    fn set_castling_rights(&mut self, player: Player, side: CastleSide, c: Option<Coord>);
     fn get_castling_rights(&self, player: Player, side: CastleSide) -> Option<Coord>;
+    fn update_castling_rights(&mut self, m: Move, piece: Piece);
 
     fn make_move(&mut self, m: Move) {
         assert_ne!(m.from, m.to);
@@ -89,7 +90,7 @@ pub trait Board: Default + Debug + Clone {
             piece = Piece::new(piece.player(), Queen);
         }
         // keep track of castling rights
-        self.set_castling_rights(m, piece);
+        self.update_castling_rights(m, piece);
         // castling
         if piece.ty() == King && to_res == ExistingPieceResult::Friend {
             let rook = self.take(m.to).unwrap();
@@ -187,6 +188,16 @@ impl<const W: usize, const H: usize> Default for BoardSquare<W, H> {
 impl<const W: usize, const H: usize> BoardSquare<W, H> {
     fn get_mut(&mut self, coord: Coord) -> &mut Option<Piece> {
         &mut self.pieces[coord.x as usize][coord.y as usize]
+    }
+
+    fn castling_rights_index(player: Player, side: CastleSide) -> usize {
+        use CastleSide::*;
+        match (player, side) {
+            (White, Left) => 0,
+            (White, Right) => 1,
+            (Black, Left) => 2,
+            (Black, Right) => 3,
+        }
     }
 }
 
@@ -295,7 +306,13 @@ impl<const W: usize, const H: usize> Board for BoardSquare<W, H> {
     fn get_last_pawn_double_move(&self) -> Option<Coord> {
         self.last_pawn_double_move
     }
-    fn set_castling_rights(&mut self, m: Move, piece: Piece) {
+    fn set_castling_rights(&mut self, player: Player, side: CastleSide, c: Option<Coord>) {
+        self.castling_rights[Self::castling_rights_index(player, side)] = c;
+    }
+    fn get_castling_rights(&self, player: Player, side: CastleSide) -> Option<Coord> {
+        self.castling_rights[Self::castling_rights_index(player, side)]
+    }
+    fn update_castling_rights(&mut self, m: Move, piece: Piece) {
         // keep track of castling rights
         for cr in self.castling_rights.as_mut() {
             if let Some(c) = cr {
@@ -305,26 +322,9 @@ impl<const W: usize, const H: usize> Board for BoardSquare<W, H> {
             }
         }
         if piece.ty() == King {
-            match piece.player() {
-                White => {
-                    self.castling_rights[0] = None;
-                    self.castling_rights[1] = None;
-                }
-                Black => {
-                    self.castling_rights[2] = None;
-                    self.castling_rights[3] = None;
-                }
-            }
+            self.set_castling_rights(piece.player(), CastleSide::Left, None);
+            self.set_castling_rights(piece.player(), CastleSide::Right, None);
         }
-    }
-    fn get_castling_rights(&self, player: Player, side: CastleSide) -> Option<Coord> {
-        use CastleSide::*;
-        self.castling_rights[match (player, side) {
-            (White, Left) => 0,
-            (White, Right) => 1,
-            (Black, Left) => 2,
-            (Black, Right) => 3,
-        }]
     }
 }
 
@@ -376,12 +376,15 @@ impl<const W: i8, const H: i8, const N: usize> Board for BoardPiece<W, H, N> {
         // not implemented
         None
     }
-    fn set_castling_rights(&mut self, _: Move, _: Piece) {
+    fn set_castling_rights(&mut self, _: Player, _: CastleSide, _: Option<Coord>) {
         // not implemented
     }
     fn get_castling_rights(&self, _: Player, _: CastleSide) -> Option<Coord> {
         // not implemented
         None
+    }
+    fn update_castling_rights(&mut self, _: Move, _: Piece) {
+        // not implemented
     }
     fn add_piece(&mut self, coord: Coord, piece: Piece) {
         debug_assert!(self.in_bounds(coord));
@@ -546,6 +549,7 @@ impl Presets {
 
 impl<const W: usize, const H: usize> BoardSquare<W, H> {
     fn setup_with_pawns(castling: bool, pieces: &[Type]) -> Self {
+        use CastleSide::*;
         let mut board = Self::default();
         for i in 0..W as i8 {
             board.add_piece(Coord::new(i, 1), Piece::new(White, Pawn));
@@ -558,17 +562,20 @@ impl<const W: usize, const H: usize> BoardSquare<W, H> {
             let black_coord = Coord::new(i as i8, H as i8 - 1);
             board.add_piece(black_coord, Piece::new(Black, ty));
             if castling && ty == Rook {
-                if board.castling_rights[0].is_none() {
-                    board.castling_rights[0] = Some(white_coord);
-                    board.castling_rights[2] = Some(black_coord);
+                if board.get_castling_rights(White, Left).is_none() {
+                    board.set_castling_rights(White, Left, Some(white_coord));
+                    board.set_castling_rights(Black, Left, Some(black_coord));
                 } else {
-                    board.castling_rights[1] = Some(white_coord);
-                    board.castling_rights[3] = Some(black_coord);
+                    board.set_castling_rights(White, Right, Some(white_coord));
+                    board.set_castling_rights(Black, Right, Some(black_coord));
                 }
             }
         }
         if castling {
-            assert!(board.castling_rights.iter().all(|cr| cr.is_some()));
+            assert!(board.get_castling_rights(White, Left).is_some());
+            assert!(board.get_castling_rights(Black, Left).is_some());
+            assert!(board.get_castling_rights(White, Right).is_some());
+            assert!(board.get_castling_rights(Black, Right).is_some());
         }
         board
     }
@@ -866,6 +873,7 @@ mod tests {
 
     #[test]
     fn test_castling_rights() {
+        use CastleSide::*;
         let mut board = BoardSquare::<8, 8>::with_pieces(&[
             (Coord::new(0, 0), Piece::new(White, Rook)),
             (Coord::new(7, 0), Piece::new(White, Rook)),
@@ -874,27 +882,35 @@ mod tests {
             (Coord::new(7, 7), Piece::new(Black, Rook)),
             (Coord::new(4, 7), Piece::new(Black, King)),
         ]);
-        board.castling_rights = [
-            Some(Coord::new(0, 0)),
-            Some(Coord::new(7, 0)),
-            Some(Coord::new(0, 7)),
-            Some(Coord::new(7, 7)),
-        ];
+        board.set_castling_rights(White, Left, Some(Coord::new(0, 0)));
+        board.set_castling_rights(White, Right, Some(Coord::new(7, 0)));
+        board.set_castling_rights(Black, Left, Some(Coord::new(0, 7)));
+        board.set_castling_rights(Black, Right, Some(Coord::new(7, 7)));
         {
             let mut board2 = board.clone();
             board2.make_move(Move {
                 from: Coord::new(4, 0),
                 to: Coord::new(4, 1),
             });
+
+            assert_eq!(board2.get_castling_rights(White, Left), None);
+            assert_eq!(board2.get_castling_rights(White, Right), None);
             assert_eq!(
-                board2.castling_rights,
-                [None, None, Some(Coord::new(0, 7)), Some(Coord::new(7, 7))]
+                board2.get_castling_rights(Black, Left),
+                Some(Coord::new(0, 7))
+            );
+            assert_eq!(
+                board2.get_castling_rights(Black, Right),
+                Some(Coord::new(7, 7))
             );
             board2.make_move(Move {
                 from: Coord::new(4, 7),
                 to: Coord::new(4, 6),
             });
-            assert_eq!(board2.castling_rights, [None, None, None, None]);
+            assert_eq!(board2.get_castling_rights(White, Left), None);
+            assert_eq!(board2.get_castling_rights(White, Right), None);
+            assert_eq!(board2.get_castling_rights(Black, Left), None);
+            assert_eq!(board2.get_castling_rights(Black, Right), None);
         }
         {
             let mut board2 = board.clone();
@@ -902,28 +918,41 @@ mod tests {
                 from: Coord::new(0, 0),
                 to: Coord::new(1, 0),
             });
+            assert_eq!(board2.get_castling_rights(White, Left), None);
             assert_eq!(
-                board2.castling_rights,
-                [
-                    None,
-                    Some(Coord::new(7, 0)),
-                    Some(Coord::new(0, 7)),
-                    Some(Coord::new(7, 7)),
-                ]
+                board2.get_castling_rights(White, Right),
+                Some(Coord::new(7, 0))
+            );
+            assert_eq!(
+                board2.get_castling_rights(Black, Left),
+                Some(Coord::new(0, 7))
+            );
+            assert_eq!(
+                board2.get_castling_rights(Black, Right),
+                Some(Coord::new(7, 7))
             );
             board2.make_move(Move {
                 from: Coord::new(0, 7),
                 to: Coord::new(0, 6),
             });
+            assert_eq!(board2.get_castling_rights(White, Left), None);
             assert_eq!(
-                board2.castling_rights,
-                [None, Some(Coord::new(7, 0)), None, Some(Coord::new(7, 7))]
+                board2.get_castling_rights(White, Right),
+                Some(Coord::new(7, 0))
+            );
+            assert_eq!(board2.get_castling_rights(Black, Left), None);
+            assert_eq!(
+                board2.get_castling_rights(Black, Right),
+                Some(Coord::new(7, 7))
             );
             board2.make_move(Move {
                 from: Coord::new(7, 0),
                 to: Coord::new(7, 7),
             });
-            assert_eq!(board2.castling_rights, [None, None, None, None]);
+            assert_eq!(board2.get_castling_rights(White, Left), None);
+            assert_eq!(board2.get_castling_rights(White, Right), None);
+            assert_eq!(board2.get_castling_rights(Black, Left), None);
+            assert_eq!(board2.get_castling_rights(Black, Right), None);
         }
     }
 
