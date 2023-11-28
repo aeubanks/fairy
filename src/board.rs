@@ -3,6 +3,7 @@ use crate::piece::{Piece, Type, Type::*};
 use crate::player::{Player, Player::*};
 use arrayvec::ArrayVec;
 use derive_enum::EnumCount;
+use derive_enum::EnumFrom;
 use rand::Rng;
 use static_assertions::const_assert_eq;
 use std::fmt::Debug;
@@ -14,7 +15,7 @@ pub enum ExistingPieceResult {
     Opponent,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, EnumFrom)]
 pub enum CastleSide {
     Left,
     Right,
@@ -141,6 +142,31 @@ pub trait Board: Default + Debug + Clone {
             board.add_piece(*c, *p);
         }
         board
+    }
+    fn make_player_white(&self, player: Player) -> Self {
+        if player == White {
+            return self.clone();
+        }
+
+        let flip_coord = |c: Coord| Coord::new(c.x, self.height() - 1 - c.y);
+
+        let mut new = Self::default();
+        self.foreach_piece(|p, c| {
+            new.add_piece(flip_coord(c), Piece::new(p.player().next(), p.ty()))
+        });
+        new.set_last_pawn_double_move(self.get_last_pawn_double_move().map(|c| flip_coord(c)));
+        for side in CastleSide::all() {
+            for player in Player::all() {
+                new.set_castling_rights(
+                    player,
+                    side,
+                    self.get_castling_rights(player.next(), side)
+                        .map(|c| flip_coord(c)),
+                );
+            }
+        }
+
+        new
     }
     fn to_str(&self) -> String {
         let mut ret = String::new();
@@ -755,6 +781,43 @@ mod tests {
         let mut b = BoardPiece::<2, 3, 4>::default();
         b.add_piece(Coord::new(1, 1), Piece::new(White, King));
         b.add_piece(Coord::new(1, 1), Piece::new(White, King));
+    }
+    #[test]
+    fn test_make_player_white() {
+        use CastleSide::*;
+        let mut b = BoardSquare::<3, 4>::with_pieces(&[
+            (Coord::new(1, 1), Piece::new(White, King)),
+            (Coord::new(2, 3), Piece::new(Black, Queen)),
+        ]);
+        b.set_castling_rights(White, Left, Some(Coord::new(1, 0)));
+        b.set_castling_rights(Black, Right, Some(Coord::new(3, 2)));
+        b.set_last_pawn_double_move(Some(Coord::new(2, 2)));
+        {
+            let b1 = b.make_player_white(White);
+            let mut count = 0;
+            b1.foreach_piece(|_, _| count += 1);
+            assert_eq!(count, 2);
+            assert_eq!(b1.get(Coord::new(1, 1)), Some(Piece::new(White, King)));
+            assert_eq!(b1.get(Coord::new(2, 3)), Some(Piece::new(Black, Queen)));
+            assert_eq!(b1.get_castling_rights(White, Left), Some(Coord::new(1, 0)));
+            assert_eq!(b1.get_castling_rights(White, Right), None);
+            assert_eq!(b1.get_castling_rights(Black, Left), None);
+            assert_eq!(b1.get_castling_rights(Black, Right), Some(Coord::new(3, 2)));
+            assert_eq!(b1.get_last_pawn_double_move(), Some(Coord::new(2, 2)));
+        }
+        {
+            let b2 = b.make_player_white(Black);
+            let mut count = 0;
+            b2.foreach_piece(|_, _| count += 1);
+            assert_eq!(count, 2);
+            assert_eq!(b2.get(Coord::new(1, 2)), Some(Piece::new(Black, King)));
+            assert_eq!(b2.get(Coord::new(2, 0)), Some(Piece::new(White, Queen)));
+            assert_eq!(b2.get_castling_rights(White, Left), None);
+            assert_eq!(b2.get_castling_rights(White, Right), Some(Coord::new(3, 1)));
+            assert_eq!(b2.get_castling_rights(Black, Left), Some(Coord::new(1, 3)));
+            assert_eq!(b2.get_castling_rights(Black, Right), None);
+            assert_eq!(b2.get_last_pawn_double_move(), Some(Coord::new(2, 1)));
+        }
     }
     #[test]
     fn test_dump() {

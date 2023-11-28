@@ -209,19 +209,9 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
             flip_y: true,
             flip_diagonally: false,
         };
-        let flip = |b: TBBoard<W, H>| -> TBBoard<W, H> {
-            let mut flipped = TBBoard::<W, H>::default();
-            b.foreach_piece(|p, c| {
-                flipped.add_piece(
-                    flip_coord::<W, H>(c, flip_sym),
-                    Piece::new(p.player().next(), p.ty()),
-                )
-            });
-            flipped
-        };
         let mut tb_board: TBBoard<W, H> = board_square_to_piece(board);
         if player == Black {
-            tb_board = flip(tb_board);
+            tb_board = tb_board.make_player_white(Black);
         }
         if let Some((mut m, num)) = self.result(White, &tb_board) {
             if player == Black {
@@ -230,7 +220,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
             return Some((m, num, TBMoveType::Win));
         }
 
-        tb_board = flip(tb_board);
+        tb_board = tb_board.make_player_white(Black);
         if let Some((mut m, num)) = self.result(Black, &tb_board) {
             if player == White {
                 m = flip_move::<W, H>(m, flip_sym);
@@ -246,7 +236,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
             clone.make_move(try_move);
             tb_board = board_square_to_piece(&clone);
             if player == White {
-                tb_board = flip(tb_board);
+                tb_board = tb_board.make_player_white(Black);
             }
             if self.result(White, &tb_board).is_none() {
                 return Some((try_move, 0, TBMoveType::Draw));
