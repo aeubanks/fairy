@@ -552,12 +552,12 @@ impl<const W: usize, const H: usize> BoardSquare<W, H> {
             board.add_piece(Coord::new(i, H as i8 - 2), Piece::new(Black, Pawn));
         }
         assert!(pieces.len() == W);
-        for (i, ty) in pieces.iter().enumerate() {
+        for (i, &ty) in pieces.iter().enumerate() {
             let white_coord = Coord::new(i as i8, 0);
-            board.add_piece(white_coord, Piece::new(White, *ty));
+            board.add_piece(white_coord, Piece::new(White, ty));
             let black_coord = Coord::new(i as i8, H as i8 - 1);
-            board.add_piece(black_coord, Piece::new(Black, *ty));
-            if castling {
+            board.add_piece(black_coord, Piece::new(Black, ty));
+            if castling && ty == Rook {
                 if board.castling_rights[0].is_none() {
                     board.castling_rights[0] = Some(white_coord);
                     board.castling_rights[2] = Some(black_coord);
@@ -1037,5 +1037,14 @@ mod tests {
             Presets::chess960(&mut rng);
             Presets::capablanca_random(&mut rng);
         }
+    }
+    #[test]
+    fn test_classical_castling() {
+        use CastleSide::*;
+        let b = Presets::classical();
+        assert_eq!(b.get_castling_rights(White, Left), Some(Coord::new(0, 0)));
+        assert_eq!(b.get_castling_rights(White, Right), Some(Coord::new(7, 0)));
+        assert_eq!(b.get_castling_rights(Black, Left), Some(Coord::new(0, 7)));
+        assert_eq!(b.get_castling_rights(Black, Right), Some(Coord::new(7, 7)));
     }
 }
