@@ -481,7 +481,7 @@ pub fn board_piece_to_square<
     ret
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct Move {
     pub from: Coord,
     pub to: Coord,

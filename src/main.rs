@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use fairy::board::{Board, Move, Presets};
 use fairy::coord::Coord;
 use fairy::moves::all_moves;
+use fairy::nn;
 use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
 use fairy::tablebase::*;
@@ -214,6 +215,7 @@ enum Command {
         parallel: Option<usize>,
     },
     Perft,
+    Nn,
     Play {
         #[arg(long = "cpu", short)]
         cpu_as_black: bool,
@@ -231,6 +233,7 @@ fn main() -> std::io::Result<()> {
             parallel,
         } => tablebase::<6, 6>(parallel, num_pieces),
         Perft => run_perft(),
+        Nn => nn::nn(),
         Play { cpu_as_black } => play_game(cpu_as_black)?,
     }
 
