@@ -203,7 +203,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         &self,
         player: Player,
         board: &BoardSquare<W2, H2>,
-    ) -> Option<(Move, u16, TBMoveType)> {
+    ) -> (Move, u16, TBMoveType) {
         let flip_sym = Symmetry {
             flip_x: false,
             flip_y: true,
@@ -217,7 +217,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
             if player == Black {
                 m = flip_move::<W, H>(m, flip_sym);
             }
-            return Some((m, num, TBMoveType::Win));
+            return (m, num, TBMoveType::Win);
         }
 
         tb_board = tb_board.make_player_white(Black);
@@ -225,7 +225,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
             if player == White {
                 m = flip_move::<W, H>(m, flip_sym);
             }
-            return Some((m, num, TBMoveType::Lose));
+            return (m, num, TBMoveType::Lose);
         }
 
         // a move may turn a draw into a loss; keep looking through all possible moves until we find one that doesn't end in a win for the opponent
@@ -239,7 +239,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
                 tb_board = tb_board.make_player_white(Black);
             }
             if self.result(White, &tb_board).is_none() {
-                return Some((try_move, 0, TBMoveType::Draw));
+                return (try_move, 0, TBMoveType::Draw);
             }
         }
     }
@@ -2203,7 +2203,7 @@ mod tests {
             (Coord::new(3, 3), BK),
             (Coord::new(2, 1), BQ),
         ]);
-        let r = tablebase.result_for_real_board(White, &board).unwrap();
+        let r = tablebase.result_for_real_board(White, &board);
         assert_eq!(
             r.0,
             Move {
@@ -2213,7 +2213,7 @@ mod tests {
         );
         assert_eq!(r.2, TBMoveType::Win);
 
-        let r = tablebase.result_for_real_board(Black, &board).unwrap();
+        let r = tablebase.result_for_real_board(Black, &board);
         assert_eq!(
             r.0,
             Move {
@@ -2232,7 +2232,7 @@ mod tests {
                 (Coord::new(3, 3), BK),
                 (Coord::new(2, 1), BQ),
             ]);
-            let r = tablebase.result_for_real_board(White, &board).unwrap();
+            let r = tablebase.result_for_real_board(White, &board);
             assert_eq!(r.0.from, Coord::new(0, 0));
             assert_eq!(r.2, TBMoveType::Lose);
         }
@@ -2242,7 +2242,7 @@ mod tests {
                 (Coord::new(1, 2), WQ),
                 (Coord::new(3, 3), BK),
             ]);
-            let r = tablebase.result_for_real_board(Black, &board).unwrap();
+            let r = tablebase.result_for_real_board(Black, &board);
             assert_eq!(r.0.from, Coord::new(3, 3));
             assert_eq!(r.2, TBMoveType::Lose);
         }
@@ -2253,7 +2253,7 @@ mod tests {
         {
             let board =
                 BoardSquare::<5, 5>::with_pieces(&[(Coord::new(0, 2), WK), (Coord::new(2, 2), BK)]);
-            let r = tablebase.result_for_real_board(White, &board).unwrap();
+            let r = tablebase.result_for_real_board(White, &board);
             assert_eq!(r.0.from, Coord::new(0, 2));
             assert_eq!(r.0.to.x, 0);
             assert_eq!(r.2, TBMoveType::Draw);
@@ -2261,7 +2261,7 @@ mod tests {
         {
             let board =
                 BoardSquare::<5, 5>::with_pieces(&[(Coord::new(2, 2), WK), (Coord::new(4, 2), BK)]);
-            let r = tablebase.result_for_real_board(Black, &board).unwrap();
+            let r = tablebase.result_for_real_board(Black, &board);
             assert_eq!(r.0.from, Coord::new(4, 2));
             assert_eq!(r.0.to.x, 4);
             assert_eq!(r.2, TBMoveType::Draw);
@@ -2269,7 +2269,7 @@ mod tests {
         {
             let board =
                 BoardSquare::<5, 5>::with_pieces(&[(Coord::new(2, 4), WK), (Coord::new(2, 2), BK)]);
-            let r = tablebase.result_for_real_board(White, &board).unwrap();
+            let r = tablebase.result_for_real_board(White, &board);
             assert_eq!(r.0.from, Coord::new(2, 4));
             assert_eq!(r.0.to.y, 4);
             assert_eq!(r.2, TBMoveType::Draw);
@@ -2277,7 +2277,7 @@ mod tests {
         {
             let board =
                 BoardSquare::<5, 5>::with_pieces(&[(Coord::new(2, 2), WK), (Coord::new(2, 0), BK)]);
-            let r = tablebase.result_for_real_board(Black, &board).unwrap();
+            let r = tablebase.result_for_real_board(Black, &board);
             assert_eq!(r.0.from, Coord::new(2, 0));
             assert_eq!(r.0.to.y, 0);
             assert_eq!(r.2, TBMoveType::Draw);

@@ -93,9 +93,8 @@ fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
 
             let m = if num_pieces > 3 {
                 rand_move()
-            } else if let Some((m, depth, move_type)) =
-                tablebase.result_for_real_board(player, &board)
-            {
+            } else {
+                let (m, depth, move_type) = tablebase.result_for_real_board(player, &board);
                 match move_type {
                     TBMoveType::Win => println!("{} moves until checkmating player", depth),
                     TBMoveType::Lose => {
@@ -104,8 +103,6 @@ fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
                     TBMoveType::Draw => println!("moving to known safe position"),
                 }
                 m
-            } else {
-                rand_move()
             };
             println!("CPU made {:?}", m);
             board.make_move(m);
