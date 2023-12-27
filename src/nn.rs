@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 
-use crate::board::{Board, Move, Presets};
+use crate::board::{board_piece_to_square, Board, Move, Presets};
 use crate::coord::Coord;
 use crate::moves;
-use crate::piece::Type;
+use crate::piece::{Piece, Type};
 use crate::player::Player;
+use crate::tablebase::{generate_tablebase, PieceSet, TBBoard, Tablebase};
 use tch::{nn::*, *};
 
 fn piece_type_to_index(ty: Type) -> i64 {
@@ -195,10 +196,129 @@ fn move_probabilities_for_boards<B: Board>(boards: &[B]) -> Vec<Vec<(Move, f32)>
         .collect::<Vec<_>>()
 }
 
+fn tablebase<const W: usize, const H: usize>() -> Tablebase<W, H> {
+    use Player::*;
+    use Type::*;
+
+    let mut pieces = Vec::new();
+
+    for p in [White, Black] {
+        for ty in [Queen, Rook, Knight] {
+            pieces.push(Piece::new(p, ty));
+        }
+    }
+
+    let mut sets = Vec::new();
+
+    for p1 in &pieces {
+        for p2 in &pieces {
+            sets.push(PieceSet::new(&[
+                Piece::new(White, King),
+                Piece::new(Black, King),
+                *p1,
+                *p2,
+            ]));
+        }
+    }
+
+    generate_tablebase(&sets)
+}
+
+fn rand_board_for_tablebase<const W: usize, const H: usize>() -> TBBoard<W, H> {
+    use rand::{thread_rng, Rng};
+    use Player::*;
+    use Type::*;
+
+    fn add_piece<const W: usize, const H: usize>(b: &mut TBBoard<W, H>, p: Piece) {
+        let mut rng = thread_rng();
+        loop {
+            let try_coord = Coord::new(rng.gen_range(0..(W as i8)), rng.gen_range(0..(H as i8)));
+            if b.get(try_coord).is_some() {
+                continue;
+            }
+            b.add_piece(try_coord, p);
+            break;
+        }
+    }
+    let mut b = TBBoard::default();
+
+    add_piece(&mut b, Piece::new(White, King));
+    add_piece(&mut b, Piece::new(Black, King));
+    let mut rng = thread_rng();
+    let mut add_rand_piece = || {
+        add_piece(
+            &mut b,
+            Piece::new(rng.gen(), [Queen, Rook, Knight][rng.gen_range(0..3)]),
+        );
+    };
+    add_rand_piece();
+    add_rand_piece();
+
+    b
+}
+
+fn tb_result<const W: usize, const H: usize>(b: &TBBoard<W, H>, tb: &Tablebase<W, H>) -> i64 {
+    // FIXME: this makes a bunch of unnecessary clones of boards, maybe result_for_real_board should work with all types of boards
+    tb.result_for_real_board(Player::White, &board_piece_to_square(b))
+        .2 as i64
+}
+
+fn tb_results_to_tensor<const W: usize, const H: usize>(
+    boards: &[TBBoard<W, H>],
+    tb: &Tablebase<W, H>,
+) -> Tensor {
+    let ts = boards.iter().map(|b| tb_result(b, tb)).collect::<Vec<_>>();
+    Tensor::from_slice(&ts)
+}
+
+fn nn_tablebase<const W: usize, const H: usize>() {
+    let dev = Device::cuda_if_available();
+    let mut vs = VarStore::new(dev);
+    vs.set_kind(Kind::Float);
+
+    let tb = tablebase::<W, H>();
+
+    let n = NN::new(&vs, W as i64, H as i64, 3);
+    let mut opt = nn::Adam::default().build(&vs, 0.001).unwrap();
+
+    let (evaluate_xs, evaluate_targets) = {
+        let mut evaluate_boards = Vec::new();
+        for _ in 0..500 {
+            evaluate_boards.push(rand_board_for_tablebase());
+        }
+        (
+            boards_to_tensor(&evaluate_boards, dev),
+            tb_results_to_tensor(&evaluate_boards, &tb),
+        )
+    };
+
+    for epoch in 0..500 {
+        // train
+        {
+            let mut boards = Vec::new();
+            for _ in 0..500 {
+                boards.push(rand_board_for_tablebase());
+            }
+            let xs = boards_to_tensor(&boards, dev);
+            let targets = tb_results_to_tensor(&boards, &tb);
+
+            let loss = n.forward_t(&xs, true).cross_entropy_for_logits(&targets);
+            opt.backward_step(&loss);
+        }
+
+        // evaluate
+        {
+            let acc = n.batch_accuracy_for_logits(&evaluate_xs, &evaluate_targets, dev, 500);
+            println!("epoch {epoch}: accuracy {acc}");
+        }
+    }
+}
+
 pub fn nn() {
     let boards = vec![Presets::los_alamos(); 7];
     let probs = move_probabilities_for_boards(&boards);
     dbg!(&probs[0]);
+    nn_tablebase::<6, 6>();
 }
 
 #[cfg(test)]
