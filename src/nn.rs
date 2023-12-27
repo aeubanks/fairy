@@ -87,7 +87,7 @@ fn move_tensor_to_vec(t: &Tensor) -> Vec<Vec<f32>> {
     let mut ret = Vec::with_capacity(size.0 as usize);
     for i in 0..size.0 {
         let mut v: Vec<f32> = vec![0.0; size.1 as usize];
-        t.get(i).copy_data(&mut v, size.1 as usize);
+        t.get(i).log_softmax(0, Kind::Float).copy_data(&mut v, size.1 as usize);
         ret.push(v);
     }
     ret
