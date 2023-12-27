@@ -8,6 +8,9 @@ use crate::player::Player;
 use crate::tablebase::{generate_tablebase, PieceSet, TBBoard, Tablebase};
 use tch::{nn::*, *};
 
+const NUM_PLAYERS: i64 = 2;
+const NUM_PIECE_TYPES: i64 = 5;
+
 fn piece_type_to_index(ty: Type) -> i64 {
     use Type::*;
     match ty {
@@ -22,7 +25,12 @@ fn piece_type_to_index(ty: Type) -> i64 {
 
 fn board_to_tensor<B: Board>(board: &B, dev: Device) -> Tensor {
     let t = Tensor::zeros(
-        [2, 5, board.height() as i64, board.width() as i64],
+        [
+            NUM_PLAYERS,
+            NUM_PIECE_TYPES,
+            board.height() as i64,
+            board.width() as i64,
+        ],
         (Kind::Float, dev),
     );
     board.foreach_piece(|p, c| {
@@ -35,7 +43,11 @@ fn board_to_tensor<B: Board>(board: &B, dev: Device) -> Tensor {
             ))
             .fill_(1);
     });
-    t.reshape([10, board.height() as i64, board.width() as i64])
+    t.reshape([
+        NUM_PLAYERS * NUM_PIECE_TYPES,
+        board.height() as i64,
+        board.width() as i64,
+    ])
 }
 
 fn boards_to_tensor<B: Board>(boards: &[B], dev: Device) -> Tensor {
@@ -87,7 +99,9 @@ fn move_tensor_to_vec(t: &Tensor) -> Vec<Vec<f32>> {
     let mut ret = Vec::with_capacity(size.0 as usize);
     for i in 0..size.0 {
         let mut v: Vec<f32> = vec![0.0; size.1 as usize];
-        t.get(i).log_softmax(0, Kind::Float).copy_data(&mut v, size.1 as usize);
+        t.get(i)
+            .log_softmax(0, Kind::Float)
+            .copy_data(&mut v, size.1 as usize);
         ret.push(v);
     }
     ret
@@ -119,6 +133,8 @@ struct NN {
 
 impl NN {
     fn new(vs: &VarStore, input_width: i64, input_height: i64, output_size: i64) -> Self {
+        const NUM_FILTERS: i64 = 32;
+
         let mut conv_config = ConvConfigND::<[i64; 2]> {
             padding: [1, 1],
             ..Default::default()
@@ -130,14 +146,18 @@ impl NN {
         for i in 0..4 {
             let conv = conv(
                 vs.root().sub(format!("conv{}", i)),
-                if i == 0 { 10 } else { 32 },
-                32,
+                if i == 0 {
+                    NUM_PLAYERS * NUM_PIECE_TYPES
+                } else {
+                    NUM_FILTERS
+                },
+                NUM_FILTERS,
                 [3, 3],
                 conv_config,
             );
             let batch = batch_norm2d(
                 vs.root().sub(format!("batchnorm{}", i)),
-                32,
+                NUM_FILTERS,
                 Default::default(),
             );
             seqs.push(seq_t().add(conv).add(batch).add_fn(|t| t.relu()));
@@ -145,7 +165,7 @@ impl NN {
 
         let lin = linear(
             vs.root().sub("linear"),
-            32 * input_width * input_height,
+            NUM_FILTERS * input_width * input_height,
             output_size,
             Default::default(),
         );
@@ -273,7 +293,11 @@ fn tb_results_to_tensor<const W: usize, const H: usize>(
     Tensor::from_slice(&ts)
 }
 
-fn nn_tablebase<const W: usize, const H: usize>() {
+fn nn_tablebase<const W: usize, const H: usize>(
+    num_epochs: usize,
+    num_boards_per_epoch: usize,
+    num_boards_to_evaluate: usize,
+) {
     let dev = Device::cuda_if_available();
     let mut vs = VarStore::new(dev);
     vs.set_kind(Kind::Float);
@@ -285,7 +309,7 @@ fn nn_tablebase<const W: usize, const H: usize>() {
 
     let (evaluate_xs, evaluate_targets) = {
         let mut evaluate_boards = Vec::new();
-        for _ in 0..500 {
+        for _ in 0..num_boards_to_evaluate {
             evaluate_boards.push(rand_board_for_tablebase());
         }
         (
@@ -294,11 +318,11 @@ fn nn_tablebase<const W: usize, const H: usize>() {
         )
     };
 
-    for epoch in 0..500 {
+    for epoch in 0..num_epochs {
         // train
         {
             let mut boards = Vec::new();
-            for _ in 0..500 {
+            for _ in 0..num_boards_per_epoch {
                 boards.push(rand_board_for_tablebase());
             }
             let xs = boards_to_tensor(&boards, dev);
@@ -310,8 +334,13 @@ fn nn_tablebase<const W: usize, const H: usize>() {
 
         // evaluate
         {
-            let acc = n.batch_accuracy_for_logits(&evaluate_xs, &evaluate_targets, dev, 500);
-            println!("epoch {epoch}: accuracy {acc}");
+            let acc = n.batch_accuracy_for_logits(
+                &evaluate_xs,
+                &evaluate_targets,
+                dev,
+                evaluate_targets.size1().unwrap(),
+            );
+            println!("epoch {epoch}: accuracy {acc:.3}");
         }
     }
 }
@@ -320,7 +349,7 @@ pub fn nn() {
     let boards = vec![Presets::los_alamos(); 7];
     let probs = move_probabilities_for_boards(&boards);
     dbg!(&probs[0]);
-    nn_tablebase::<6, 6>();
+    nn_tablebase::<6, 6>(500, 500, 500);
 }
 
 #[cfg(test)]
@@ -344,7 +373,7 @@ mod tests {
             1
         );
         assert_eq!(
-            t.int64_value(&[5 + piece_type_to_index(Type::King), 0, 3]),
+            t.int64_value(&[NUM_PIECE_TYPES + piece_type_to_index(Type::King), 0, 3]),
             0
         );
         assert_eq!(
@@ -356,7 +385,7 @@ mod tests {
             0
         );
         assert_eq!(
-            t.int64_value(&[5 + piece_type_to_index(Type::King), 5, 3]),
+            t.int64_value(&[NUM_PIECE_TYPES + piece_type_to_index(Type::King), 5, 3]),
             1
         );
     }
@@ -399,5 +428,10 @@ mod tests {
         assert_eq!(probs.len(), 2);
         assert_eq!(probs[0].len(), 10);
         assert_eq!(probs[1].len(), 0);
+    }
+
+    #[test]
+    fn test_end_to_end_tablebase() {
+        nn_tablebase::<4, 4>(1, 3, 1);
     }
 }
