@@ -1599,7 +1599,7 @@ mod tests {
         }
     }
 
-    fn rand_board_piece<const W: i8, const H: i8, R: Rng + ?Sized>(
+    fn rand_board_piece<const W: usize, const H: usize, R: Rng + ?Sized>(
         rng: &mut R,
     ) -> BoardPiece<W, H, 4> {
         let mut board = BoardPiece::<W, H, 4>::default();
@@ -1674,7 +1674,7 @@ mod tests {
             let board = rand_board_square::<W, H, _>(&mut rng);
             check_is_in_check(&board);
         }
-        fn test_piece<const W: i8, const H: i8>() {
+        fn test_piece<const W: usize, const H: usize>() {
             let mut rng = thread_rng();
             let board = rand_board_piece::<W, H, _>(&mut rng);
             check_is_in_check(&board);

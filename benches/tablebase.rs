@@ -18,11 +18,11 @@ fn piece_sets(sets: &[&[Piece]]) -> Vec<PieceSet> {
     sets.iter().map(|&ps| PieceSet::new(ps)).collect::<Vec<_>>()
 }
 
-fn run<const W: i8, const H: i8>(sets: &[&[Piece]]) -> Tablebase<W, H> {
+fn run<const W: usize, const H: usize>(sets: &[&[Piece]]) -> Tablebase<W, H> {
     generate_tablebase(&piece_sets(sets))
 }
 
-fn run_parallel<const W: i8, const H: i8>(sets: &[&[Piece]]) -> Tablebase<W, H> {
+fn run_parallel<const W: usize, const H: usize>(sets: &[&[Piece]]) -> Tablebase<W, H> {
     generate_tablebase_parallel(&piece_sets(sets), Some(2))
 }
 

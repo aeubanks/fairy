@@ -151,7 +151,7 @@ fn run_perft() {
     );
 }
 
-fn tablebase<const N: i8, const M: i8>(parallel: Option<usize>, num_pieces: usize) {
+fn tablebase<const N: usize, const M: usize>(parallel: Option<usize>, num_pieces: usize) {
     assert!(num_pieces >= 1);
     assert!(num_pieces <= 5);
 

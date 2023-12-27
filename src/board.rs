@@ -154,14 +154,14 @@ pub trait Board: Default + Debug + Clone {
         self.foreach_piece(|p, c| {
             new.add_piece(flip_coord(c), Piece::new(p.player().next(), p.ty()))
         });
-        new.set_last_pawn_double_move(self.get_last_pawn_double_move().map(|c| flip_coord(c)));
+        new.set_last_pawn_double_move(self.get_last_pawn_double_move().map(flip_coord));
         for side in CastleSide::all() {
             for player in Player::all() {
                 new.set_castling_rights(
                     player,
                     side,
                     self.get_castling_rights(player.next(), side)
-                        .map(|c| flip_coord(c)),
+                        .map(flip_coord),
                 );
             }
         }
@@ -361,16 +361,16 @@ impl<const W: usize, const H: usize> Debug for BoardSquare<W, H> {
 }
 
 #[derive(Clone, Default)]
-pub struct BoardPiece<const W: i8, const H: i8, const N: usize>(ArrayVec<(Coord, Piece), N>);
+pub struct BoardPiece<const W: usize, const H: usize, const N: usize>(ArrayVec<(Coord, Piece), N>);
 
 const_assert_eq!(16, std::mem::size_of::<BoardPiece<12, 13, 4>>());
 
-impl<const W: i8, const H: i8, const N: usize> Board for BoardPiece<W, H, N> {
+impl<const W: usize, const H: usize, const N: usize> Board for BoardPiece<W, H, N> {
     fn width(&self) -> i8 {
-        W
+        W as i8
     }
     fn height(&self) -> i8 {
-        H
+        H as i8
     }
     fn get(&self, coord: Coord) -> Option<Piece> {
         debug_assert!(self.in_bounds(coord));
@@ -447,35 +447,23 @@ impl<const W: i8, const H: i8, const N: usize> Board for BoardPiece<W, H, N> {
     }
 }
 
-impl<const W: i8, const H: i8, const N: usize> Debug for BoardPiece<W, H, N> {
+impl<const W: usize, const H: usize, const N: usize> Debug for BoardPiece<W, H, N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_str())
     }
 }
 
-pub fn board_square_to_piece<
-    const W: i8,
-    const H: i8,
-    const N: usize,
-    const W2: usize,
-    const H2: usize,
->(
-    other: &BoardSquare<W2, H2>,
+pub fn board_square_to_piece<const W: usize, const H: usize, const N: usize>(
+    other: &BoardSquare<W, H>,
 ) -> BoardPiece<W, H, N> {
     let mut ret = BoardPiece::default();
     other.foreach_piece(|p, c| ret.add_piece(c, p));
     ret
 }
 
-pub fn board_piece_to_square<
-    const W: i8,
-    const H: i8,
-    const N: usize,
-    const W2: usize,
-    const H2: usize,
->(
+pub fn board_piece_to_square<const W: usize, const H: usize, const N: usize>(
     other: &BoardPiece<W, H, N>,
-) -> BoardSquare<W2, H2> {
+) -> BoardSquare<W, H> {
     let mut ret = BoardSquare::default();
     other.foreach_piece(|p, c| ret.add_piece(c, p));
     ret

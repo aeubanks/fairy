@@ -80,7 +80,7 @@ impl<'a> IntoIterator for &'a PieceSet {
     }
 }
 
-pub type TBBoard<const W: i8, const H: i8> = crate::board::BoardPiece<W, H, MAX_PIECES>;
+pub type TBBoard<const W: usize, const H: usize> = crate::board::BoardPiece<W, H, MAX_PIECES>;
 
 #[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
 struct Symmetry {
@@ -90,12 +90,12 @@ struct Symmetry {
 }
 
 #[must_use]
-fn flip_coord<const W: i8, const H: i8>(mut c: Coord, sym: Symmetry) -> Coord {
+fn flip_coord<const W: usize, const H: usize>(mut c: Coord, sym: Symmetry) -> Coord {
     if sym.flip_x {
-        c.x = W - 1 - c.x;
+        c.x = W as i8 - 1 - c.x;
     }
     if sym.flip_y {
-        c.y = H - 1 - c.y;
+        c.y = H as i8 - 1 - c.y;
     }
     if sym.flip_diagonally {
         std::mem::swap(&mut c.x, &mut c.y);
@@ -104,21 +104,21 @@ fn flip_coord<const W: i8, const H: i8>(mut c: Coord, sym: Symmetry) -> Coord {
 }
 
 #[must_use]
-fn flip_board<const W: i8, const H: i8>(b: &TBBoard<W, H>, sym: Symmetry) -> TBBoard<W, H> {
+fn flip_board<const W: usize, const H: usize>(b: &TBBoard<W, H>, sym: Symmetry) -> TBBoard<W, H> {
     let mut ret = TBBoard::default();
     b.foreach_piece(|p, c| ret.add_piece(flip_coord::<W, H>(c, sym), p));
     ret
 }
 
 #[must_use]
-fn flip_move<const W: i8, const H: i8>(mut m: Move, sym: Symmetry) -> Move {
+fn flip_move<const W: usize, const H: usize>(mut m: Move, sym: Symmetry) -> Move {
     m.from = flip_coord::<W, H>(m.from, sym);
     m.to = flip_coord::<W, H>(m.to, sym);
     m
 }
 
 #[must_use]
-fn flip_x<const W: i8, const H: i8>(b: &TBBoard<W, H>, c: Coord) -> (TBBoard<W, H>, Coord) {
+fn flip_x<const W: usize, const H: usize>(b: &TBBoard<W, H>, c: Coord) -> (TBBoard<W, H>, Coord) {
     let sym = Symmetry {
         flip_x: true,
         flip_y: false,
@@ -128,7 +128,7 @@ fn flip_x<const W: i8, const H: i8>(b: &TBBoard<W, H>, c: Coord) -> (TBBoard<W, 
 }
 
 #[must_use]
-fn flip_y<const W: i8, const H: i8>(b: &TBBoard<W, H>, c: Coord) -> (TBBoard<W, H>, Coord) {
+fn flip_y<const W: usize, const H: usize>(b: &TBBoard<W, H>, c: Coord) -> (TBBoard<W, H>, Coord) {
     let sym = Symmetry {
         flip_x: false,
         flip_y: true,
@@ -138,7 +138,7 @@ fn flip_y<const W: i8, const H: i8>(b: &TBBoard<W, H>, c: Coord) -> (TBBoard<W, 
 }
 
 #[must_use]
-fn flip_diagonally<const W: i8, const H: i8>(
+fn flip_diagonally<const W: usize, const H: usize>(
     b: &TBBoard<W, H>,
     c: Coord,
 ) -> (TBBoard<W, H>, Coord) {
@@ -151,21 +151,21 @@ fn flip_diagonally<const W: i8, const H: i8>(
 }
 
 #[must_use]
-fn unflip_coord(mut c: Coord, sym: Symmetry, width: i8, height: i8) -> Coord {
+fn unflip_coord(mut c: Coord, sym: Symmetry, width: usize, height: usize) -> Coord {
     if sym.flip_diagonally {
         std::mem::swap(&mut c.x, &mut c.y);
     }
     if sym.flip_y {
-        c.y = height - 1 - c.y;
+        c.y = height as i8 - 1 - c.y;
     }
     if sym.flip_x {
-        c.x = width - 1 - c.x;
+        c.x = width as i8 - 1 - c.x;
     }
     c
 }
 
 #[must_use]
-fn unflip_move(mut m: Move, sym: Symmetry, width: i8, height: i8) -> Move {
+fn unflip_move(mut m: Move, sym: Symmetry, width: usize, height: usize) -> Move {
     m.from = unflip_coord(m.from, sym, width, height);
     m.to = unflip_coord(m.to, sym, width, height);
     m
@@ -176,7 +176,7 @@ type MapTy = FxHashMap<KeyTy, (Move, u16)>;
 type VisitedTy = FxHashSet<KeyTy>;
 
 #[derive(Default, Clone)]
-pub struct Tablebase<const W: i8, const H: i8> {
+pub struct Tablebase<const W: usize, const H: usize> {
     // table of best move to play on white's turn to force a win
     white_tablebase: MapTy,
     // table of best move to play on black's turn to prolong a loss
@@ -190,7 +190,7 @@ pub enum TBMoveType {
     Draw,
 }
 
-impl<const W: i8, const H: i8> Tablebase<W, H> {
+impl<const W: usize, const H: usize> Tablebase<W, H> {
     pub fn result(&self, player: Player, board: &TBBoard<W, H>) -> Option<(Move, u16)> {
         let (key, sym) = canonical_board(board);
         self.tablebase_for_player(player)
@@ -199,17 +199,17 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
     }
     // given a board/player, return the optimal move
     // assumes that this tablebase can handle the input position
-    pub fn result_for_real_board<const W2: usize, const H2: usize>(
+    pub fn result_for_real_board(
         &self,
         player: Player,
-        board: &BoardSquare<W2, H2>,
+        board: &BoardSquare<W, H>,
     ) -> (Move, u16, TBMoveType) {
         let flip_sym = Symmetry {
             flip_x: false,
             flip_y: true,
             flip_diagonally: false,
         };
-        let mut tb_board: TBBoard<W, H> = board_square_to_piece(board);
+        let mut tb_board = board_square_to_piece(board);
         if player == Black {
             tb_board = tb_board.make_player_white(Black);
         }
@@ -297,8 +297,8 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
                 buf.push(*a as u8);
                 buf.push(b.val());
             }
-            buf.push((v.0.from.x + v.0.from.y * W) as u8);
-            buf.push((v.0.to.x + v.0.to.y * W) as u8);
+            buf.push((v.0.from.x + v.0.from.y * W as i8) as u8);
+            buf.push((v.0.to.x + v.0.to.y * W as i8) as u8);
             buf.extend(v.1.to_be_bytes());
         }
         assert_eq!(buf.capacity(), cap);
@@ -313,6 +313,8 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         ret
     }
     pub fn deserialize(buf: &[u8]) -> Option<Self> {
+        let w = W as i8;
+        let h = H as i8;
         let timer = Timer::new();
         let decompressed = match miniz_oxide::inflate::decompress_to_vec(buf) {
             Ok(b) => b,
@@ -323,7 +325,7 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
         if buf.len() < 10 {
             return None;
         }
-        if buf[0] as i8 != W || buf[1] as i8 != H {
+        if buf[0] as i8 != w || buf[1] as i8 != h {
             return None;
         }
         let white_len = u64::from_be_bytes(buf[2..10].try_into().unwrap()) as usize;
@@ -339,8 +341,8 @@ impl<const W: i8, const H: i8> Tablebase<W, H> {
                 k.push((buf[0] as i8, Piece::from_val(buf[1])));
                 buf = &buf[2..];
             }
-            let from = Coord::new(buf[0] as i8 % W, buf[0] as i8 / W);
-            let to = Coord::new(buf[1] as i8 % W, buf[1] as i8 / W);
+            let from = Coord::new(buf[0] as i8 % w, buf[0] as i8 / w);
+            let to = Coord::new(buf[1] as i8 % w, buf[1] as i8 / w);
             let depth = u16::from_be_bytes(buf[2..4].try_into().unwrap());
             buf = &buf[4..];
             let tb_to_add = if tb.white_tablebase.len() < white_len {
@@ -382,30 +384,30 @@ fn insertion_sort<T: Copy>(slice: &mut [T], less_than: fn(T, T) -> bool) {
     }
 }
 
-fn board_key<const W: i8, const H: i8>(board: &TBBoard<W, H>, sym: Symmetry) -> KeyTy {
+fn board_key<const W: usize, const H: usize>(board: &TBBoard<W, H>, sym: Symmetry) -> KeyTy {
     let mut ret = KeyTy::new();
     board.foreach_piece(|piece, coord| {
         let c = flip_coord::<W, H>(coord, sym);
-        ret.push((c.x + c.y * W, piece));
+        ret.push((c.x + c.y * W as i8, piece));
     });
 
     insertion_sort(&mut ret, |(c1, _), (c2, _)| c1 < c2);
     ret
 }
 
-fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, Symmetry) {
+fn canonical_board<const W: usize, const H: usize>(board: &TBBoard<W, H>) -> (KeyTy, Symmetry) {
     let mut symmetries_to_check = ArrayVec::<Symmetry, 8>::new();
     symmetries_to_check.push(Symmetry::default());
 
     let mut bk_coord = board.king_coord(Black);
 
-    if W % 2 == 1 && bk_coord.x == W / 2 {
+    if W % 2 == 1 && bk_coord.x == W as i8 / 2 {
         let symmetries_copy = symmetries_to_check.clone();
         for mut s in symmetries_copy {
             s.flip_x = true;
             symmetries_to_check.push(s);
         }
-    } else if bk_coord.x >= W / 2 {
+    } else if bk_coord.x >= W as i8 / 2 {
         bk_coord = flip_coord::<W, H>(
             bk_coord,
             Symmetry {
@@ -421,13 +423,13 @@ fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, S
     // pawns are not symmetrical on the y axis or diagonally
     let has_pawn = board.piece_coord(|piece| piece.ty() == Pawn).is_some();
     if !has_pawn {
-        if H % 2 == 1 && bk_coord.y == H / 2 {
+        if H % 2 == 1 && bk_coord.y == H as i8 / 2 {
             let symmetries_copy = symmetries_to_check.clone();
             for mut s in symmetries_copy {
                 s.flip_y = true;
                 symmetries_to_check.push(s);
             }
-        } else if bk_coord.y >= H / 2 {
+        } else if bk_coord.y >= H as i8 / 2 {
             bk_coord = flip_coord::<W, H>(
                 bk_coord,
                 Symmetry {
@@ -493,23 +495,23 @@ fn canonical_board<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> (KeyTy, S
     (min_key, sym)
 }
 
-fn generate_all_boards<const W: i8, const H: i8>(
+fn generate_all_boards<const W: usize, const H: usize>(
     pieces: &[Piece],
 ) -> GenerateAllBoards<W, H, true> {
     GenerateAllBoards::new(pieces)
 }
 
-struct GenerateAllBoards<const W: i8, const H: i8, const OPT: bool> {
+struct GenerateAllBoards<const W: usize, const H: usize, const OPT: bool> {
     pieces: ArrayVec<Piece, MAX_PIECES>,
     stack: ArrayVec<Coord, MAX_PIECES>,
     board: TBBoard<W, H>,
     has_pawn: bool,
 }
 
-impl<const W: i8, const H: i8, const OPT: bool> GenerateAllBoards<W, H, OPT> {
+impl<const W: usize, const H: usize, const OPT: bool> GenerateAllBoards<W, H, OPT> {
     fn next_coord(mut c: Coord) -> Coord {
         c.x += 1;
-        if c.x == W {
+        if c.x == W as i8 {
             c.x = 0;
             c.y += 1;
         }
@@ -518,11 +520,11 @@ impl<const W: i8, const H: i8, const OPT: bool> GenerateAllBoards<W, H, OPT> {
     fn valid_piece_coord(&self, c: Coord, piece: Piece, symmetry_opt: bool) -> bool {
         // Can do normal symmetry optimizations here.
         if OPT && symmetry_opt {
-            if c.x > (W - 1) / 2 {
+            if c.x > (W as i8 - 1) / 2 {
                 return false;
             }
             if !self.has_pawn {
-                if c.y > (H - 1) / 2 {
+                if c.y > (H as i8 - 1) / 2 {
                     return false;
                 }
                 if W == H && c.x > c.y {
@@ -538,7 +540,7 @@ impl<const W: i8, const H: i8, const OPT: bool> GenerateAllBoards<W, H, OPT> {
         piece: Piece,
         symmetry_opt: bool,
     ) -> Option<Coord> {
-        while c.y != H {
+        while c.y != H as i8 {
             if self.board.get(c).is_none() && self.valid_piece_coord(c, piece, symmetry_opt) {
                 return Some(c);
             }
@@ -570,7 +572,7 @@ impl<const W: i8, const H: i8, const OPT: bool> GenerateAllBoards<W, H, OPT> {
     }
 }
 
-impl<const W: i8, const H: i8, const OPT: bool> Iterator for GenerateAllBoards<W, H, OPT> {
+impl<const W: usize, const H: usize, const OPT: bool> Iterator for GenerateAllBoards<W, H, OPT> {
     type Item = TBBoard<W, H>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -617,11 +619,11 @@ struct PieceSets {
 }
 
 #[derive(Default)]
-struct BoardsToVisit<const W: i8, const H: i8> {
+struct BoardsToVisit<const W: usize, const H: usize> {
     boards: FxHashSet<KeyTy>,
 }
 
-impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
+impl<const W: usize, const H: usize> BoardsToVisit<W, H> {
     fn add(&mut self, board: TBBoard<W, H>) {
         let key = board_key(&board, Symmetry::default());
         self.boards.insert(key);
@@ -633,7 +635,7 @@ impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
             .map(|k| {
                 let mut b = TBBoard::default();
                 for (c, p) in k {
-                    b.add_piece(Coord::new(c % W, c / W), p);
+                    b.add_piece(Coord::new(c % W as i8, c / W as i8), p);
                 }
                 b
             })
@@ -641,7 +643,7 @@ impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
     }
 }
 
-impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
+impl<const W: usize, const H: usize> BoardsToVisit<W, H> {
     fn is_empty(&self) -> bool {
         self.boards.is_empty()
     }
@@ -652,7 +654,7 @@ impl<const W: i8, const H: i8> BoardsToVisit<W, H> {
     }
 }
 
-fn populate_initial_wins_one<const W: i8, const H: i8>(
+fn populate_initial_wins_one<const W: usize, const H: usize>(
     tablebase: &mut Tablebase<W, H>,
     b: &TBBoard<W, H>,
 ) -> bool {
@@ -675,7 +677,7 @@ fn populate_initial_wins_one<const W: i8, const H: i8>(
     false
 }
 
-fn populate_initial_wins<const W: i8, const H: i8>(
+fn populate_initial_wins<const W: usize, const H: usize>(
     tablebase: &mut Tablebase<W, H>,
     piece_sets: &PieceSets,
 ) -> BoardsToVisit<W, H> {
@@ -726,7 +728,7 @@ fn populate_initial_wins<const W: i8, const H: i8>(
 }
 
 // We can only introduce at most one pawn at most per move
-fn visit_board_pawn_symmetry<const W: i8, const H: i8>(
+fn visit_board_pawn_symmetry<const W: usize, const H: usize>(
     tablebase: &Tablebase<W, H>,
     out_tablebase: &mut Tablebase<W, H>,
     next_boards: &mut BoardsToVisit<W, H>,
@@ -793,7 +795,7 @@ fn visit_board_pawn_symmetry<const W: i8, const H: i8>(
     }
 }
 
-fn visit_board<const W: i8, const H: i8>(
+fn visit_board<const W: usize, const H: usize>(
     tablebase: &Tablebase<W, H>,
     out_tablebase: &mut Tablebase<W, H>,
     next_boards: &mut BoardsToVisit<W, H>,
@@ -814,7 +816,7 @@ fn visit_board<const W: i8, const H: i8>(
     board.foreach_piece(|p, c| {
         if p.ty() == Pawn {
             assert_ne!(c.y, 0);
-            assert_ne!(c.y, H - 1);
+            assert_ne!(c.y, H as i8 - 1);
         }
     });
     let mut add = player == Black;
@@ -899,7 +901,7 @@ fn visit_board<const W: i8, const H: i8>(
     }
 }
 
-fn visit_reverse_moves<const W: i8, const H: i8>(
+fn visit_reverse_moves<const W: usize, const H: usize>(
     tablebase: &Tablebase<W, H>,
     out_tablebase: &mut Tablebase<W, H>,
     board: &TBBoard<W, H>,
@@ -930,13 +932,13 @@ fn visit_reverse_moves<const W: i8, const H: i8>(
     });
 }
 
-fn board_pieces<const W: i8, const H: i8>(b: &TBBoard<W, H>) -> PieceSet {
+fn board_pieces<const W: usize, const H: usize>(b: &TBBoard<W, H>) -> PieceSet {
     let mut set = ArrayVec::<Piece, MAX_PIECES>::default();
     b.foreach_piece(|p, _| set.push(p));
     PieceSet::new(&set)
 }
 
-fn board_has_pawn<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> bool {
+fn board_has_pawn<const W: usize, const H: usize>(board: &TBBoard<W, H>) -> bool {
     let mut ret = false;
     board.foreach_piece(|p, _| {
         if p.ty() == Pawn {
@@ -946,7 +948,7 @@ fn board_has_pawn<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> bool {
     ret
 }
 
-fn visit_reverse_promotion<const W: i8, const H: i8, F>(
+fn visit_reverse_promotion<const W: usize, const H: usize, F>(
     board: &TBBoard<W, H>,
     player: Player,
     mut callback: F,
@@ -959,20 +961,20 @@ fn visit_reverse_promotion<const W: i8, const H: i8, F>(
             if has_pawn {
                 if c.y
                     == match player {
-                        White => H - 1,
+                        White => H as i8 - 1,
                         Black => 0,
                     }
                 {
                     callback(board, c);
                 }
-            } else if c.y == H - 1 || c.y == 0 {
+            } else if c.y == H as i8 - 1 || c.y == 0 {
                 let mut clone = board.clone();
                 if (c.y == 0) == (player == White) {
                     (clone, c) = flip_y(&clone, c);
                 }
                 callback(&clone, c);
                 if W == H {
-                    if c.x == 0 || c.x == W - 1 {
+                    if c.x == 0 || c.x == W as i8 - 1 {
                         if (c.x == 0) == (player == White) {
                             (clone, c) = flip_x(&clone, c);
                         }
@@ -980,7 +982,7 @@ fn visit_reverse_promotion<const W: i8, const H: i8, F>(
                         callback(&clone, c);
                     }
                 }
-            } else if c.x == W - 1 || c.x == 0 {
+            } else if c.x == W as i8 - 1 || c.x == 0 {
                 if W == H {
                     let mut clone = board.clone();
                     if (c.x == 0) == (player == White) {
@@ -994,14 +996,14 @@ fn visit_reverse_promotion<const W: i8, const H: i8, F>(
     });
 }
 
-fn valid_piece_coord<const W: i8, const H: i8>(piece: Piece, c: Coord) -> bool {
+fn valid_piece_coord<const W: usize, const H: usize>(piece: Piece, c: Coord) -> bool {
     if piece.ty() == Pawn {
-        return c.y != 0 && c.y != H - 1;
+        return c.y != 0 && c.y != H as i8 - 1;
     }
     true
 }
 
-fn visit_reverse_capture<const W: i8, const H: i8>(
+fn visit_reverse_capture<const W: usize, const H: usize>(
     tablebase: &Tablebase<W, H>,
     out_tablebase: &mut Tablebase<W, H>,
     pieces_to_add: &[Piece],
@@ -1058,7 +1060,7 @@ fn visit_reverse_capture<const W: i8, const H: i8>(
     }
 }
 
-fn iterate<const W: i8, const H: i8>(
+fn iterate<const W: usize, const H: usize>(
     tablebase: &Tablebase<W, H>,
     previous_boards: &[TBBoard<W, H>],
     piece_sets: &PieceSets,
@@ -1281,7 +1283,7 @@ fn calculate_piece_sets(piece_sets: &[PieceSet]) -> PieceSets {
     ret
 }
 
-fn info_tablebase<const W: i8, const H: i8>(tablebase: &Tablebase<W, H>) {
+fn info_tablebase<const W: usize, const H: usize>(tablebase: &Tablebase<W, H>) {
     info!(
         "tablebase white size {}, black size {}",
         tablebase.white_tablebase.len(),
@@ -1289,7 +1291,9 @@ fn info_tablebase<const W: i8, const H: i8>(tablebase: &Tablebase<W, H>) {
     );
 }
 
-pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> Tablebase<W, H> {
+pub fn generate_tablebase<const W: usize, const H: usize>(
+    piece_sets: &[PieceSet],
+) -> Tablebase<W, H> {
     let total_timer = Timer::new();
 
     info!("generating tablebases for {:?}", piece_sets);
@@ -1331,7 +1335,7 @@ pub fn generate_tablebase<const W: i8, const H: i8>(piece_sets: &[PieceSet]) -> 
     tablebase
 }
 
-pub fn generate_tablebase_parallel<const W: i8, const H: i8>(
+pub fn generate_tablebase_parallel<const W: usize, const H: usize>(
     piece_sets: &[PieceSet],
     parallelism: Option<usize>,
 ) -> Tablebase<W, H> {
@@ -1462,13 +1466,13 @@ mod tests {
     const BA: Piece = Piece::new(Black, Amazon);
     const BB: Piece = Piece::new(Black, Bishop);
 
-    fn generate_literally_all_boards<const W: i8, const H: i8>(
+    fn generate_literally_all_boards<const W: usize, const H: usize>(
         pieces: &[Piece],
     ) -> GenerateAllBoards<W, H, false> {
         GenerateAllBoards::new(pieces)
     }
 
-    fn generate_tablebase_no_opt<const W: i8, const H: i8>(
+    fn generate_tablebase_no_opt<const W: usize, const H: usize>(
         piece_sets: &[PieceSet],
     ) -> Tablebase<W, H> {
         let mut tablebase = Tablebase::default();
@@ -1613,10 +1617,10 @@ mod tests {
         let board3 =
             TBBoard::<8, 8>::with_pieces(&[(Coord::new(0, 2), BK), (Coord::new(0, 0), WK)]);
 
-        fn assert_canon_eq<const W: i8, const H: i8>(b1: &TBBoard<W, H>, b2: &TBBoard<W, H>) {
+        fn assert_canon_eq<const W: usize, const H: usize>(b1: &TBBoard<W, H>, b2: &TBBoard<W, H>) {
             assert_eq!(canonical_board(b1).0, canonical_board(b2).0);
         }
-        fn assert_canon_ne<const W: i8, const H: i8>(b1: &TBBoard<W, H>, b2: &TBBoard<W, H>) {
+        fn assert_canon_ne<const W: usize, const H: usize>(b1: &TBBoard<W, H>, b2: &TBBoard<W, H>) {
             assert_ne!(canonical_board(b1).0, canonical_board(b2).0);
         }
         assert_canon_eq(&board1, &board1);
@@ -1853,14 +1857,16 @@ mod tests {
         PieceSet::new(&[WK, WA, BQ, BK, BP, WP]);
     }
 
-    fn test_tablebase<const W: i8, const H: i8>(sets: &[PieceSet]) -> Tablebase<W, H> {
+    fn test_tablebase<const W: usize, const H: usize>(sets: &[PieceSet]) -> Tablebase<W, H> {
         let tablebase1 = generate_tablebase(sets);
         let tablebase2 = generate_tablebase_no_opt(sets);
         verify_tablebases_equal(&tablebase1, &tablebase2, sets);
         tablebase1
     }
 
-    fn test_tablebase_parallel<const W: i8, const H: i8>(sets: &[PieceSet]) -> Tablebase<W, H> {
+    fn test_tablebase_parallel<const W: usize, const H: usize>(
+        sets: &[PieceSet],
+    ) -> Tablebase<W, H> {
         let tablebase1 = generate_tablebase(sets);
         let tablebase2 = generate_tablebase_parallel(sets, Some(2));
         verify_tablebases_equal(&tablebase1, &tablebase2, sets);
@@ -1875,11 +1881,11 @@ mod tests {
         test_tablebase_parallel::<4, 4>(&sets);
     }
 
-    fn verify_board_tablebase<const W: i8, const H: i8>(
+    fn verify_board_tablebase<const W: usize, const H: usize>(
         board: &TBBoard<W, H>,
         tablebase: &Tablebase<W, H>,
     ) {
-        fn black_king_exists<const W: i8, const H: i8>(board: &TBBoard<W, H>) -> bool {
+        fn black_king_exists<const W: usize, const H: usize>(board: &TBBoard<W, H>) -> bool {
             board
                 .piece_coord(|piece| piece.player() == Black && piece.ty() == King)
                 .is_some()
@@ -1901,7 +1907,7 @@ mod tests {
         }
     }
 
-    fn verify_tablebases_equal<const W: i8, const H: i8>(
+    fn verify_tablebases_equal<const W: usize, const H: usize>(
         tb1: &Tablebase<W, H>,
         tb2: &Tablebase<W, H>,
         piece_sets: &[PieceSet],
@@ -2037,7 +2043,7 @@ mod tests {
 
     #[test]
     fn test_kk() {
-        fn test<const W: i8, const H: i8>() {
+        fn test<const W: usize, const H: usize>() {
             let pieces = PieceSet::new(&[WK, BK]);
             let tablebase = test_tablebase::<W, H>(&[pieces.clone()]);
             // If white king couldn't capture on first move, no forced win.
