@@ -84,8 +84,7 @@ fn all_moves(width: i8, height: i8) -> Vec<Move> {
 
 fn move_tensor_to_vec(t: &Tensor) -> Vec<Vec<f32>> {
     let size = t.size2().unwrap();
-    let mut ret = Vec::new();
-    ret.reserve(size.0 as usize);
+    let mut ret = Vec::with_capacity(size.0 as usize);
     for i in 0..size.0 {
         let mut v: Vec<f32> = vec![0.0; size.1 as usize];
         t.get(i).copy_data(&mut v, size.1 as usize);
@@ -120,7 +119,10 @@ struct NN {
 
 impl NN {
     fn new(vs: &VarStore, input_width: i64, input_height: i64, output_size: i64) -> Self {
-        let mut conv_config = ConvConfigND::<[i64; 2]>::default();
+        let mut conv_config = ConvConfigND::<[i64; 2]> {
+            padding: [1, 1],
+            ..Default::default()
+        };
         conv_config.padding = [1, 1];
 
         let mut seqs = Vec::new();
