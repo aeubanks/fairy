@@ -126,15 +126,14 @@ fn move_probabilities<B: Board>(v: &[f32], all_moves: &[Move], board: &B) -> Vec
     ret
 }
 
-struct NN {
+struct NNBody {
     seqs: Vec<SequentialT>,
-    lin: Linear,
 }
 
-impl NN {
-    fn new(vs: &VarStore, input_width: i64, input_height: i64, output_size: i64) -> Self {
-        const NUM_FILTERS: i64 = 32;
+const BODY_NUM_FILTERS: i64 = 32;
 
+impl NNBody {
+    fn new(vs: &VarStore) -> Self {
         let mut conv_config = ConvConfigND::<[i64; 2]> {
             padding: [1, 1],
             ..Default::default()
@@ -145,50 +144,156 @@ impl NN {
 
         for i in 0..4 {
             let conv = conv(
-                vs.root().sub(format!("conv{}", i)),
+                vs.root().sub(format!("body-conv-{}", i)),
                 if i == 0 {
                     NUM_PLAYERS * NUM_PIECE_TYPES
                 } else {
-                    NUM_FILTERS
+                    BODY_NUM_FILTERS
                 },
-                NUM_FILTERS,
+                BODY_NUM_FILTERS,
                 [3, 3],
                 conv_config,
             );
             let batch = batch_norm2d(
-                vs.root().sub(format!("batchnorm{}", i)),
-                NUM_FILTERS,
+                vs.root().sub(format!("body-batchnorm-{}", i)),
+                BODY_NUM_FILTERS,
                 Default::default(),
             );
             seqs.push(seq_t().add(conv).add(batch).add_fn(|t| t.relu()));
         }
 
-        let lin = linear(
-            vs.root().sub("linear"),
-            NUM_FILTERS * input_width * input_height,
-            output_size,
+        Self { seqs }
+    }
+}
+
+impl std::fmt::Debug for NNBody {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("NNBody")
+    }
+}
+
+impl tch::nn::ModuleT for NNBody {
+    fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
+        self.seqs
+            .iter()
+            .skip(1)
+            .fold(self.seqs[0].forward_t(xs, train), |t, seq| {
+                seq.forward_t(&t, train) + t
+            })
+    }
+}
+
+struct NNValueHead {
+    seq: SequentialT,
+}
+
+const VALUE_HEAD_NUM_FILTERS: i64 = 1;
+const VALUE_HEAD_HIDDEN_LAYER_SIZE: i64 = 64;
+
+impl NNValueHead {
+    fn new(vs: &VarStore, input_width: i64, input_height: i64) -> Self {
+        let conv = conv(
+            vs.root().sub("value-head-conv"),
+            BODY_NUM_FILTERS,
+            VALUE_HEAD_NUM_FILTERS,
+            [1, 1],
             Default::default(),
         );
 
-        Self { seqs, lin }
+        let batch = batch_norm2d(
+            vs.root().sub("value-head-batchnorm"),
+            VALUE_HEAD_NUM_FILTERS,
+            Default::default(),
+        );
+
+        let lin1 = linear(
+            vs.root().sub("value-head-linear-1"),
+            VALUE_HEAD_NUM_FILTERS * input_width * input_height,
+            VALUE_HEAD_HIDDEN_LAYER_SIZE,
+            Default::default(),
+        );
+        let lin2 = linear(
+            vs.root().sub("value-head-linear-2"),
+            VALUE_HEAD_HIDDEN_LAYER_SIZE,
+            1,
+            Default::default(),
+        );
+
+        Self {
+            seq: seq_t()
+                .add(conv)
+                .add(batch)
+                .add_fn(|t| t.relu())
+                .add_fn(|t| t.flat_view())
+                .add(lin1)
+                .add_fn(|t| t.relu())
+                .add(lin2)
+                .add_fn(|t| t.tanh()),
+        }
     }
 }
 
-impl std::fmt::Debug for NN {
+impl std::fmt::Debug for NNValueHead {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("NN")
+        f.write_str("NNValueHead")
     }
 }
 
-impl tch::nn::ModuleT for NN {
+impl tch::nn::ModuleT for NNValueHead {
     fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
-        let mut t = self.seqs[0].forward_t(xs, train);
-        t = self
-            .seqs
-            .iter()
-            .skip(1)
-            .fold(t, |t, seq| seq.forward_t(&t, train) + t);
-        self.lin.forward_t(&t.flat_view(), train)
+        self.seq.forward_t(xs, train)
+    }
+}
+
+struct NNPolicyHead {
+    seq: SequentialT,
+}
+
+const POLICY_HEAD_NUM_FILTERS: i64 = 2;
+
+impl NNPolicyHead {
+    fn new(vs: &VarStore, input_width: i64, input_height: i64, num_outputs: i64) -> Self {
+        let conv = conv(
+            vs.root().sub("policy-head-conv"),
+            BODY_NUM_FILTERS,
+            POLICY_HEAD_NUM_FILTERS,
+            [1, 1],
+            Default::default(),
+        );
+
+        let batch = batch_norm2d(
+            vs.root().sub("policy-head-batchnorm"),
+            2,
+            Default::default(),
+        );
+
+        let lin = linear(
+            vs.root().sub("policy-head-linear"),
+            POLICY_HEAD_NUM_FILTERS * input_width * input_height,
+            num_outputs,
+            Default::default(),
+        );
+
+        Self {
+            seq: seq_t()
+                .add(conv)
+                .add(batch)
+                .add_fn(|t| t.relu())
+                .add_fn(|t| t.flat_view())
+                .add(lin),
+        }
+    }
+}
+
+impl std::fmt::Debug for NNPolicyHead {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("NNPolicyHead")
+    }
+}
+
+impl tch::nn::ModuleT for NNPolicyHead {
+    fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
+        self.seq.forward_t(xs, train)
     }
 }
 
@@ -208,8 +313,9 @@ fn move_probabilities_for_boards<B: Board>(boards: &[B]) -> Vec<Vec<(Move, f32)>
     let all_moves = all_moves(width, height);
 
     let t = boards_to_tensor(boards, dev);
-    let n = NN::new(&vs, width as i64, height as i64, all_moves.len() as i64);
-    let out = n.forward_t(&t, false);
+    let body = NNBody::new(&vs);
+    let policy_head = NNPolicyHead::new(&vs, width as i64, height as i64, all_moves.len() as i64);
+    let out = policy_head.forward_t(&body.forward_t(&t, false), false);
     let v = move_tensor_to_vec(&out);
     boards
         .iter()
@@ -304,7 +410,8 @@ fn nn_tablebase<const W: usize, const H: usize>(
 
     let tb = tablebase::<W, H>();
 
-    let n = NN::new(&vs, W as i64, H as i64, 3);
+    let body = NNBody::new(&vs);
+    let policy_head = NNPolicyHead::new(&vs, W as i64, H as i64, 3);
     let mut opt = nn::Adam::default().build(&vs, 0.001).unwrap();
 
     let (evaluate_xs, evaluate_targets) = {
@@ -328,14 +435,16 @@ fn nn_tablebase<const W: usize, const H: usize>(
             let xs = boards_to_tensor(&boards, dev);
             let targets = tb_results_to_tensor(&boards, &tb);
 
-            let loss = n.forward_t(&xs, true).cross_entropy_for_logits(&targets);
+            let loss = policy_head
+                .forward_t(&body.forward_t(&xs, true), true)
+                .cross_entropy_for_logits(&targets);
             opt.backward_step(&loss);
         }
 
         // evaluate
         {
-            let acc = n.batch_accuracy_for_logits(
-                &evaluate_xs,
+            let acc = policy_head.batch_accuracy_for_logits(
+                &body.forward_t(&evaluate_xs, false),
                 &evaluate_targets,
                 dev,
                 evaluate_targets.size1().unwrap(),
@@ -419,6 +528,31 @@ mod tests {
         for m in all_moves(6, 6) {
             assert!(moves.insert(m));
         }
+    }
+
+    #[test]
+    fn test_policy_head() {
+        let dev = Device::cuda_if_available();
+        let vs = VarStore::new(dev);
+        let boards = [Presets::los_alamos(), Default::default()];
+        let xs = boards_to_tensor(&boards, dev);
+        let body = NNBody::new(&vs);
+        let policy_head =
+            NNPolicyHead::new(&vs, boards[0].width() as i64, boards[0].height() as i64, 8);
+        let t = policy_head.forward_t(&body.forward_t(&xs, false), false);
+        assert_eq!(t.size2().unwrap(), (2, 8));
+    }
+
+    #[test]
+    fn test_value_head() {
+        let dev = Device::cuda_if_available();
+        let vs = VarStore::new(dev);
+        let boards = [Presets::los_alamos(), Default::default()];
+        let xs = boards_to_tensor(&boards, dev);
+        let body = NNBody::new(&vs);
+        let value_head = NNValueHead::new(&vs, boards[0].width() as i64, boards[0].height() as i64);
+        let t = value_head.forward_t(&body.forward_t(&xs, false), false);
+        assert_eq!(t.size2().unwrap(), (2, 1));
     }
 
     #[test]
