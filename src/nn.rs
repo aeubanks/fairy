@@ -6,6 +6,7 @@ use crate::moves;
 use crate::piece::{Piece, Type};
 use crate::player::Player;
 use crate::tablebase::{generate_tablebase, PieceSet, TBBoard, TBMoveType, Tablebase};
+use crate::timer::Timer;
 use tch::{nn::*, *};
 
 const NUM_PLAYERS: i64 = 2;
@@ -447,6 +448,7 @@ pub fn train_nn_tablebase_policy<const W: usize, const H: usize>(
     };
 
     for epoch in 0..num_epochs {
+        let timer = Timer::new();
         // train
         {
             let mut boards = Vec::new();
@@ -470,7 +472,8 @@ pub fn train_nn_tablebase_policy<const W: usize, const H: usize>(
                 dev,
                 evaluate_targets.size1().unwrap(),
             );
-            println!("epoch {epoch}: accuracy {acc:.3}");
+            let elapsed = timer.elapsed();
+            println!("epoch {epoch}: accuracy {acc:.3} ({elapsed:?})");
         }
     }
 }
@@ -502,6 +505,7 @@ pub fn train_nn_tablebase_value<const W: usize, const H: usize>(
     };
 
     for epoch in 0..num_epochs {
+        let timer = Timer::new();
         // train
         {
             let mut boards = Vec::new();
@@ -524,7 +528,8 @@ pub fn train_nn_tablebase_value<const W: usize, const H: usize>(
                 .forward_t(&body.forward_t(&evaluate_xs, false), false)
                 .mse_loss(&evaluate_targets, Reduction::Mean)
                 .double_value(&[]);
-            println!("epoch {epoch}: error {error:.3}");
+            let elapsed = timer.elapsed();
+            println!("epoch {epoch:3}: error {error:.3} ({elapsed:?})");
         }
     }
 }
