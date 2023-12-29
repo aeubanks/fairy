@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
-use crate::board::{board_piece_to_square, Board, Move, Presets};
+use crate::board::{board_piece_to_square, Board, Move};
 use crate::coord::Coord;
 use crate::moves;
 use crate::piece::{Piece, Type};
 use crate::player::Player;
-use crate::tablebase::{generate_tablebase, PieceSet, TBBoard, Tablebase};
+use crate::tablebase::{generate_tablebase, PieceSet, TBBoard, TBMoveType, Tablebase};
 use tch::{nn::*, *};
 
 const NUM_PLAYERS: i64 = 2;
@@ -228,7 +228,8 @@ impl NNValueHead {
                 .add(lin1)
                 .add_fn(|t| t.relu())
                 .add(lin2)
-                .add_fn(|t| t.tanh()),
+                .add_fn(|t| t.tanh())
+                .add_fn(|t| t.reshape(-1)),
         }
     }
 }
@@ -391,7 +392,7 @@ fn tb_result<const W: usize, const H: usize>(b: &TBBoard<W, H>, tb: &Tablebase<W
         .2 as i64
 }
 
-fn tb_results_to_tensor<const W: usize, const H: usize>(
+fn tb_results_to_tensor_policy<const W: usize, const H: usize>(
     boards: &[TBBoard<W, H>],
     tb: &Tablebase<W, H>,
 ) -> Tensor {
@@ -399,7 +400,27 @@ fn tb_results_to_tensor<const W: usize, const H: usize>(
     Tensor::from_slice(&ts)
 }
 
-fn nn_tablebase<const W: usize, const H: usize>(
+fn tb_result2<const W: usize, const H: usize>(b: &TBBoard<W, H>, tb: &Tablebase<W, H>) -> f32 {
+    // FIXME: this makes a bunch of unnecessary clones of boards, maybe result_for_real_board should work with all types of boards
+    match tb
+        .result_for_real_board(Player::White, &board_piece_to_square(b))
+        .2
+    {
+        TBMoveType::Lose => -1.0,
+        TBMoveType::Draw => 0.0,
+        TBMoveType::Win => 1.0,
+    }
+}
+
+fn tb_results_to_tensor_value<const W: usize, const H: usize>(
+    boards: &[TBBoard<W, H>],
+    tb: &Tablebase<W, H>,
+) -> Tensor {
+    let ts = boards.iter().map(|b| tb_result2(b, tb)).collect::<Vec<_>>();
+    Tensor::from_slice(&ts)
+}
+
+pub fn train_nn_tablebase_policy<const W: usize, const H: usize>(
     num_epochs: usize,
     num_boards_per_epoch: usize,
     num_boards_to_evaluate: usize,
@@ -421,7 +442,7 @@ fn nn_tablebase<const W: usize, const H: usize>(
         }
         (
             boards_to_tensor(&evaluate_boards, dev),
-            tb_results_to_tensor(&evaluate_boards, &tb),
+            tb_results_to_tensor_policy(&evaluate_boards, &tb),
         )
     };
 
@@ -433,7 +454,7 @@ fn nn_tablebase<const W: usize, const H: usize>(
                 boards.push(rand_board_for_tablebase());
             }
             let xs = boards_to_tensor(&boards, dev);
-            let targets = tb_results_to_tensor(&boards, &tb);
+            let targets = tb_results_to_tensor_policy(&boards, &tb);
 
             let loss = policy_head
                 .forward_t(&body.forward_t(&xs, true), true)
@@ -454,16 +475,63 @@ fn nn_tablebase<const W: usize, const H: usize>(
     }
 }
 
-pub fn nn() {
-    let boards = vec![Presets::los_alamos(); 7];
-    let probs = move_probabilities_for_boards(&boards);
-    dbg!(&probs[0]);
-    nn_tablebase::<6, 6>(500, 500, 500);
+pub fn train_nn_tablebase_value<const W: usize, const H: usize>(
+    num_epochs: usize,
+    num_boards_per_epoch: usize,
+    num_boards_to_evaluate: usize,
+) {
+    let dev = Device::cuda_if_available();
+    let mut vs = VarStore::new(dev);
+    vs.set_kind(Kind::Float);
+
+    let tb = tablebase::<W, H>();
+
+    let body = NNBody::new(&vs);
+    let value_head = NNValueHead::new(&vs, W as i64, H as i64);
+    let mut opt = nn::Adam::default().build(&vs, 0.001).unwrap();
+
+    let (evaluate_xs, evaluate_targets) = {
+        let mut evaluate_boards = Vec::new();
+        for _ in 0..num_boards_to_evaluate {
+            evaluate_boards.push(rand_board_for_tablebase());
+        }
+        (
+            boards_to_tensor(&evaluate_boards, dev),
+            tb_results_to_tensor_value(&evaluate_boards, &tb),
+        )
+    };
+
+    for epoch in 0..num_epochs {
+        // train
+        {
+            let mut boards = Vec::new();
+            for _ in 0..num_boards_per_epoch {
+                boards.push(rand_board_for_tablebase());
+            }
+            let xs = boards_to_tensor(&boards, dev);
+            let targets = tb_results_to_tensor_value(&boards, &tb);
+
+            let loss = value_head
+                .forward_t(&body.forward_t(&xs, true), true)
+                .mse_loss(&targets, Reduction::Mean);
+
+            opt.backward_step(&loss);
+        }
+
+        // evaluate
+        {
+            let error = value_head
+                .forward_t(&body.forward_t(&evaluate_xs, false), false)
+                .mse_loss(&evaluate_targets, Reduction::Mean)
+                .double_value(&[]);
+            println!("epoch {epoch}: error {error:.3}");
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::board::BoardSquare;
+    use crate::board::{BoardSquare, Presets};
 
     use super::*;
 
@@ -552,7 +620,7 @@ mod tests {
         let body = NNBody::new(&vs);
         let value_head = NNValueHead::new(&vs, boards[0].width() as i64, boards[0].height() as i64);
         let t = value_head.forward_t(&body.forward_t(&xs, false), false);
-        assert_eq!(t.size2().unwrap(), (2, 1));
+        assert_eq!(t.size1().unwrap(), 2);
     }
 
     #[test]
@@ -565,7 +633,12 @@ mod tests {
     }
 
     #[test]
-    fn test_end_to_end_tablebase() {
-        nn_tablebase::<4, 4>(1, 3, 1);
+    fn test_train_nn_tablebase_policy() {
+        train_nn_tablebase_policy::<4, 4>(1, 3, 1);
+    }
+
+    #[test]
+    fn test_train_nn_tablebase_value() {
+        train_nn_tablebase_value::<4, 4>(1, 3, 1);
     }
 }

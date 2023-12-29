@@ -212,7 +212,8 @@ enum Command {
         parallel: Option<usize>,
     },
     Perft,
-    Nn,
+    NnTablebasePolicy,
+    NnTablebaseValue,
     Play {
         #[arg(long = "cpu", short)]
         cpu_as_black: bool,
@@ -230,7 +231,8 @@ fn main() -> std::io::Result<()> {
             parallel,
         } => tablebase::<6, 6>(parallel, num_pieces),
         Perft => run_perft(),
-        Nn => nn::nn(),
+        NnTablebasePolicy => nn::train_nn_tablebase_policy::<6, 6>(500, 500, 500),
+        NnTablebaseValue => nn::train_nn_tablebase_value::<6, 6>(500, 500, 500),
         Play { cpu_as_black } => play_game(cpu_as_black)?,
     }
 
