@@ -1,12 +1,14 @@
-use std::collections::HashSet;
-
-use crate::board::{board_piece_to_square, Board, Move};
+use crate::board::{board_piece_to_square, Board, BoardSquare, Move, Presets};
 use crate::coord::Coord;
 use crate::moves;
 use crate::piece::{Piece, Type};
 use crate::player::Player;
 use crate::tablebase::{generate_tablebase, PieceSet, TBBoard, TBMoveType, Tablebase};
 use crate::timer::Timer;
+use log::info;
+use rand::{thread_rng, Rng};
+use rustc_hash::FxHashMap;
+use std::collections::HashSet;
 use tch::{nn::*, *};
 
 const NUM_PLAYERS: i64 = 2;
@@ -24,7 +26,8 @@ fn piece_type_to_index(ty: Type) -> i64 {
     }
 }
 
-fn board_to_tensor<B: Board>(board: &B, dev: Device) -> Tensor {
+fn board_to_tensor<B: Board>(original_board: &B, player: Player, dev: Device) -> Tensor {
+    let board = original_board.make_player_white(player);
     let t = Tensor::zeros(
         [
             NUM_PLAYERS,
@@ -51,10 +54,10 @@ fn board_to_tensor<B: Board>(board: &B, dev: Device) -> Tensor {
     ])
 }
 
-fn boards_to_tensor<B: Board>(boards: &[B], dev: Device) -> Tensor {
+fn boards_to_tensor<B: Board>(boards: &[B], player: Player, dev: Device) -> Tensor {
     let ts = boards
         .iter()
-        .map(|b| board_to_tensor(b, dev))
+        .map(|b| board_to_tensor(b, player, dev))
         .collect::<Vec<_>>();
     Tensor::stack(&ts, 0)
 }
@@ -95,30 +98,29 @@ fn all_moves(width: i8, height: i8) -> Vec<Move> {
     v
 }
 
-fn move_tensor_to_vec(t: &Tensor) -> Vec<Vec<f32>> {
-    let size = t.size2().unwrap();
-    let mut ret = Vec::with_capacity(size.0 as usize);
-    for i in 0..size.0 {
-        let mut v: Vec<f32> = vec![0.0; size.1 as usize];
-        t.get(i)
-            .log_softmax(0, Kind::Float)
-            .copy_data(&mut v, size.1 as usize);
-        ret.push(v);
-    }
-    ret
-}
-
-fn move_probabilities<B: Board>(v: &[f32], all_moves: &[Move], board: &B) -> Vec<(Move, f32)> {
-    assert_eq!(v.len(), all_moves.len());
-    let legal_moves = moves::all_moves(board, Player::White)
+fn move_probabilities<const W: usize, const H: usize>(
+    v: &[f32],
+    all_possible_moves: &[Move],
+    state: &BoardState<W, H>,
+) -> FxHashMap<Move, f32> {
+    assert_eq!(v.len(), all_possible_moves.len());
+    let legal_moves = moves::all_moves(&state.board, state.player)
         .into_iter()
         .collect::<HashSet<_>>();
-    let mut ret = Vec::new();
+    let mut ret = FxHashMap::default();
     let mut total_prob = 0.0;
-    for (&prob, &m) in v.iter().zip(all_moves.iter()) {
-        if legal_moves.contains(&m) {
+    for (&prob, &m) in v.iter().zip(all_possible_moves.iter()) {
+        // all_possible_moves is always indexed as if the current player is White, so flip if current player is Black
+        let actual_move = match state.player {
+            Player::White => m,
+            Player::Black => Move {
+                from: Coord::new(m.from.x, H as i8 - 1 - m.from.y),
+                to: Coord::new(m.to.x, H as i8 - 1 - m.to.y),
+            },
+        };
+        if legal_moves.contains(&actual_move) {
             total_prob += prob;
-            ret.push((m, prob));
+            ret.insert(actual_move, prob);
         }
     }
     for (_, p) in &mut ret {
@@ -299,33 +301,6 @@ impl tch::nn::ModuleT for NNPolicyHead {
     }
 }
 
-fn move_probabilities_for_boards<B: Board>(boards: &[B]) -> Vec<Vec<(Move, f32)>> {
-    assert!(!boards.is_empty());
-    for b in boards {
-        assert_eq!(b.width(), boards[0].width());
-        assert_eq!(b.height(), boards[0].height());
-    }
-
-    let dev = Device::cuda_if_available();
-    let mut vs = VarStore::new(dev);
-    vs.set_kind(Kind::Float);
-
-    let width = boards[0].width();
-    let height = boards[0].height();
-    let all_moves = all_moves(width, height);
-
-    let t = boards_to_tensor(boards, dev);
-    let body = NNBody::new(&vs);
-    let policy_head = NNPolicyHead::new(&vs, width as i64, height as i64, all_moves.len() as i64);
-    let out = policy_head.forward_t(&body.forward_t(&t, false), false);
-    let v = move_tensor_to_vec(&out);
-    boards
-        .iter()
-        .zip(v)
-        .map(|(b, v)| move_probabilities(&v, &all_moves, b))
-        .collect::<Vec<_>>()
-}
-
 fn tablebase<const W: usize, const H: usize>() -> Tablebase<W, H> {
     use Player::*;
     use Type::*;
@@ -355,7 +330,6 @@ fn tablebase<const W: usize, const H: usize>() -> Tablebase<W, H> {
 }
 
 fn rand_board_for_tablebase<const W: usize, const H: usize>() -> TBBoard<W, H> {
-    use rand::{thread_rng, Rng};
     use Player::*;
     use Type::*;
 
@@ -396,9 +370,10 @@ fn tb_result<const W: usize, const H: usize>(b: &TBBoard<W, H>, tb: &Tablebase<W
 fn tb_results_to_tensor_policy<const W: usize, const H: usize>(
     boards: &[TBBoard<W, H>],
     tb: &Tablebase<W, H>,
+    dev: Device,
 ) -> Tensor {
     let ts = boards.iter().map(|b| tb_result(b, tb)).collect::<Vec<_>>();
-    Tensor::from_slice(&ts)
+    Tensor::from_slice(&ts).to_device(dev)
 }
 
 fn tb_result2<const W: usize, const H: usize>(b: &TBBoard<W, H>, tb: &Tablebase<W, H>) -> f32 {
@@ -416,9 +391,10 @@ fn tb_result2<const W: usize, const H: usize>(b: &TBBoard<W, H>, tb: &Tablebase<
 fn tb_results_to_tensor_value<const W: usize, const H: usize>(
     boards: &[TBBoard<W, H>],
     tb: &Tablebase<W, H>,
+    dev: Device,
 ) -> Tensor {
     let ts = boards.iter().map(|b| tb_result2(b, tb)).collect::<Vec<_>>();
-    Tensor::from_slice(&ts)
+    Tensor::from_slice(&ts).to_device(dev)
 }
 
 pub fn train_nn_tablebase_policy<const W: usize, const H: usize>(
@@ -442,8 +418,8 @@ pub fn train_nn_tablebase_policy<const W: usize, const H: usize>(
             evaluate_boards.push(rand_board_for_tablebase());
         }
         (
-            boards_to_tensor(&evaluate_boards, dev),
-            tb_results_to_tensor_policy(&evaluate_boards, &tb),
+            boards_to_tensor(&evaluate_boards, Player::White, dev),
+            tb_results_to_tensor_policy(&evaluate_boards, &tb, dev),
         )
     };
 
@@ -455,8 +431,8 @@ pub fn train_nn_tablebase_policy<const W: usize, const H: usize>(
             for _ in 0..num_boards_per_epoch {
                 boards.push(rand_board_for_tablebase());
             }
-            let xs = boards_to_tensor(&boards, dev);
-            let targets = tb_results_to_tensor_policy(&boards, &tb);
+            let xs = boards_to_tensor(&boards, Player::White, dev);
+            let targets = tb_results_to_tensor_policy(&boards, &tb, dev);
 
             let loss = policy_head
                 .forward_t(&body.forward_t(&xs, true), true)
@@ -473,7 +449,7 @@ pub fn train_nn_tablebase_policy<const W: usize, const H: usize>(
                 evaluate_targets.size1().unwrap(),
             );
             let elapsed = timer.elapsed();
-            println!("epoch {epoch}: accuracy {acc:.3} ({elapsed:?})");
+            info!("epoch {epoch}: accuracy {acc:.3} ({elapsed:?})");
         }
     }
 }
@@ -499,8 +475,8 @@ pub fn train_nn_tablebase_value<const W: usize, const H: usize>(
             evaluate_boards.push(rand_board_for_tablebase());
         }
         (
-            boards_to_tensor(&evaluate_boards, dev),
-            tb_results_to_tensor_value(&evaluate_boards, &tb),
+            boards_to_tensor(&evaluate_boards, Player::White, dev),
+            tb_results_to_tensor_value(&evaluate_boards, &tb, dev),
         )
     };
 
@@ -512,8 +488,8 @@ pub fn train_nn_tablebase_value<const W: usize, const H: usize>(
             for _ in 0..num_boards_per_epoch {
                 boards.push(rand_board_for_tablebase());
             }
-            let xs = boards_to_tensor(&boards, dev);
-            let targets = tb_results_to_tensor_value(&boards, &tb);
+            let xs = boards_to_tensor(&boards, Player::White, dev);
+            let targets = tb_results_to_tensor_value(&boards, &tb, dev);
 
             let loss = value_head
                 .forward_t(&body.forward_t(&xs, true), true)
@@ -529,14 +505,327 @@ pub fn train_nn_tablebase_value<const W: usize, const H: usize>(
                 .mse_loss(&evaluate_targets, Reduction::Mean)
                 .double_value(&[]);
             let elapsed = timer.elapsed();
-            println!("epoch {epoch:3}: error {error:.3} ({elapsed:?})");
+            info!("epoch {epoch:3}: error {error:.3} ({elapsed:?})");
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct BoardState<const W: usize, const H: usize> {
+    // this is always the unflipped board
+    board: BoardSquare<W, H>,
+    player: Player,
+}
+
+impl<const W: usize, const H: usize> BoardState<W, H> {
+    fn make_move(&self, m: Move) -> Self {
+        let mut clone = self.board.clone();
+        clone.make_move(m);
+        Self {
+            board: clone,
+            player: self.player.next(),
+        }
+    }
+}
+
+enum MCTSTreeNode {
+    Unexplored,
+    Parent(MCTSParent),
+    Leaf(f32),
+}
+
+struct MCTSParent {
+    policy: FxHashMap<Move, f32>,
+    // a -> (q, n)
+    children: FxHashMap<Move, (f32, f32, MCTSTreeNode)>,
+    total_n: f32,
+}
+
+#[derive(Debug)]
+struct MCTSExample<const W: usize, const H: usize> {
+    state: BoardState<W, H>,
+    policy: FxHashMap<Move, f32>,
+    reward: f32,
+}
+
+struct MCTS<const W: usize, const H: usize> {
+    all_possible_moves: Vec<Move>,
+    all_possible_moves_idx: FxHashMap<Move, usize>,
+    exploration_factor: f32,
+    nn_body: NNBody,
+    nn_policy_head: NNPolicyHead,
+    nn_value_head: NNValueHead,
+    dev: Device,
+    var_store: VarStore,
+}
+
+const MAX_DEPTH: usize = 200;
+
+impl<const W: usize, const H: usize> MCTS<W, H> {
+    fn new(dev: Device) -> Self {
+        let all_possible_moves = all_moves(W as i8, H as i8);
+        let mut all_possible_moves_idx = FxHashMap::default();
+        for (i, &m) in all_possible_moves.iter().enumerate() {
+            all_possible_moves_idx.insert(m, i);
+        }
+        let num_moves = all_possible_moves.len();
+
+        let var_store = VarStore::new(dev);
+
+        Self {
+            all_possible_moves,
+            all_possible_moves_idx,
+            exploration_factor: 0.3,
+            nn_body: NNBody::new(&var_store),
+            nn_policy_head: NNPolicyHead::new(&var_store, W as i64, H as i64, num_moves as i64),
+            nn_value_head: NNValueHead::new(&var_store, W as i64, H as i64),
+            dev,
+            var_store,
+        }
+    }
+
+    fn board_value(&self, state: &BoardState<W, H>, depth: usize) -> Option<f32> {
+        // if game is too long, consider it a draw
+        if depth >= MAX_DEPTH {
+            return Some(0.0);
+        }
+
+        // if king is captured, player loses
+        if state.board.maybe_king_coord(state.player).is_none() {
+            return Some(-1.0);
+        }
+
+        // TODO: use tablebase
+        None
+    }
+
+    fn value_and_policy(&self, state: &BoardState<W, H>) -> (f32, FxHashMap<Move, f32>) {
+        let xs = boards_to_tensor(&[state.board.clone()], state.player, self.dev);
+
+        let bt = self.nn_body.forward_t(&xs, false);
+        let pt = self.nn_policy_head.forward_t(&bt, false);
+        let vt = self.nn_value_head.forward_t(&bt, false);
+
+        let len = pt.size2().unwrap().1 as usize;
+        let mut probs: Vec<f32> = vec![0.0; len];
+        pt.softmax(-1, Kind::Float).i(0).copy_data(&mut probs, len);
+        let policy = move_probabilities(&probs, &self.all_possible_moves, state);
+
+        (vt.double_value(&[0]) as f32, policy)
+    }
+
+    fn policy_to_training_data(&self, policy: &FxHashMap<Move, f32>) -> Tensor {
+        let t = Tensor::zeros(
+            self.all_possible_moves.len() as i64,
+            (Kind::Float, self.dev),
+        );
+        for (m, &p) in policy {
+            let _ = t.i(self.all_possible_moves_idx[m] as i64).fill_(p as f64);
+        }
+        t
+    }
+
+    // (board, vs, ps)
+    fn examples_to_training_data(
+        &self,
+        examples: &[MCTSExample<W, H>],
+    ) -> (Tensor, Tensor, Tensor) {
+        let boards = examples
+            .iter()
+            .map(|e| board_to_tensor(&e.state.board, e.state.player, self.dev))
+            .collect::<Vec<_>>();
+
+        let vs = examples.iter().map(|e| e.reward).collect::<Vec<_>>();
+
+        let ps = examples
+            .iter()
+            .map(|e| self.policy_to_training_data(&e.policy))
+            .collect::<Vec<_>>();
+
+        (
+            Tensor::stack(&boards, 0),
+            Tensor::from_slice(&vs).to_device(self.dev),
+            Tensor::stack(&ps, 0),
+        )
+    }
+
+    fn explore_impl(&self, node: &mut MCTSTreeNode, state: &BoardState<W, H>, depth: usize) -> f32 {
+        match node {
+            MCTSTreeNode::Unexplored => {
+                if let Some(v) = self.board_value(state, depth) {
+                    *node = MCTSTreeNode::Leaf(v);
+                    v
+                } else {
+                    let (v, p) = self.value_and_policy(state);
+                    *node = MCTSTreeNode::Parent(MCTSParent {
+                        policy: p,
+                        children: Default::default(),
+                        total_n: 0.0,
+                    });
+                    v
+                }
+            }
+            MCTSTreeNode::Leaf(v) => *v,
+            MCTSTreeNode::Parent(node) => {
+                let u = |m: Move| {
+                    let child = node.children.get(&m);
+                    let q = child.map_or(0.0, |child| child.0 / child.1);
+                    let p = node.policy[&m];
+                    let n = child.map_or(0.0, |child| child.1);
+                    q + self.exploration_factor * p * node.total_n.sqrt() / (n + 1.0)
+                };
+                let all_legal_moves = moves::all_moves(&state.board, state.player);
+                let best_move = all_legal_moves
+                    .iter()
+                    .skip(1)
+                    .fold(
+                        (all_legal_moves[0], u(all_legal_moves[0])),
+                        |(best_m, best_u), &m| {
+                            let u = u(m);
+                            if u > best_u {
+                                (m, u)
+                            } else {
+                                (best_m, best_u)
+                            }
+                        },
+                    )
+                    .0;
+
+                let next_state = state.make_move(best_move);
+                let child =
+                    node.children
+                        .entry(best_move)
+                        .or_insert((0.0, 0.0, MCTSTreeNode::Unexplored));
+                let v = -self.explore_impl(&mut child.2, &next_state, depth + 1);
+
+                child.0 += v;
+                child.1 += 1.0;
+                node.total_n += 1.0;
+                v
+            }
+        }
+    }
+
+    fn node_improved_policy(p: &MCTSParent) -> FxHashMap<Move, f32> {
+        p.children
+            .iter()
+            .map(|(&m, &(_, n, _))| (m, n / p.total_n))
+            .collect()
+    }
+
+    fn random_move(policy: &FxHashMap<Move, f32>) -> Move {
+        let mut rand: f32 = thread_rng().gen_range(0.0..1.0);
+        for (&m, p) in policy {
+            rand -= p;
+            if rand <= 0.0 {
+                return m;
+            }
+        }
+        panic!();
+    }
+
+    fn get_examples(&self, board: &BoardSquare<W, H>) -> Vec<MCTSExample<W, H>> {
+        let mut examples = Vec::<MCTSExample<W, H>>::default();
+
+        let mut tree = MCTSTreeNode::Unexplored;
+        let mut state = BoardState {
+            board: board.clone(),
+            player: Player::White,
+        };
+        let mut depth = 0;
+        loop {
+            // perform some rollouts from current depth
+            for _ in 0..25 {
+                self.explore_impl(&mut tree, &state, depth);
+            }
+            match tree {
+                MCTSTreeNode::Unexplored => panic!("unexplored node?"),
+                MCTSTreeNode::Leaf(v) => {
+                    for e in &mut examples {
+                        e.reward = v;
+                        if e.state.player != state.player {
+                            e.reward *= -1.0;
+                        }
+                    }
+                    break;
+                }
+                MCTSTreeNode::Parent(mut p) => {
+                    let improved_policy = Self::node_improved_policy(&p);
+                    let m = Self::random_move(&improved_policy);
+                    examples.push(MCTSExample {
+                        state: state.clone(),
+                        policy: improved_policy,
+                        reward: f32::NAN,
+                    });
+                    tree = p.children.remove(&m).unwrap().2;
+                    state = state.make_move(m);
+                    depth += 1;
+                }
+            }
+        }
+        examples
+    }
+
+    fn train(&mut self, board: &BoardSquare<W, H>) {
+        let mut examples = Vec::default();
+        for _ in 0..10 {
+            examples.append(&mut self.get_examples(&board));
+        }
+        // for e in &examples {
+        //     dbg!(e);
+        // }
+        let (xs, target_vs, target_ps) = self.examples_to_training_data(&examples);
+
+        let bt = self.nn_body.forward_t(&xs, true);
+        let ps = self.nn_policy_head.forward_t(&bt, true);
+        let vs = self.nn_value_head.forward_t(&bt, true);
+        let loss = vs.mse_loss(&target_vs, Reduction::Mean)
+            + ps.cross_entropy_loss::<Tensor>(&target_ps, None, Reduction::Mean, -100, 0.0);
+
+        let mut opt = nn::Adam::default().build(&self.var_store, 0.1).unwrap();
+        opt.backward_step(&loss);
+    }
+}
+
+pub fn train_ai() {
+    let board = Presets::los_alamos();
+
+    let dev = Device::cuda_if_available();
+    let mut mcts = MCTS::new(dev);
+    for i in 0..20 {
+        let timer = Timer::new();
+        mcts.train(&board);
+        let elapsed = timer.elapsed();
+        info!("epoch {i} ({elapsed:?})");
+    }
+    let mut state = BoardState {
+        board,
+        player: Player::White,
+    };
+    while state.board.maybe_king_coord(Player::White).is_some()
+        && state.board.maybe_king_coord(Player::Black).is_some()
+    {
+        println!("{:?}", &state.board);
+        let (_, policy) = mcts.value_and_policy(&state);
+        let mut best_p = 0.0;
+        let mut best_m = Move {
+            from: Coord::new(0, 0),
+            to: Coord::new(0, 0),
+        };
+        dbg!(&policy);
+        for (m, p) in policy {
+            if p > best_p {
+                best_p = p;
+                best_m = m;
+            }
+        }
+        state = state.make_move(best_m);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::board::{BoardSquare, Presets};
+    use crate::board::BoardSquare;
 
     use super::*;
 
@@ -555,7 +844,7 @@ mod tests {
     fn test_board_to_tensor() {
         let dev = Device::Cpu;
         let board = Presets::los_alamos();
-        let t = board_to_tensor(&board, dev);
+        let t = board_to_tensor(&board, Player::White, dev);
         assert_eq!(t.size(), vec![10, 6, 6]);
         assert_eq!(board_tensor_val(&t, Player::White, Type::King, 3, 0), 1);
         assert_eq!(board_tensor_val(&t, Player::White, Type::Queen, 2, 0), 1);
@@ -569,8 +858,23 @@ mod tests {
     fn test_board_to_tensor_size() {
         let dev = Device::Cpu;
         let board = BoardSquare::<6, 7>::default();
-        let t = board_to_tensor(&board, dev);
+        let t = board_to_tensor(&board, Player::White, dev);
         assert_eq!(t.size(), vec![10, 7, 6]);
+    }
+
+    #[test]
+    fn test_board_to_tensor_black() {
+        let dev = Device::Cpu;
+        let board = BoardSquare::<6, 6>::with_pieces(&[(
+            Coord::new(1, 2),
+            Piece::new(Player::Black, Type::King),
+        )]);
+        let t = board_to_tensor(&board, Player::Black, dev);
+        assert_eq!(t.size(), vec![10, 6, 6]);
+        assert_eq!(board_tensor_val(&t, Player::White, Type::King, 1, 3), 1);
+        assert_eq!(board_tensor_val(&t, Player::White, Type::King, 1, 2), 0);
+        assert_eq!(board_tensor_val(&t, Player::Black, Type::King, 1, 2), 0);
+        assert_eq!(board_tensor_val(&t, Player::Black, Type::King, 1, 3), 0);
     }
 
     #[test]
@@ -580,7 +884,7 @@ mod tests {
         let board2 = BoardSquare::<6, 6>::default();
         let board3 = Presets::los_alamos();
 
-        let t = boards_to_tensor(&[board1, board2, board3], dev);
+        let t = boards_to_tensor(&[board1, board2, board3], Player::White, dev);
         assert_eq!(t.size(), vec![3, 10, 6, 6]);
         assert_eq!(
             board_tensor_val(&t.i(0), Player::White, Type::King, 3, 0),
@@ -609,7 +913,7 @@ mod tests {
         let dev = Device::cuda_if_available();
         let vs = VarStore::new(dev);
         let boards = [Presets::los_alamos(), Default::default()];
-        let xs = boards_to_tensor(&boards, dev);
+        let xs = boards_to_tensor(&boards, Player::White, dev);
         let body = NNBody::new(&vs);
         let policy_head =
             NNPolicyHead::new(&vs, boards[0].width() as i64, boards[0].height() as i64, 8);
@@ -622,20 +926,11 @@ mod tests {
         let dev = Device::cuda_if_available();
         let vs = VarStore::new(dev);
         let boards = [Presets::los_alamos(), Default::default()];
-        let xs = boards_to_tensor(&boards, dev);
+        let xs = boards_to_tensor(&boards, Player::White, dev);
         let body = NNBody::new(&vs);
         let value_head = NNValueHead::new(&vs, boards[0].width() as i64, boards[0].height() as i64);
         let t = value_head.forward_t(&body.forward_t(&xs, false), false);
         assert_eq!(t.size1().unwrap(), 2);
-    }
-
-    #[test]
-    fn test_end_to_end() {
-        let probs =
-            move_probabilities_for_boards(&[Presets::los_alamos(), BoardSquare::<6, 6>::default()]);
-        assert_eq!(probs.len(), 2);
-        assert_eq!(probs[0].len(), 10);
-        assert_eq!(probs[1].len(), 0);
     }
 
     #[test]
@@ -646,5 +941,69 @@ mod tests {
     #[test]
     fn test_train_nn_tablebase_value() {
         train_nn_tablebase_value::<4, 4>(1, 3, 1);
+    }
+
+    #[test]
+    fn test_get_examples_immediate_win() {
+        let board = BoardSquare::<1, 2>::with_pieces(&[
+            (Coord::new(0, 0), Piece::new(Player::White, Type::King)),
+            (Coord::new(0, 1), Piece::new(Player::Black, Type::King)),
+        ]);
+
+        let dev = Device::Cpu;
+        let mcts = MCTS::new(dev);
+        let examples = mcts.get_examples(&board);
+        assert_eq!(examples.len(), 1);
+        assert_eq!(examples[0].reward, 1.0);
+        assert_eq!(examples[0].state.player, Player::White);
+        assert_eq!(examples[0].policy.len(), 1);
+        assert_eq!(
+            examples[0].policy[&Move {
+                from: Coord::new(0, 0),
+                to: Coord::new(0, 1)
+            }],
+            1.0
+        );
+    }
+
+    #[test]
+    fn test_get_examples() {
+        let board = Presets::los_alamos();
+
+        let dev = Device::Cpu;
+        let mcts = MCTS::new(dev);
+        let examples = mcts.get_examples(&board);
+        assert!(examples.len() > 4);
+        assert!(examples.len() <= MAX_DEPTH);
+        let first_player = examples[0].state.player;
+        let first_reward = examples[0].reward;
+        for e in examples {
+            let prob_sum = e.policy.iter().fold(0.0, |total, (_, &p)| total + p);
+            assert!(prob_sum > 0.99 && prob_sum < 1.01);
+            assert_eq!(
+                e.reward,
+                first_reward
+                    * if e.state.player == first_player {
+                        1.0
+                    } else {
+                        -1.0
+                    }
+            );
+        }
+    }
+
+    #[test]
+    fn test_value_policy() {
+        let board = Presets::los_alamos();
+
+        let dev = Device::Cpu;
+        let mcts = MCTS::new(dev);
+        let (v, p) = mcts.value_and_policy(&BoardState {
+            board,
+            player: Player::White,
+        });
+        assert!(v >= -1.0 && v <= 1.0);
+        let prob_sum = p.iter().fold(0.0, |total, (_, &p)| total + p);
+        assert!(prob_sum > 0.99 && prob_sum < 1.01);
     }
 }

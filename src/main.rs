@@ -214,6 +214,7 @@ enum Command {
     Perft,
     NnTablebasePolicy,
     NnTablebaseValue,
+    NnAi,
     Play {
         #[arg(long = "cpu", short)]
         cpu_as_black: bool,
@@ -233,6 +234,7 @@ fn main() -> std::io::Result<()> {
         Perft => run_perft(),
         NnTablebasePolicy => nn::train_nn_tablebase_policy::<6, 6>(500, 500, 500),
         NnTablebaseValue => nn::train_nn_tablebase_value::<6, 6>(500, 500, 500),
+        NnAi => nn::train_ai(),
         Play { cpu_as_black } => play_game(cpu_as_black)?,
     }
 
