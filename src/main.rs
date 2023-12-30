@@ -214,6 +214,24 @@ enum Command {
     Perft,
     NnTablebasePolicy,
     NnTablebaseValue,
+    NnAi {
+        #[arg(long = "load-vars", help = "load vars from file")]
+        load_vars_path: Option<PathBuf>,
+        #[arg(long = "save-vars", help = "save vars to file")]
+        save_vars_path: Option<PathBuf>,
+        #[arg(long = "stats", help = "write stats to file")]
+        stats_path: Option<PathBuf>,
+        #[arg(long, default_value = "50000")]
+        epochs: usize,
+        #[arg(long, default_value = "0.01")]
+        learning_rate: f64,
+        #[arg(long, default_value = "1.0")]
+        exploration_factor: f32,
+        #[arg(long, default_value = "50")]
+        num_games_per_epoch: usize,
+        #[arg(long, default_value = "100")]
+        num_rollouts_per_game: usize,
+    },
     Play {
         #[arg(long = "cpu", short)]
         cpu_as_black: bool,
@@ -233,6 +251,25 @@ fn main() -> std::io::Result<()> {
         Perft => run_perft(),
         NnTablebasePolicy => nn::train_nn_tablebase_policy::<6, 6>(500, 500, 500),
         NnTablebaseValue => nn::train_nn_tablebase_value::<6, 6>(500, 500, 500),
+        NnAi {
+            load_vars_path,
+            save_vars_path,
+            stats_path,
+            epochs,
+            learning_rate,
+            exploration_factor,
+            num_games_per_epoch,
+            num_rollouts_per_game,
+        } => nn::train_ai(
+            load_vars_path,
+            save_vars_path,
+            stats_path,
+            epochs,
+            learning_rate,
+            exploration_factor,
+            num_games_per_epoch,
+            num_rollouts_per_game,
+        ),
         Play { cpu_as_black } => play_game(cpu_as_black)?,
     }
 

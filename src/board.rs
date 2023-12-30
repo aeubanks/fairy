@@ -184,7 +184,7 @@ pub trait Board: Default + Debug + Clone {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct BoardSquare<const W: usize, const H: usize> {
     pieces: [[Option<Piece>; H]; W],
     // TODO: separate this out into a separate struct that also has a BoardSquare so we can choose if we want caching or not.
