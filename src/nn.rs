@@ -540,36 +540,37 @@ mod tests {
 
     use super::*;
 
+    fn board_tensor_val(t: &Tensor, player: Player, ty: Type, x: i64, y: i64) -> i64 {
+        t.int64_value(&[
+            match player {
+                Player::White => 0,
+                Player::Black => NUM_PIECE_TYPES,
+            } + piece_type_to_index(ty),
+            y,
+            x,
+        ])
+    }
+
     #[test]
     fn test_board_to_tensor() {
         let dev = Device::Cpu;
         let board = Presets::los_alamos();
         let t = board_to_tensor(&board, dev);
         assert_eq!(t.size(), vec![10, 6, 6]);
-        assert_eq!(
-            t.int64_value(&[0 + piece_type_to_index(Type::King), 0, 3]),
-            1
-        );
-        assert_eq!(
-            t.int64_value(&[0 + piece_type_to_index(Type::Queen), 0, 2]),
-            1
-        );
-        assert_eq!(
-            t.int64_value(&[NUM_PIECE_TYPES + piece_type_to_index(Type::King), 0, 3]),
-            0
-        );
-        assert_eq!(
-            t.int64_value(&[0 + piece_type_to_index(Type::King), 0, 2]),
-            0
-        );
-        assert_eq!(
-            t.int64_value(&[0 + piece_type_to_index(Type::Queen), 0, 3]),
-            0
-        );
-        assert_eq!(
-            t.int64_value(&[NUM_PIECE_TYPES + piece_type_to_index(Type::King), 5, 3]),
-            1
-        );
+        assert_eq!(board_tensor_val(&t, Player::White, Type::King, 3, 0), 1);
+        assert_eq!(board_tensor_val(&t, Player::White, Type::Queen, 2, 0), 1);
+        assert_eq!(board_tensor_val(&t, Player::Black, Type::King, 3, 0), 0);
+        assert_eq!(board_tensor_val(&t, Player::White, Type::King, 2, 0), 0);
+        assert_eq!(board_tensor_val(&t, Player::White, Type::Queen, 3, 0), 0);
+        assert_eq!(board_tensor_val(&t, Player::Black, Type::King, 3, 5), 1);
+    }
+
+    #[test]
+    fn test_board_to_tensor_size() {
+        let dev = Device::Cpu;
+        let board = BoardSquare::<6, 7>::default();
+        let t = board_to_tensor(&board, dev);
+        assert_eq!(t.size(), vec![10, 7, 6]);
     }
 
     #[test]
@@ -582,15 +583,15 @@ mod tests {
         let t = boards_to_tensor(&[board1, board2, board3], dev);
         assert_eq!(t.size(), vec![3, 10, 6, 6]);
         assert_eq!(
-            t.int64_value(&[0, 0 + piece_type_to_index(Type::King), 0, 3]),
+            board_tensor_val(&t.i(0), Player::White, Type::King, 3, 0),
             1
         );
         assert_eq!(
-            t.int64_value(&[1, 0 + piece_type_to_index(Type::King), 0, 3]),
+            board_tensor_val(&t.i(1), Player::White, Type::King, 3, 0),
             0
         );
         assert_eq!(
-            t.int64_value(&[2, 0 + piece_type_to_index(Type::King), 0, 3]),
+            board_tensor_val(&t.i(2), Player::White, Type::King, 3, 0),
             1
         );
     }
