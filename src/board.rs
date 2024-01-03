@@ -476,23 +476,26 @@ pub struct Move {
 }
 
 #[allow(dead_code)]
-pub struct Presets;
+pub mod presets {
+    use super::*;
 
-#[allow(dead_code)]
-impl Presets {
+    pub fn mini() -> BoardSquare<5, 5> {
+        BoardSquare::setup_with_pawns(false, &[Rook, Knight, Knight, Queen, King])
+    }
+
     pub fn los_alamos() -> BoardSquare<6, 6> {
-        BoardSquare::<6, 6>::setup_with_pawns(false, &[Rook, Knight, Queen, King, Knight, Rook])
+        BoardSquare::setup_with_pawns(false, &[Rook, Knight, Queen, King, Knight, Rook])
     }
 
     pub fn classical() -> BoardSquare<8, 8> {
-        BoardSquare::<8, 8>::setup_with_pawns(
+        BoardSquare::setup_with_pawns(
             true,
             &[Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook],
         )
     }
 
     pub fn embassy() -> BoardSquare<10, 8> {
-        BoardSquare::<10, 8>::setup_with_pawns(
+        BoardSquare::setup_with_pawns(
             true,
             &[
                 Rook, Knight, Bishop, Queen, King, Empress, Cardinal, Bishop, Knight, Rook,
@@ -517,16 +520,15 @@ impl Presets {
 
     pub fn chess960<R: Rng>(rng: &mut R) -> BoardSquare<8, 8> {
         let mut pieces = [None; 8];
-        Self::set_nth_empty(rng.gen_range(0..4) * 2, &mut pieces, Bishop);
-        Self::set_nth_empty(rng.gen_range(0..4) * 2 + 1, &mut pieces, Bishop);
-        Self::set_nth_empty(rng.gen_range(0..6), &mut pieces, Queen);
-        Self::set_nth_empty(rng.gen_range(0..5), &mut pieces, Knight);
-        Self::set_nth_empty(rng.gen_range(0..4), &mut pieces, Knight);
-        Self::set_nth_empty(0, &mut pieces, Rook);
-        Self::set_nth_empty(0, &mut pieces, King);
-        Self::set_nth_empty(0, &mut pieces, Rook);
-
-        BoardSquare::<8, 8>::setup_with_pawns(true, &pieces.map(|p| p.unwrap()))
+        set_nth_empty(rng.gen_range(0..4) * 2, &mut pieces, Bishop);
+        set_nth_empty(rng.gen_range(0..4) * 2 + 1, &mut pieces, Bishop);
+        set_nth_empty(rng.gen_range(0..6), &mut pieces, Queen);
+        set_nth_empty(rng.gen_range(0..5), &mut pieces, Knight);
+        set_nth_empty(rng.gen_range(0..4), &mut pieces, Knight);
+        set_nth_empty(0, &mut pieces, Rook);
+        set_nth_empty(0, &mut pieces, King);
+        set_nth_empty(0, &mut pieces, Rook);
+        BoardSquare::setup_with_pawns(true, &pieces.map(|p| p.unwrap()))
     }
 
     pub fn capablanca_random<R: Rng>(rng: &mut R) -> BoardSquare<10, 8> {
@@ -539,8 +541,8 @@ impl Presets {
         } else {
             (Cardinal, Queen)
         };
-        Self::set_nth_empty(rng.gen_range(0..4), &mut evens, qa1);
-        Self::set_nth_empty(rng.gen_range(0..4), &mut odds, qa2);
+        set_nth_empty(rng.gen_range(0..4), &mut evens, qa1);
+        set_nth_empty(rng.gen_range(0..4), &mut odds, qa2);
 
         let mut pieces = [None; 10];
         for (i, t) in evens.into_iter().enumerate() {
@@ -550,14 +552,14 @@ impl Presets {
             pieces[i * 2 + 1] = t;
         }
 
-        Self::set_nth_empty(rng.gen_range(0..6), &mut pieces, Empress);
-        Self::set_nth_empty(rng.gen_range(0..5), &mut pieces, Knight);
-        Self::set_nth_empty(rng.gen_range(0..4), &mut pieces, Knight);
-        Self::set_nth_empty(0, &mut pieces, Rook);
-        Self::set_nth_empty(0, &mut pieces, King);
-        Self::set_nth_empty(0, &mut pieces, Rook);
+        set_nth_empty(rng.gen_range(0..6), &mut pieces, Empress);
+        set_nth_empty(rng.gen_range(0..5), &mut pieces, Knight);
+        set_nth_empty(rng.gen_range(0..4), &mut pieces, Knight);
+        set_nth_empty(0, &mut pieces, Rook);
+        set_nth_empty(0, &mut pieces, King);
+        set_nth_empty(0, &mut pieces, Rook);
 
-        BoardSquare::<10, 8>::setup_with_pawns(true, &pieces.map(|p| p.unwrap()))
+        BoardSquare::setup_with_pawns(true, &pieces.map(|p| p.unwrap()))
     }
 }
 
@@ -1108,20 +1110,20 @@ mod tests {
     }
     #[test]
     fn test_premade_boards() {
-        Presets::classical();
-        Presets::los_alamos();
-        Presets::embassy();
+        presets::classical();
+        presets::los_alamos();
+        presets::embassy();
 
         let mut rng = rand::thread_rng();
         for _ in 0..10 {
-            Presets::chess960(&mut rng);
-            Presets::capablanca_random(&mut rng);
+            presets::chess960(&mut rng);
+            presets::capablanca_random(&mut rng);
         }
     }
     #[test]
     fn test_classical_castling() {
         use CastleSide::*;
-        let b = Presets::classical();
+        let b = presets::classical();
         assert_eq!(b.get_castling_rights(White, Left), Some(Coord::new(0, 0)));
         assert_eq!(b.get_castling_rights(White, Right), Some(Coord::new(7, 0)));
         assert_eq!(b.get_castling_rights(Black, Left), Some(Coord::new(0, 7)));

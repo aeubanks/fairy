@@ -536,7 +536,7 @@ pub fn train_nn_tablebase_value<const W: usize, const H: usize>(
 
 #[cfg(test)]
 mod tests {
-    use crate::board::{BoardSquare, Presets};
+    use crate::board::{presets, BoardSquare};
 
     use super::*;
 
@@ -554,7 +554,7 @@ mod tests {
     #[test]
     fn test_board_to_tensor() {
         let dev = Device::Cpu;
-        let board = Presets::los_alamos();
+        let board = presets::los_alamos();
         let t = board_to_tensor(&board, dev);
         assert_eq!(t.size(), vec![10, 6, 6]);
         assert_eq!(board_tensor_val(&t, Player::White, Type::King, 3, 0), 1);
@@ -576,9 +576,9 @@ mod tests {
     #[test]
     fn test_boards_to_tensor() {
         let dev = Device::Cpu;
-        let board1 = Presets::los_alamos();
+        let board1 = presets::los_alamos();
         let board2 = BoardSquare::<6, 6>::default();
-        let board3 = Presets::los_alamos();
+        let board3 = presets::los_alamos();
 
         let t = boards_to_tensor(&[board1, board2, board3], dev);
         assert_eq!(t.size(), vec![3, 10, 6, 6]);
@@ -608,7 +608,7 @@ mod tests {
     fn test_policy_head() {
         let dev = Device::cuda_if_available();
         let vs = VarStore::new(dev);
-        let boards = [Presets::los_alamos(), Default::default()];
+        let boards = [presets::los_alamos(), Default::default()];
         let xs = boards_to_tensor(&boards, dev);
         let body = NNBody::new(&vs);
         let policy_head =
@@ -621,7 +621,7 @@ mod tests {
     fn test_value_head() {
         let dev = Device::cuda_if_available();
         let vs = VarStore::new(dev);
-        let boards = [Presets::los_alamos(), Default::default()];
+        let boards = [presets::los_alamos(), Default::default()];
         let xs = boards_to_tensor(&boards, dev);
         let body = NNBody::new(&vs);
         let value_head = NNValueHead::new(&vs, boards[0].width() as i64, boards[0].height() as i64);
@@ -632,7 +632,7 @@ mod tests {
     #[test]
     fn test_end_to_end() {
         let probs =
-            move_probabilities_for_boards(&[Presets::los_alamos(), BoardSquare::<6, 6>::default()]);
+            move_probabilities_for_boards(&[presets::los_alamos(), BoardSquare::<6, 6>::default()]);
         assert_eq!(probs.len(), 2);
         assert_eq!(probs[0].len(), 10);
         assert_eq!(probs[1].len(), 0);

@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use fairy::board::{Board, Move, Presets};
+use fairy::board::{presets, Board, Move};
 use fairy::coord::Coord;
 use fairy::moves::all_moves;
 use fairy::nn;
@@ -31,7 +31,7 @@ fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
         generate_tablebase(&sets)
     }
     let tablebase = play_tablebase();
-    let mut board = Presets::los_alamos();
+    let mut board = presets::los_alamos();
     let mut player = White;
     fn read_move(line: &str) -> Option<Move> {
         let split: Vec<_> = line.split_whitespace().collect();
@@ -143,7 +143,7 @@ fn run_perft() {
         "perft(4): {}",
         perft(
             &Position {
-                board: Presets::classical(),
+                board: presets::classical(),
                 player: White
             },
             4

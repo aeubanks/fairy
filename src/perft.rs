@@ -173,14 +173,14 @@ pub fn fen(fen: &str) -> Position<BoardSquare<8, 8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::board::Presets;
+    use crate::board::presets;
 
     #[test]
     fn test_fen() {
         {
             let Position { board, player } =
                 fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-            let classical = crate::board::Presets::classical();
+            let classical = presets::classical();
             for y in 0..8 {
                 for x in 0..8 {
                     let coord = Coord::new(x, y);
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn classical_1() {
         let pos = Position {
-            board: Presets::classical(),
+            board: presets::classical(),
             player: White,
         };
         assert_eq!(perft(&pos, 1), 20);
