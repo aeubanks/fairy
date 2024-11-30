@@ -28,7 +28,7 @@ log = "0.4"
 env_logger = "0.11"
 miniz_oxide = "0.8"
 clap = { version = "4.1", features = ["derive"] }
-tch = "0.17"
+tch = "0.18"
 
 [dev-dependencies]
 criterion = { version = "0.5", default-features = false }
