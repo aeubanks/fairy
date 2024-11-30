@@ -123,7 +123,7 @@ fn offsets(offset: Coord) -> ArrayVec<Coord, 8> {
 fn add_castling_moves<T: Board>(moves: &mut Vec<Coord>, board: &T, coord: Coord, player: Player) {
     // castling
 
-    fn no_pieces_between_inc<T: Board>(
+    fn any_pieces_between_inc<T: Board>(
         board: &T,
         player: Player,
         y: i8,
@@ -134,27 +134,17 @@ fn add_castling_moves<T: Board>(moves: &mut Vec<Coord>, board: &T, coord: Coord,
     ) -> bool {
         let min_x = x1.min(x2);
         let max_x = x1.max(x2);
-        for x in min_x..=max_x {
-            if board.existing_piece_result(Coord::new(x, y), player) != ExistingPieceResult::Empty
+        (min_x..=max_x).any(|x| {
+            board.existing_piece_result(Coord::new(x, y), player) != ExistingPieceResult::Empty
                 && ignore_x_1 != x
                 && ignore_x_2 != x
-            {
-                return false;
-            }
-        }
-        true
+        })
     }
 
-    fn no_checks_between_inc<T: Board>(board: &T, player: Player, y: i8, x1: i8, x2: i8) -> bool {
+    fn any_checks_between_inc<T: Board>(board: &T, player: Player, y: i8, x1: i8, x2: i8) -> bool {
         let min_x = x1.min(x2);
         let max_x = x1.max(x2);
-        for x in min_x..=max_x {
-            // TODO: optimize
-            if is_under_attack(board, Coord::new(x, y), player) {
-                return false;
-            }
-        }
-        true
+        (min_x..=max_x).any(|x| is_under_attack(board, Coord::new(x, y), player))
     }
 
     // make sure the first value is the left rook and the second value is the right rook
@@ -180,7 +170,7 @@ fn add_castling_moves<T: Board>(moves: &mut Vec<Coord>, board: &T, coord: Coord,
                 assert_eq!(piece.player(), player);
             }
 
-            if no_pieces_between_inc(
+            if !any_pieces_between_inc(
                 board,
                 player,
                 coord.y,
@@ -188,7 +178,7 @@ fn add_castling_moves<T: Board>(moves: &mut Vec<Coord>, board: &T, coord: Coord,
                 king_dest_x,
                 coord.x,
                 rook_coord.x,
-            ) && no_pieces_between_inc(
+            ) && !any_pieces_between_inc(
                 board,
                 player,
                 coord.y,
@@ -196,7 +186,7 @@ fn add_castling_moves<T: Board>(moves: &mut Vec<Coord>, board: &T, coord: Coord,
                 rook_dest_x,
                 coord.x,
                 rook_coord.x,
-            ) && no_checks_between_inc(board, player, coord.y, king_dest_x, coord.x)
+            ) && !any_checks_between_inc(board, player, coord.y, king_dest_x, coord.x)
             {
                 moves.push(rook_coord);
             }

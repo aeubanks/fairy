@@ -26,7 +26,7 @@ pub enum Type {
 impl Type {
     fn char(&self) -> char {
         use Type::*;
-        let ret = match self {
+        match self {
             King => 'K',
             Amazon => 'A',
             Queen => 'Q',
@@ -41,8 +41,7 @@ impl Type {
             Dabbaba => 'D',
             Alfil => 'L',
             Pawn => 'P',
-        };
-        ret
+        }
     }
 
     pub fn leaper_offsets(&self) -> ArrayVec<Coord, 2> {
