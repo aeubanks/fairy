@@ -18,6 +18,8 @@ pub enum Type {
     Knight,
     Ferz,
     Wazir,
+    Dabbaba,
+    Alfil,
     Pawn,
 }
 
@@ -31,14 +33,15 @@ impl Type {
             Empress => 'E',
             Cardinal => 'C',
             Rook => 'R',
-            Nightrider => 'D',
+            Nightrider => 'T',
             Bishop => 'B',
             Knight => 'N',
             Ferz => 'F',
             Wazir => 'W',
+            Dabbaba => 'D',
+            Alfil => 'L',
             Pawn => 'P',
         };
-        assert!(ret.is_uppercase());
         ret
     }
 
@@ -59,6 +62,12 @@ impl Type {
             }
             Wazir => {
                 ret.push(Coord::new(1, 0));
+            }
+            Dabbaba => {
+                ret.push(Coord::new(2, 0));
+            }
+            Alfil => {
+                ret.push(Coord::new(2, 2));
             }
             Rook | Bishop | Queen | Nightrider => {}
         }
@@ -83,7 +92,7 @@ impl Type {
                 ret.push(Coord::new(1, 0));
                 ret.push(Coord::new(1, 1));
             }
-            King | Knight | Wazir | Ferz => {}
+            King | Knight | Wazir | Ferz | Alfil | Dabbaba => {}
         }
         ret
     }
@@ -172,8 +181,10 @@ mod tests {
     fn test_type_char() {
         let mut set = HashSet::new();
         for ty in Type::all() {
-            assert!(!set.contains(&ty.char()));
-            set.insert(ty.char());
+            let c = ty.char();
+            assert!(!set.contains(&c));
+            assert!(c.is_uppercase());
+            set.insert(c);
         }
     }
 
