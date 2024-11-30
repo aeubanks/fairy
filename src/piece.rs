@@ -16,6 +16,8 @@ pub enum Type {
     Nightrider,
     Bishop,
     Knight,
+    Ferz,
+    Wazir,
     Pawn,
 }
 
@@ -32,6 +34,8 @@ impl Type {
             Nightrider => 'D',
             Bishop => 'B',
             Knight => 'N',
+            Ferz => 'F',
+            Wazir => 'W',
             Pawn => 'P',
         };
         assert!(ret.is_uppercase());
@@ -48,6 +52,12 @@ impl Type {
             }
             King => {
                 ret.push(Coord::new(1, 1));
+                ret.push(Coord::new(1, 0));
+            }
+            Ferz => {
+                ret.push(Coord::new(1, 1));
+            }
+            Wazir => {
                 ret.push(Coord::new(1, 0));
             }
             Rook | Bishop | Queen | Nightrider => {}
@@ -73,7 +83,7 @@ impl Type {
                 ret.push(Coord::new(1, 0));
                 ret.push(Coord::new(1, 1));
             }
-            King | Knight => {}
+            King | Knight | Wazir | Ferz => {}
         }
         ret
     }
@@ -136,6 +146,7 @@ impl std::fmt::Debug for Piece {
 mod tests {
     use super::*;
     use static_assertions::const_assert_eq;
+    use std::collections::HashSet;
     use Player::*;
     use Type::*;
 
@@ -155,6 +166,15 @@ mod tests {
     #[test]
     fn test_piece_fmt() {
         assert_eq!(format!("{:?}", Piece::new(White, King)), "K");
+    }
+
+    #[test]
+    fn test_type_char() {
+        let mut set = HashSet::new();
+        for ty in Type::all() {
+            assert!(!set.contains(&ty.char()));
+            set.insert(ty.char());
+        }
     }
 
     const_assert_eq!(1, std::mem::size_of::<Piece>());

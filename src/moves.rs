@@ -371,18 +371,22 @@ pub fn under_attack_from_coord<T: Board>(board: &T, coord: Coord, player: Player
             }
         }
     }
-    if has_type(King) {
+    if has_type(King) || has_type(Ferz) {
         for o in offsets(Coord::new(1, 1)) {
             if let Some((c, ty)) = enemy_piece_leaper(board, coord, o, player) {
-                if ty == King {
-                    return Some(c);
+                match ty {
+                    King | Ferz => return Some(c),
+                    _ => {}
                 }
             }
         }
+    }
+    if has_type(King) || has_type(Wazir) {
         for o in offsets(Coord::new(1, 0)) {
             if let Some((c, ty)) = enemy_piece_leaper(board, coord, o, player) {
-                if ty == King {
-                    return Some(c);
+                match ty {
+                    King | Wazir => return Some(c),
+                    _ => {}
                 }
             }
         }
@@ -1406,6 +1410,38 @@ mod tests {
             );
             assert_eq!(
                 under_attack_from_coord(&board, Coord::new(3, 5), Black),
+                None
+            );
+        }
+        {
+            let board =
+                BoardSquare::<8, 8>::with_pieces(&[(Coord::new(1, 1), Piece::new(White, Ferz))]);
+            assert_eq!(
+                under_attack_from_coord(&board, Coord::new(0, 0), Black),
+                Some(Coord::new(1, 1))
+            );
+            assert_eq!(
+                under_attack_from_coord(&board, Coord::new(2, 0), Black),
+                Some(Coord::new(1, 1))
+            );
+            assert_eq!(
+                under_attack_from_coord(&board, Coord::new(2, 1), Black),
+                None
+            );
+        }
+        {
+            let board =
+                BoardSquare::<8, 8>::with_pieces(&[(Coord::new(1, 1), Piece::new(White, Wazir))]);
+            assert_eq!(
+                under_attack_from_coord(&board, Coord::new(1, 0), Black),
+                Some(Coord::new(1, 1))
+            );
+            assert_eq!(
+                under_attack_from_coord(&board, Coord::new(2, 1), Black),
+                Some(Coord::new(1, 1))
+            );
+            assert_eq!(
+                under_attack_from_coord(&board, Coord::new(2, 0), Black),
                 None
             );
         }
