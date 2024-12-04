@@ -532,32 +532,32 @@ impl<const W: usize, const H: usize> BoardState<W, H> {
     }
 }
 
-enum MCTSTreeNode {
+enum MctsTreeNode {
     Unexplored,
-    Parent(MCTSParent),
+    Parent(MctsParent),
     Leaf(f32),
 }
 
-struct MCTSParent {
+struct MctsParent {
     policy: FxHashMap<Move, f32>,
     // a -> (q, n)
-    children: FxHashMap<Move, MCTSChild>,
+    children: FxHashMap<Move, MctsChild>,
 }
 
-struct MCTSChild {
+struct MctsChild {
     q: f32,
     n: f32,
-    node: MCTSTreeNode,
+    node: MctsTreeNode,
 }
 
 #[derive(Debug)]
-struct MCTSExample<const W: usize, const H: usize> {
+struct MctsExample<const W: usize, const H: usize> {
     state: BoardState<W, H>,
     policy: FxHashMap<Move, f32>,
     reward: f32,
 }
 
-struct MCTS<const W: usize, const H: usize> {
+struct Mcts<const W: usize, const H: usize> {
     all_possible_moves: Vec<Move>,
     all_possible_moves_idx: FxHashMap<Move, usize>,
     exploration_factor: f32,
@@ -573,7 +573,7 @@ struct MCTS<const W: usize, const H: usize> {
 
 const MAX_DEPTH: usize = 50;
 
-impl<const W: usize, const H: usize> MCTS<W, H> {
+impl<const W: usize, const H: usize> Mcts<W, H> {
     fn new(dev: Device) -> Self {
         let all_possible_moves = all_moves(W as i8, H as i8);
         let mut all_possible_moves_idx = FxHashMap::default();
@@ -608,7 +608,7 @@ impl<const W: usize, const H: usize> MCTS<W, H> {
     }
 }
 
-impl<const W: usize, const H: usize> Clone for MCTS<W, H> {
+impl<const W: usize, const H: usize> Clone for Mcts<W, H> {
     fn clone(&self) -> Self {
         let mut ret = Self::new(self.dev);
         ret.var_store.copy(&self.var_store).unwrap();
@@ -625,7 +625,7 @@ struct TrainingStats {
     policy_loss: f64,
 }
 
-impl<const W: usize, const H: usize> MCTS<W, H> {
+impl<const W: usize, const H: usize> Mcts<W, H> {
     fn board_value(
         &self,
         state: &BoardState<W, H>,
@@ -680,7 +680,7 @@ impl<const W: usize, const H: usize> MCTS<W, H> {
     // (board, vs, ps)
     fn examples_to_training_data(
         &self,
-        examples: &[MCTSExample<W, H>],
+        examples: &[MctsExample<W, H>],
     ) -> (Tensor, Tensor, Tensor) {
         #[cfg(debug_assertions)]
         for e in examples {
@@ -710,27 +710,27 @@ impl<const W: usize, const H: usize> MCTS<W, H> {
 
     fn explore_impl(
         &self,
-        node: &mut MCTSTreeNode,
+        node: &mut MctsTreeNode,
         state: &BoardState<W, H>,
         visited: &mut FxHashSet<BoardState<W, H>>,
         depth: usize,
     ) -> f32 {
         match node {
-            MCTSTreeNode::Unexplored => {
+            MctsTreeNode::Unexplored => {
                 if let Some(v) = self.board_value(state, depth, visited) {
-                    *node = MCTSTreeNode::Leaf(v);
+                    *node = MctsTreeNode::Leaf(v);
                     v
                 } else {
                     let (v, p) = self.value_and_policy(state);
-                    *node = MCTSTreeNode::Parent(MCTSParent {
+                    *node = MctsTreeNode::Parent(MctsParent {
                         policy: p,
                         children: Default::default(),
                     });
                     v
                 }
             }
-            MCTSTreeNode::Leaf(v) => *v,
-            MCTSTreeNode::Parent(node) => {
+            MctsTreeNode::Leaf(v) => *v,
+            MctsTreeNode::Parent(node) => {
                 let parent_n_sqrt = node.children.values().map(|c| c.n).sum::<f32>().sqrt();
                 let u = |m: Move| {
                     let child = node.children.get(&m);
@@ -747,10 +747,10 @@ impl<const W: usize, const H: usize> MCTS<W, H> {
                     .unwrap();
 
                 let next_state = state.make_move(best_move);
-                let child = node.children.entry(best_move).or_insert(MCTSChild {
+                let child = node.children.entry(best_move).or_insert(MctsChild {
                     q: 0.0,
                     n: 0.0,
-                    node: MCTSTreeNode::Unexplored,
+                    node: MctsTreeNode::Unexplored,
                 });
                 visited.insert(state.clone());
                 let v = -self.explore_impl(&mut child.node, &next_state, visited, depth + 1);
@@ -763,7 +763,7 @@ impl<const W: usize, const H: usize> MCTS<W, H> {
         }
     }
 
-    fn node_improved_policy(p: &MCTSParent, temperature: f32) -> FxHashMap<Move, f32> {
+    fn node_improved_policy(p: &MctsParent, temperature: f32) -> FxHashMap<Move, f32> {
         assert!(temperature >= 0.0);
         if temperature == 0.0 {
             let argmax = p
@@ -806,10 +806,10 @@ impl<const W: usize, const H: usize> MCTS<W, H> {
         last_move.unwrap()
     }
 
-    fn get_examples(&self, board: &BoardSquare<W, H>) -> Vec<MCTSExample<W, H>> {
-        let mut examples = Vec::<MCTSExample<W, H>>::default();
+    fn get_examples(&self, board: &BoardSquare<W, H>) -> Vec<MctsExample<W, H>> {
+        let mut examples = Vec::<MctsExample<W, H>>::default();
 
-        let mut tree = MCTSTreeNode::Unexplored;
+        let mut tree = MctsTreeNode::Unexplored;
         let mut state = BoardState {
             board: board.clone(),
             player: Player::White,
@@ -821,8 +821,8 @@ impl<const W: usize, const H: usize> MCTS<W, H> {
                 self.explore_impl(&mut tree, &state, &mut Default::default(), depth);
             }
             match tree {
-                MCTSTreeNode::Unexplored => panic!("unexplored node?"),
-                MCTSTreeNode::Leaf(v) => {
+                MctsTreeNode::Unexplored => panic!("unexplored node?"),
+                MctsTreeNode::Leaf(v) => {
                     for e in &mut examples {
                         e.reward = v;
                         if e.state.player != state.player {
@@ -831,10 +831,10 @@ impl<const W: usize, const H: usize> MCTS<W, H> {
                     }
                     break;
                 }
-                MCTSTreeNode::Parent(mut p) => {
+                MctsTreeNode::Parent(mut p) => {
                     let improved_policy = Self::node_improved_policy(&p, 1.0);
                     let m = Self::random_move(&improved_policy);
-                    examples.push(MCTSExample {
+                    examples.push(MctsExample {
                         state: state.clone(),
                         policy: improved_policy,
                         reward: f32::NAN,
@@ -895,8 +895,8 @@ impl<const W: usize, const H: usize> MCTS<W, H> {
 
 fn should_take_new_model<const W: usize, const H: usize>(
     _board: &BoardSquare<W, H>,
-    _old: &MCTS<W, H>,
-    _new: &MCTS<W, H>,
+    _old: &Mcts<W, H>,
+    _new: &Mcts<W, H>,
 ) -> bool {
     true
 }
@@ -915,7 +915,7 @@ pub fn train_ai(
     let board = presets::mini();
 
     let dev = Device::cuda_if_available();
-    let mut mcts = MCTS::new(dev);
+    let mut mcts = Mcts::new(dev);
     if let Some(load) = &load_vars_path {
         info!("loading weights from {load:?}");
         mcts.load_vars(load);
@@ -1138,7 +1138,7 @@ mod tests {
         ]);
 
         let dev = Device::Cpu;
-        let mcts = MCTS::new(dev);
+        let mcts = Mcts::new(dev);
         let examples = mcts.get_examples(&board);
         assert_eq!(examples.len(), 1);
         assert_eq!(examples[0].reward, 1.0);
@@ -1161,7 +1161,7 @@ mod tests {
         ]);
 
         let dev = Device::Cpu;
-        let mcts = MCTS::new(dev);
+        let mcts = Mcts::new(dev);
         let examples = mcts.get_examples(&board);
         assert_eq!(examples.len(), 2);
         assert_eq!(examples[0].reward, -1.0);
@@ -1196,7 +1196,7 @@ mod tests {
         ]);
 
         let dev = Device::Cpu;
-        let mcts = MCTS::new(dev);
+        let mcts = Mcts::new(dev);
         let examples = mcts.get_examples(&board);
         assert_eq!(examples.len(), 4);
         for e in examples {
@@ -1209,7 +1209,7 @@ mod tests {
         let board = presets::los_alamos();
 
         let dev = Device::Cpu;
-        let mcts = MCTS::new(dev);
+        let mcts = Mcts::new(dev);
         let examples = mcts.get_examples(&board);
         assert!(examples.len() > 4);
         assert!(examples.len() <= MAX_DEPTH);
@@ -1235,7 +1235,7 @@ mod tests {
         let board = presets::los_alamos();
 
         let dev = Device::Cpu;
-        let mcts = MCTS::new(dev);
+        let mcts = Mcts::new(dev);
         let (v, p) = mcts.value_and_policy(&BoardState {
             board,
             player: Player::White,
@@ -1252,8 +1252,8 @@ mod tests {
             board: presets::mini(),
             player: Player::White,
         };
-        let mcts1 = MCTS::new(dev);
-        let mcts2 = MCTS::new(dev);
+        let mcts1 = Mcts::new(dev);
+        let mcts2 = Mcts::new(dev);
         let mcts_clone = mcts1.clone();
         let (v1, _) = mcts1.value_and_policy(&state);
         let (v2, _) = mcts2.value_and_policy(&state);
@@ -1265,7 +1265,7 @@ mod tests {
     #[test]
     fn test_mcts_white_black() {
         let dev = Device::Cpu;
-        let mcts = MCTS::new(dev);
+        let mcts = Mcts::new(dev);
         let (v1, _) = mcts.value_and_policy(&BoardState {
             board: presets::mini(),
             player: Player::White,
