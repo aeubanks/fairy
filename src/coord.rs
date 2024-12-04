@@ -27,9 +27,6 @@ mod tests {
 
     #[test]
     fn test_coord_add() {
-        assert_eq!(
-            Coord { x: 3, y: 4 } + Coord { x: 5, y: 6 },
-            Coord { x: 8, y: 10 }
-        );
+        assert_eq!(Coord::new(3, 4) + Coord::new(5, 6), Coord::new(8, 10));
     }
 }

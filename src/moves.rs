@@ -83,39 +83,15 @@ fn offsets(offset: Coord) -> ArrayVec<Coord, 8> {
     assert!(offset.y >= 0);
     assert!(offset.x > 0 || offset.y > 0);
     let mut ret = ArrayVec::new();
-    ret.push(Coord {
-        x: offset.x,
-        y: offset.y,
-    });
-    ret.push(Coord {
-        x: -offset.y,
-        y: offset.x,
-    });
-    ret.push(Coord {
-        x: -offset.x,
-        y: -offset.y,
-    });
-    ret.push(Coord {
-        x: offset.y,
-        y: -offset.x,
-    });
+    ret.push(Coord::new(offset.x, offset.y));
+    ret.push(Coord::new(-offset.y, offset.x));
+    ret.push(Coord::new(-offset.x, -offset.y));
+    ret.push(Coord::new(offset.y, -offset.x));
     if offset.x != offset.y && offset.x != 0 && offset.y != 0 {
-        ret.push(Coord {
-            x: offset.y,
-            y: offset.x,
-        });
-        ret.push(Coord {
-            x: -offset.x,
-            y: offset.y,
-        });
-        ret.push(Coord {
-            x: -offset.y,
-            y: -offset.x,
-        });
-        ret.push(Coord {
-            x: offset.x,
-            y: -offset.y,
-        });
+        ret.push(Coord::new(offset.y, offset.x));
+        ret.push(Coord::new(-offset.x, offset.y));
+        ret.push(Coord::new(-offset.y, -offset.x));
+        ret.push(Coord::new(offset.x, -offset.y));
     }
     ret
 }
@@ -200,12 +176,12 @@ fn add_pawn_moves<T: Board>(moves: &mut Vec<Coord>, board: &T, coord: Coord, pla
         Black => -1,
     };
 
-    let left = coord + Coord { x: -1, y: dy };
+    let left = coord + Coord::new(-1, dy);
     add_move_if_in_bounds_and_result(moves, board, left, player, ExistingPieceResult::Opponent);
-    let right = coord + Coord { x: 1, y: dy };
+    let right = coord + Coord::new(1, dy);
     add_move_if_in_bounds_and_result(moves, board, right, player, ExistingPieceResult::Opponent);
 
-    let front = coord + Coord { x: 0, y: dy };
+    let front = coord + Coord::new(0, dy);
     let front_empty = add_move_if_result(moves, board, front, player, ExistingPieceResult::Empty);
 
     if front_empty {
@@ -217,7 +193,7 @@ fn add_pawn_moves<T: Board>(moves: &mut Vec<Coord>, board: &T, coord: Coord, pla
             let max_forward = ((board.height() - 1) / 2 - 1).max(1);
             let mut front2 = front;
             for _ in 1..max_forward {
-                front2 = front2 + Coord { x: 0, y: dy };
+                front2 = front2 + Coord::new(0, dy);
                 let empty =
                     add_move_if_result(moves, board, front2, player, ExistingPieceResult::Empty);
                 if !empty {
@@ -229,7 +205,7 @@ fn add_pawn_moves<T: Board>(moves: &mut Vec<Coord>, board: &T, coord: Coord, pla
 
     if let Some(p) = board.get_last_pawn_double_move() {
         if p.y == coord.y && (p.x - coord.x).abs() == 1 {
-            moves.push(p + Coord { x: 0, y: dy });
+            moves.push(p + Coord::new(0, dy));
         }
     }
 }
