@@ -16,6 +16,7 @@ pub enum Type {
     Nightrider,
     Bishop,
     Knight,
+    Bojack,
     Ferz,
     Wazir,
     Dabbaba,
@@ -36,6 +37,7 @@ impl Type {
             Nightrider => 'T',
             Bishop => 'B',
             Knight => 'N',
+            Bojack => 'J',
             Ferz => 'F',
             Wazir => 'W',
             Dabbaba => 'D',
@@ -51,6 +53,10 @@ impl Type {
             Pawn => panic!(),
             Knight | Empress | Cardinal | Amazon => {
                 ret.push(Coord::new(2, 1));
+            }
+            Bojack => {
+                ret.push(Coord::new(2, 2));
+                ret.push(Coord::new(2, 0));
             }
             King => {
                 ret.push(Coord::new(1, 1));
@@ -91,7 +97,7 @@ impl Type {
                 ret.push(Coord::new(1, 0));
                 ret.push(Coord::new(1, 1));
             }
-            King | Knight | Wazir | Ferz | Alfil | Dabbaba => {}
+            King | Knight | Bojack | Wazir | Ferz | Alfil | Dabbaba => {}
         }
         ret
     }
