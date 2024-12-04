@@ -77,6 +77,7 @@ fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
         println!();
         println!();
         if board.maybe_king_coord(player).is_none() {
+            println!("{:?} wins!", player.next());
             break;
         }
 
@@ -100,7 +101,7 @@ fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
                     TBMoveType::Lose => {
                         println!("{} moves until checkmated by player (optimally)", depth)
                     }
-                    TBMoveType::Draw => println!("moving to known safe position"),
+                    TBMoveType::Draw => println!("moving to known safe drawn position"),
                 }
                 m
             };
@@ -129,7 +130,7 @@ fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
                 } else {
                     println!("invalid move");
                 }
-            } else if !line.is_empty() {
+            } else {
                 println!("invalid input (try \"help\")");
             }
         }
