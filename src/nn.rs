@@ -945,7 +945,7 @@ pub fn train_ai(
         info!("total loss:  {}", stats.value_loss + stats.policy_loss);
 
         if let Some(s) = &mut stats_file {
-            write!(
+            writeln!(
                 s,
                 "{},{},{}",
                 stats.value_loss,
