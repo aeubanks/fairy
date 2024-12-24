@@ -2,7 +2,6 @@ use crate::board::{Board, CastleSide, ExistingPieceResult, Move};
 use crate::coord::Coord;
 use crate::piece::{Piece, Type, Type::*};
 use crate::player::{Player, Player::*};
-use arrayvec::ArrayVec;
 use derive_enum::EnumFrom;
 
 fn add_move_if_result<T: Board>(
@@ -36,25 +35,23 @@ fn add_moves_for_rider<T: Board>(
     board: &T,
     coord: Coord,
     player: Player,
-    rider_offset: Coord,
+    offset: Coord,
 ) {
-    for offset in offsets(rider_offset) {
-        let mut try_coord = coord + offset;
-        while board.in_bounds(try_coord) {
-            match board.existing_piece_result(try_coord, player) {
-                ExistingPieceResult::Empty => {
-                    moves.push(try_coord);
-                }
-                ExistingPieceResult::Friend => {
-                    break;
-                }
-                ExistingPieceResult::Opponent => {
-                    moves.push(try_coord);
-                    break;
-                }
+    let mut try_coord = coord + offset;
+    while board.in_bounds(try_coord) {
+        match board.existing_piece_result(try_coord, player) {
+            ExistingPieceResult::Empty => {
+                moves.push(try_coord);
             }
-            try_coord = try_coord + offset;
+            ExistingPieceResult::Friend => {
+                break;
+            }
+            ExistingPieceResult::Opponent => {
+                moves.push(try_coord);
+                break;
+            }
         }
+        try_coord = try_coord + offset;
     }
 }
 
@@ -65,35 +62,15 @@ fn add_moves_for_leaper<T: Board>(
     player: Player,
     offset: Coord,
 ) {
-    for offset in offsets(offset) {
-        let try_coord = coord + offset;
-        if board.in_bounds(try_coord) {
-            match board.existing_piece_result(try_coord, player) {
-                ExistingPieceResult::Empty | ExistingPieceResult::Opponent => {
-                    moves.push(try_coord);
-                }
-                ExistingPieceResult::Friend => {}
+    let try_coord = coord + offset;
+    if board.in_bounds(try_coord) {
+        match board.existing_piece_result(try_coord, player) {
+            ExistingPieceResult::Empty | ExistingPieceResult::Opponent => {
+                moves.push(try_coord);
             }
+            ExistingPieceResult::Friend => {}
         }
     }
-}
-
-fn offsets(offset: Coord) -> ArrayVec<Coord, 8> {
-    assert!(offset.x >= 0);
-    assert!(offset.y >= 0);
-    assert!(offset.x > 0 || offset.y > 0);
-    let mut ret = ArrayVec::new();
-    ret.push(Coord::new(offset.x, offset.y));
-    ret.push(Coord::new(-offset.y, offset.x));
-    ret.push(Coord::new(-offset.x, -offset.y));
-    ret.push(Coord::new(offset.y, -offset.x));
-    if offset.x != offset.y && offset.x != 0 && offset.y != 0 {
-        ret.push(Coord::new(offset.y, offset.x));
-        ret.push(Coord::new(-offset.x, offset.y));
-        ret.push(Coord::new(-offset.y, -offset.x));
-        ret.push(Coord::new(offset.x, -offset.y));
-    }
-    ret
 }
 
 fn add_castling_moves<T: Board>(moves: &mut Vec<Coord>, board: &T, coord: Coord, player: Player) {
@@ -334,21 +311,17 @@ pub fn under_attack_from_coord<T: Board>(board: &T, coord: Coord, player: Player
             }
             continue;
         } else {
-            for rider_offset in ty.rider_offsets() {
-                for o in offsets(rider_offset) {
-                    if let Some((c, found_ty)) = enemy_piece_rider(board, coord, o, player) {
-                        if ty == found_ty {
-                            return Some(c);
-                        }
+            for o in ty.rider_offsets() {
+                if let Some((c, found_ty)) = enemy_piece_rider(board, coord, o, player) {
+                    if ty == found_ty {
+                        return Some(c);
                     }
                 }
             }
-            for rider_offset in ty.leaper_offsets() {
-                for o in offsets(rider_offset) {
-                    if let Some((c, found_ty)) = enemy_piece_leaper(board, coord, o, player) {
-                        if ty == found_ty {
-                            return Some(c);
-                        }
+            for o in ty.leaper_offsets() {
+                if let Some((c, found_ty)) = enemy_piece_leaper(board, coord, o, player) {
+                    if ty == found_ty {
+                        return Some(c);
                     }
                 }
             }
@@ -361,14 +334,12 @@ fn add_moves_for_rider_to_end_at_board_no_captures<T: Board>(
     moves: &mut Vec<Coord>,
     board: &T,
     coord: Coord,
-    rider_offset: Coord,
+    offset: Coord,
 ) {
-    for offset in offsets(rider_offset) {
-        let mut try_coord = coord + offset;
-        while board.in_bounds(try_coord) && board.get(try_coord).is_none() {
-            moves.push(try_coord);
-            try_coord = try_coord + offset;
-        }
+    let mut try_coord = coord + offset;
+    while board.in_bounds(try_coord) && board.get(try_coord).is_none() {
+        moves.push(try_coord);
+        try_coord = try_coord + offset;
     }
 }
 
@@ -378,11 +349,9 @@ fn add_moves_for_leaper_to_end_at_board_no_captures<T: Board>(
     coord: Coord,
     offset: Coord,
 ) {
-    for offset in offsets(offset) {
-        let try_coord = coord + offset;
-        if board.in_bounds(try_coord) && board.get(try_coord).is_none() {
-            moves.push(try_coord);
-        }
+    let try_coord = coord + offset;
+    if board.in_bounds(try_coord) && board.get(try_coord).is_none() {
+        moves.push(try_coord);
     }
 }
 

@@ -24,6 +24,24 @@ pub enum Type {
     Pawn,
 }
 
+fn offsets(offset: Coord) -> ArrayVec<Coord, 8> {
+    assert!(offset.x >= 0);
+    assert!(offset.y >= 0);
+    assert!(offset.x > 0 || offset.y > 0);
+    let mut ret = ArrayVec::new();
+    ret.push(Coord::new(offset.x, offset.y));
+    ret.push(Coord::new(-offset.y, offset.x));
+    ret.push(Coord::new(-offset.x, -offset.y));
+    ret.push(Coord::new(offset.y, -offset.x));
+    if offset.x != offset.y && offset.x != 0 && offset.y != 0 {
+        ret.push(Coord::new(offset.y, offset.x));
+        ret.push(Coord::new(-offset.x, offset.y));
+        ret.push(Coord::new(-offset.y, -offset.x));
+        ret.push(Coord::new(offset.x, -offset.y));
+    }
+    ret
+}
+
 impl Type {
     fn char(&self) -> char {
         use Type::*;
@@ -46,56 +64,56 @@ impl Type {
         }
     }
 
-    pub fn leaper_offsets(&self) -> ArrayVec<Coord, 2> {
+    pub fn leaper_offsets(&self) -> ArrayVec<Coord, 8> {
         use Type::*;
         let mut ret = ArrayVec::new();
         match self {
             Pawn => panic!(),
             Knight | Empress | Cardinal | Amazon => {
-                ret.push(Coord::new(2, 1));
+                ret.extend(offsets(Coord::new(2, 1)));
             }
             Bojack => {
-                ret.push(Coord::new(2, 2));
-                ret.push(Coord::new(2, 0));
+                ret.extend(offsets(Coord::new(2, 2)));
+                ret.extend(offsets(Coord::new(2, 0)));
             }
             King => {
-                ret.push(Coord::new(1, 1));
-                ret.push(Coord::new(1, 0));
+                ret.extend(offsets(Coord::new(1, 1)));
+                ret.extend(offsets(Coord::new(1, 0)));
             }
             Ferz => {
-                ret.push(Coord::new(1, 1));
+                ret.extend(offsets(Coord::new(1, 1)));
             }
             Wazir => {
-                ret.push(Coord::new(1, 0));
+                ret.extend(offsets(Coord::new(1, 0)));
             }
             Dabbaba => {
-                ret.push(Coord::new(2, 0));
+                ret.extend(offsets(Coord::new(2, 0)));
             }
             Alfil => {
-                ret.push(Coord::new(2, 2));
+                ret.extend(offsets(Coord::new(2, 2)));
             }
             Rook | Bishop | Queen | Nightrider => {}
         }
         ret
     }
 
-    pub fn rider_offsets(&self) -> ArrayVec<Coord, 2> {
+    pub fn rider_offsets(&self) -> ArrayVec<Coord, 8> {
         use Type::*;
         let mut ret = ArrayVec::new();
         match self {
             Pawn => panic!(),
             Rook | Empress => {
-                ret.push(Coord::new(1, 0));
+                ret.extend(offsets(Coord::new(1, 0)));
             }
             Bishop | Cardinal => {
-                ret.push(Coord::new(1, 1));
+                ret.extend(offsets(Coord::new(1, 1)));
             }
             Nightrider => {
-                ret.push(Coord::new(2, 1));
+                ret.extend(offsets(Coord::new(2, 1)));
             }
             Queen | Amazon => {
-                ret.push(Coord::new(1, 0));
-                ret.push(Coord::new(1, 1));
+                ret.extend(offsets(Coord::new(1, 0)));
+                ret.extend(offsets(Coord::new(1, 1)));
             }
             King | Knight | Bojack | Wazir | Ferz | Alfil | Dabbaba => {}
         }
