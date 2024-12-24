@@ -1089,10 +1089,9 @@ mod tests {
 
     #[test]
     fn test_all_moves() {
-        let mut moves = HashSet::new();
-        for m in all_moves(6, 6) {
-            assert!(moves.insert(m));
-        }
+        let all = all_moves(6, 6);
+        let all_set = all.iter().collect::<HashSet<_>>();
+        assert_eq!(all.len(), all_set.len());
     }
 
     #[test]
