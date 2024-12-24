@@ -5,6 +5,7 @@ use crate::piece::{Piece, Type};
 use crate::player::Player;
 use crate::tablebase::{generate_tablebase, PieceSet, TBBoard, TBMoveType, Tablebase};
 use crate::timer::Timer;
+use derive_enum::EnumFrom;
 use log::{info, warn};
 use rand::{thread_rng, Rng};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -66,38 +67,33 @@ fn boards_to_tensor<B: Board>(boards: &[B], player: Player, dev: Device) -> Tens
 }
 
 fn all_moves(width: i8, height: i8) -> Vec<Move> {
-    let mut v = Vec::new();
+    let offsets = {
+        let mut offsets = HashSet::new();
+        for ty in Type::all() {
+            if ty == Type::Pawn {
+                continue;
+            }
+            offsets.extend(ty.leaper_offsets());
+            offsets.extend(ty.rider_offsets());
+        }
+        offsets.into_iter().collect::<Vec<_>>()
+    };
+    let mut moves = HashSet::new();
     for y in 0..height {
         for x in 0..width {
+            let in_bounds = |c: Coord| c.x >= 0 && c.x < width && c.y >= 0 && c.y < height;
             let from = Coord::new(x, y);
-            for d in [
-                (1, 0),
-                (0, 1),
-                (-1, 0),
-                (0, -1),
-                (1, 1),
-                (1, -1),
-                (-1, 1),
-                (-1, -1),
-                (1, 2),
-                (-1, 2),
-                (1, -2),
-                (-1, -2),
-                (2, 1),
-                (-2, 1),
-                (2, -1),
-                (-2, -1),
-            ] {
-                let d = Coord::new(d.0, d.1);
+            for &d in &offsets {
                 let mut try_to = d + from;
-                let in_bounds = |c: Coord| c.x >= 0 && c.x < width && c.y >= 0 && c.y < height;
                 while in_bounds(try_to) {
-                    v.push(Move { from, to: try_to });
+                    moves.insert(Move { from, to: try_to });
                     try_to = try_to + d;
                 }
             }
         }
     }
+    let mut v = moves.into_iter().collect::<Vec<_>>();
+    v.sort_by_key(|c| (c.from.x, c.from.y, c.to.x, c.to.y));
     v
 }
 
