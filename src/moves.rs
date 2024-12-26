@@ -212,7 +212,7 @@ pub fn all_moves_for_piece<T: Board>(board: &T, piece: Piece, coord: Coord) -> V
 }
 
 #[must_use]
-pub fn all_moves<T: Board>(board: &T, player: Player) -> Vec<Move> {
+pub fn all_legal_moves<T: Board>(board: &T, player: Player) -> Vec<Move> {
     let mut moves = Vec::with_capacity(32);
 
     board.foreach_piece(|piece, coord| {
@@ -370,7 +370,7 @@ fn add_moves_for_non_pawn_piece_end_at_board_no_captures<T: Board>(
     }
 }
 
-pub fn all_moves_to_end_at_board_captures<T: Board>(
+pub fn all_legal_moves_to_end_at_board_captures<T: Board>(
     board: &T,
     piece: Piece,
     coord: Coord,
@@ -400,7 +400,7 @@ pub fn all_moves_to_end_at_board_captures<T: Board>(
 }
 
 #[must_use]
-pub fn all_moves_to_end_at_board_no_captures<T: Board>(
+pub fn all_legal_moves_to_end_at_board_no_captures<T: Board>(
     board: &T,
     piece: Piece,
     coord: Coord,
@@ -1414,7 +1414,7 @@ mod tests {
             let mut board = BoardSquare::<4, 4>::default();
             board.add_piece(Coord::new(3, 1), Piece::new(White, Bishop));
             board.add_piece(Coord::new(1, 3), Piece::new(Black, Bishop));
-            let moves = all_moves_to_end_at_board_no_captures(
+            let moves = all_legal_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(White, Rook),
                 Coord::new(1, 1),
@@ -1433,7 +1433,7 @@ mod tests {
             let mut board = BoardSquare::<4, 4>::default();
             board.add_piece(Coord::new(3, 2), Piece::new(White, Bishop));
             board.add_piece(Coord::new(2, 3), Piece::new(Black, Bishop));
-            let moves = all_moves_to_end_at_board_no_captures(
+            let moves = all_legal_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(White, Knight),
                 Coord::new(1, 1),
@@ -1443,35 +1443,35 @@ mod tests {
         {
             let mut board = BoardSquare::<4, 4>::default();
             board.add_piece(Coord::new(1, 1), Piece::new(White, Bishop));
-            let mut moves = all_moves_to_end_at_board_no_captures(
+            let mut moves = all_legal_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(White, Pawn),
                 Coord::new(1, 2),
             );
             assert_moves_eq(&[], moves);
 
-            moves = all_moves_to_end_at_board_no_captures(
+            moves = all_legal_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(White, Pawn),
                 Coord::new(2, 2),
             );
             assert_moves_eq(&[Coord::new(2, 1)], moves);
 
-            moves = all_moves_to_end_at_board_no_captures(
+            moves = all_legal_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(White, Pawn),
                 Coord::new(3, 1),
             );
             assert_moves_eq(&[], moves);
 
-            moves = all_moves_to_end_at_board_no_captures(
+            moves = all_legal_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(Black, Pawn),
                 Coord::new(3, 1),
             );
             assert_moves_eq(&[Coord::new(3, 2)], moves);
 
-            moves = all_moves_to_end_at_board_no_captures(
+            moves = all_legal_moves_to_end_at_board_no_captures(
                 &board,
                 Piece::new(Black, Pawn),
                 Coord::new(3, 2),
@@ -1587,7 +1587,7 @@ mod tests {
 
     fn check_player_is_in_check<T: Board>(board: &T, player: Player) {
         let king_coord = board.king_coord(player);
-        let is_check = all_moves(board, player.next())
+        let is_check = all_legal_moves(board, player.next())
             .into_iter()
             .any(|om| om.to == king_coord);
         if is_in_check(board, player) != is_check {

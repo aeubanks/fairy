@@ -10,7 +10,7 @@ fn is_in_check<T: Board>(board: &T, player: Player) -> bool {
 
 fn perft_impl<T: Board>(board: &T, player: Player, depth: u64) -> u64 {
     assert_ne!(depth, 0);
-    let moves = all_moves(board, player);
+    let moves = all_legal_moves(board, player);
     let mut sum = 0;
     for m in moves {
         let mut copy = board.clone();
@@ -52,7 +52,7 @@ pub fn perft<T: Board>(position: &Position<T>, depth: u64) -> u64 {
 
 fn perft_all_impl<T: Board>(board: &T, player: Player, depth: u64) -> u64 {
     assert_ne!(depth, 0);
-    let moves = all_moves(board, player);
+    let moves = all_legal_moves(board, player);
     let mut sum = 0;
     for m in moves {
         if let Some(p) = board.get(m.to) {

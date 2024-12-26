@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use fairy::board::{presets, Board, Move};
 use fairy::coord::Coord;
-use fairy::moves::all_moves;
+use fairy::moves::all_legal_moves;
 use fairy::nn;
 use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
@@ -86,7 +86,7 @@ fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
             let rand_move = || {
                 use rand::Rng;
                 println!("randomly moving");
-                let all = all_moves(&board, player);
+                let all = all_legal_moves(&board, player);
                 all[rand::thread_rng().gen_range(0..all.len())]
             };
             let mut num_pieces = 0;
@@ -123,7 +123,7 @@ fn play_game(cpu_as_black: bool) -> std::io::Result<()> {
                 println!("help");
                 println!("x_from y_from x_to y_to");
             } else if let Some(m) = read_move(line) {
-                let all_moves = all_moves(&board, player);
+                let all_moves = all_legal_moves(&board, player);
                 if all_moves.contains(&m) {
                     board.make_move(m);
                     player = player.next();

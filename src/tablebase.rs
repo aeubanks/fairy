@@ -18,8 +18,8 @@
 use crate::board::{board_square_to_piece, Board, BoardSquare, Move};
 use crate::coord::Coord;
 use crate::moves::{
-    all_moves, all_moves_for_piece, all_moves_to_end_at_board_captures,
-    all_moves_to_end_at_board_no_captures, under_attack_from_coord,
+    all_legal_moves, all_legal_moves_to_end_at_board_captures,
+    all_legal_moves_to_end_at_board_no_captures, all_moves_for_piece, under_attack_from_coord,
 };
 use crate::piece::Piece;
 use crate::piece::Type::*;
@@ -229,7 +229,7 @@ impl<const W: usize, const H: usize> Tablebase<W, H> {
         }
 
         // a move may turn a draw into a loss; keep looking through all possible moves until we find one that doesn't end in a win for the opponent
-        let mut all = all_moves(board, player);
+        let mut all = all_legal_moves(board, player);
         loop {
             let try_move = all.pop().unwrap();
             let mut clone = board.clone();
@@ -694,7 +694,7 @@ fn populate_initial_wins<const W: usize, const H: usize>(
                 if p.player() != White {
                     return;
                 }
-                let moves = all_moves_to_end_at_board_captures(&board, p, c);
+                let moves = all_legal_moves_to_end_at_board_captures(&board, p, c);
                 for m in moves {
                     let mut clone = board.clone();
                     debug_assert_eq!(clone.get(m), None);
@@ -708,7 +708,7 @@ fn populate_initial_wins<const W: usize, const H: usize>(
                 if can_reverse_promote && p == Piece::new(White, Queen) {
                     visit_reverse_promotion(&board, White, |b, c| {
                         let moves =
-                            all_moves_to_end_at_board_captures(b, Piece::new(White, Pawn), c);
+                            all_legal_moves_to_end_at_board_captures(b, Piece::new(White, Pawn), c);
                         for m in moves {
                             let mut clone = b.clone();
                             debug_assert_eq!(clone.get(m), None);
@@ -912,7 +912,7 @@ fn visit_reverse_moves<const W: usize, const H: usize>(
 ) {
     board.foreach_piece(|p, c| {
         if p.player() == player {
-            let moves = all_moves_to_end_at_board_no_captures(board, p, c);
+            let moves = all_legal_moves_to_end_at_board_no_captures(board, p, c);
             for m in moves {
                 let mut clone = board.clone();
                 assert_eq!(clone.get(m), None);
@@ -1022,7 +1022,7 @@ fn visit_reverse_capture<const W: usize, const H: usize>(
             if board_has_pawn && !valid_piece_coord::<W, H>(piece_to_add, c) {
                 return;
             }
-            let moves = all_moves_to_end_at_board_captures(board, p, c);
+            let moves = all_legal_moves_to_end_at_board_captures(board, p, c);
             for m in moves {
                 let mut clone = board.clone();
                 debug_assert_eq!(clone.get(m), None);
@@ -1093,7 +1093,8 @@ fn iterate<const W: usize, const H: usize>(
                     }
                 );
                 debug_assert_eq!(b.get(c), Some(Piece::new(player, Queen)));
-                for m in all_moves_to_end_at_board_no_captures(b, Piece::new(player, Pawn), c) {
+                for m in all_legal_moves_to_end_at_board_no_captures(b, Piece::new(player, Pawn), c)
+                {
                     let mut clone = b.clone();
                     let pawn = Piece::new(player, Pawn);
                     clone.clear(c);
@@ -1150,7 +1151,7 @@ fn iterate<const W: usize, const H: usize>(
                     );
                     debug_assert_eq!(b.get(c), Some(Piece::new(player, Queen)));
                     let pawn = Piece::new(player, Pawn);
-                    for m in all_moves_to_end_at_board_captures(b, pawn, c) {
+                    for m in all_legal_moves_to_end_at_board_captures(b, pawn, c) {
                         for &piece_to_add in pieces_to_add {
                             if !valid_piece_coord::<W, H>(piece_to_add, c) {
                                 continue;

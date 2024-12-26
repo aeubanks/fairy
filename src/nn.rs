@@ -66,7 +66,7 @@ fn boards_to_tensor<B: Board>(boards: &[B], player: Player, dev: Device) -> Tens
     Tensor::stack(&ts, 0)
 }
 
-fn all_moves(width: i8, height: i8) -> Vec<Move> {
+fn all_possible_moves(width: i8, height: i8) -> Vec<Move> {
     let offsets = {
         let mut offsets = HashSet::new();
         for ty in Type::all() {
@@ -103,7 +103,7 @@ fn move_probabilities<const W: usize, const H: usize>(
     state: &BoardState<W, H>,
 ) -> FxHashMap<Move, f32> {
     assert_eq!(v.len(), all_possible_moves.len());
-    let legal_moves = moves::all_moves(&state.board, state.player)
+    let legal_moves = moves::all_legal_moves(&state.board, state.player)
         .into_iter()
         .collect::<HashSet<_>>();
     let mut ret = FxHashMap::default();
@@ -571,7 +571,7 @@ const MAX_DEPTH: usize = 50;
 
 impl<const W: usize, const H: usize> Mcts<W, H> {
     fn new(dev: Device) -> Self {
-        let all_possible_moves = all_moves(W as i8, H as i8);
+        let all_possible_moves = all_possible_moves(W as i8, H as i8);
         let mut all_possible_moves_idx = FxHashMap::default();
         for (i, &m) in all_possible_moves.iter().enumerate() {
             all_possible_moves_idx.insert(m, i);
@@ -735,7 +735,7 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
                     let p = node.policy[&m];
                     q + self.exploration_factor * p * parent_n_sqrt / (n + 1.0)
                 };
-                let all_legal_moves = moves::all_moves(&state.board, state.player);
+                let all_legal_moves = moves::all_legal_moves(&state.board, state.player);
                 let best_move = all_legal_moves
                     .iter()
                     .copied()
@@ -1084,8 +1084,8 @@ mod tests {
     }
 
     #[test]
-    fn test_all_moves() {
-        let all = all_moves(6, 6);
+    fn test_all_possible_moves() {
+        let all = all_possible_moves(6, 6);
         let all_set = all.iter().collect::<HashSet<_>>();
         assert_eq!(all.len(), all_set.len());
     }
