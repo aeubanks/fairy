@@ -2,12 +2,12 @@ use clap::{Parser, Subcommand};
 use fairy::board::{presets, Board, Move};
 use fairy::coord::Coord;
 use fairy::moves::all_legal_moves;
-use fairy::nn;
 use fairy::piece::{Type::*, *};
 use fairy::player::Player::*;
 use fairy::tablebase::*;
 use fairy::tablebase::{generate_tablebase, Tablebase};
 use fairy::timer::Timer;
+use fairy::{nn_ai, nn_tablebase};
 use log::info;
 use std::env;
 use std::fs;
@@ -250,8 +250,8 @@ fn main() -> std::io::Result<()> {
             parallel,
         } => tablebase::<6, 6>(parallel, num_pieces),
         Perft => run_perft(),
-        NnTablebasePolicy => nn::train_nn_tablebase_policy::<6, 6>(500, 500, 500),
-        NnTablebaseValue => nn::train_nn_tablebase_value::<6, 6>(500, 500, 500),
+        NnTablebasePolicy => nn_tablebase::train_nn_tablebase_policy::<6, 6>(500, 500, 500),
+        NnTablebaseValue => nn_tablebase::train_nn_tablebase_value::<6, 6>(500, 500, 500),
         NnAi {
             load_vars_path,
             save_vars_path,
@@ -261,7 +261,7 @@ fn main() -> std::io::Result<()> {
             exploration_factor,
             num_games_per_epoch,
             num_rollouts_per_state,
-        } => nn::train_ai(
+        } => nn_ai::train_ai(
             load_vars_path,
             save_vars_path,
             stats_path,
