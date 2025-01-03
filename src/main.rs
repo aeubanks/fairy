@@ -231,7 +231,7 @@ enum Command {
         #[arg(long, default_value = "50")]
         num_games_per_epoch: usize,
         #[arg(long, default_value = "100")]
-        num_rollouts_per_game: usize,
+        num_rollouts_per_state: usize,
     },
     Play {
         #[arg(long = "cpu", short)]
@@ -260,7 +260,7 @@ fn main() -> std::io::Result<()> {
             learning_rate,
             exploration_factor,
             num_games_per_epoch,
-            num_rollouts_per_game,
+            num_rollouts_per_state,
         } => nn::train_ai(
             load_vars_path,
             save_vars_path,
@@ -269,7 +269,7 @@ fn main() -> std::io::Result<()> {
             learning_rate,
             exploration_factor,
             num_games_per_epoch,
-            num_rollouts_per_game,
+            num_rollouts_per_state,
         ),
         Play { cpu_as_black } => play_game(cpu_as_black)?,
     }

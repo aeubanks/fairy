@@ -6,7 +6,7 @@ use crate::player::Player;
 use crate::tablebase::{generate_tablebase, PieceSet, TBBoard, TBMoveType, Tablebase};
 use crate::timer::Timer;
 use derive_enum::EnumFrom;
-use log::{info, warn};
+use log::info;
 use rand::{thread_rng, Rng};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashSet;
@@ -528,22 +528,38 @@ impl<const W: usize, const H: usize> BoardState<W, H> {
     }
 }
 
-enum MctsTreeNode {
-    Unexplored,
-    Parent(MctsParent),
+struct MctsNode {
+    n: f32,
+    ty: MctsNodeType,
+}
+
+impl MctsNode {
+    fn v(&self) -> f32 {
+        let ret = match &self.ty {
+            MctsNodeType::Leaf(v) => *v,
+            MctsNodeType::Parent(c) => c.q / self.n,
+        };
+        if ret < -1.0 {
+            println!("{}", ret);
+        }
+        assert!(ret >= -1.0);
+        assert!(ret <= 1.0);
+        ret
+    }
+}
+
+enum MctsNodeType {
     Leaf(f32),
+    Parent(MctsParent),
 }
 
 struct MctsParent {
-    policy: FxHashMap<Move, f32>,
-    // a -> (q, n)
-    children: FxHashMap<Move, MctsChild>,
-}
-
-struct MctsChild {
     q: f32,
-    n: f32,
-    node: MctsTreeNode,
+    visited: bool,
+    policy: FxHashMap<Move, f32>,
+    // None -> unexpanded
+    // Some -> expanded
+    children: FxHashMap<Move, MctsNode>,
 }
 
 #[derive(Debug)]
@@ -553,12 +569,42 @@ struct MctsExample<const W: usize, const H: usize> {
     reward: f32,
 }
 
+struct MctsParams {
+    exploration_factor: f32,
+    learning_rate: f64,
+    num_rollouts_per_state: usize,
+    num_games_per_epoch: usize,
+}
+
+impl Default for MctsParams {
+    fn default() -> Self {
+        Self {
+            exploration_factor: 0.1,
+            learning_rate: 0.1,
+            num_games_per_epoch: 20,
+            num_rollouts_per_state: 50,
+        }
+    }
+}
+
+#[cfg(test)]
+impl MctsParams {
+    fn for_testing() -> Self {
+        Self {
+            exploration_factor: 0.1,
+            learning_rate: 0.1,
+            num_games_per_epoch: 4,
+            num_rollouts_per_state: 10,
+        }
+    }
+}
+
 struct Mcts<const W: usize, const H: usize> {
     all_possible_moves: Vec<Move>,
     all_possible_moves_idx: FxHashMap<Move, usize>,
     exploration_factor: f32,
     learning_rate: f64,
-    num_rollouts_per_game: usize,
+    num_rollouts_per_state: usize,
     num_games_per_epoch: usize,
     nn_body: NNBody,
     nn_policy_head: NNPolicyHead,
@@ -567,10 +613,14 @@ struct Mcts<const W: usize, const H: usize> {
     var_store: VarStore,
 }
 
-const MAX_DEPTH: usize = 50;
+const MAX_DEPTH: usize = 200;
 
 impl<const W: usize, const H: usize> Mcts<W, H> {
     fn new(dev: Device) -> Self {
+        Self::with_params(dev, MctsParams::default())
+    }
+
+    fn with_params(dev: Device, params: MctsParams) -> Self {
         let all_possible_moves = all_possible_moves(W as i8, H as i8);
         let mut all_possible_moves_idx = FxHashMap::default();
         for (i, &m) in all_possible_moves.iter().enumerate() {
@@ -583,10 +633,10 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         Self {
             all_possible_moves,
             all_possible_moves_idx,
-            exploration_factor: 0.1,
-            learning_rate: 0.4,
-            num_games_per_epoch: 50,
-            num_rollouts_per_game: 100,
+            exploration_factor: params.exploration_factor,
+            learning_rate: params.learning_rate,
+            num_games_per_epoch: params.num_games_per_epoch,
+            num_rollouts_per_state: params.num_rollouts_per_state,
             nn_body: NNBody::new(&var_store),
             nn_policy_head: NNPolicyHead::new(&var_store, W as i64, H as i64, num_moves as i64),
             nn_value_head: NNValueHead::new(&var_store, W as i64, H as i64),
@@ -704,122 +754,155 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         )
     }
 
-    fn explore_impl(
+    #[must_use]
+    fn expand_node_children(
         &self,
-        node: &mut MctsTreeNode,
+        state: &BoardState<W, H>,
+        all_legal_moves: &[Move],
+        depth: usize,
+        visited: &FxHashSet<BoardState<W, H>>,
+    ) -> FxHashMap<Move, MctsNode> {
+        let mut children = FxHashMap::default();
+        for &m in all_legal_moves {
+            let next_state = state.make_move(m);
+            let next_node = if let Some(v) = self.board_value(&next_state, depth + 1, visited) {
+                MctsNode {
+                    n: 1.0,
+                    ty: MctsNodeType::Leaf(v),
+                }
+            } else {
+                let (v, policy) = self.value_and_policy(&next_state);
+                MctsNode {
+                    n: 1.0,
+                    ty: MctsNodeType::Parent(MctsParent {
+                        visited: false,
+                        q: v,
+                        policy,
+                        children: Default::default(),
+                    }),
+                }
+            };
+            children.insert(m, next_node);
+        }
+        children
+    }
+
+    fn perform_one_rollout(
+        &self,
+        node: &mut MctsNode,
         state: &BoardState<W, H>,
         visited: &mut FxHashSet<BoardState<W, H>>,
         depth: usize,
     ) -> f32 {
-        match node {
-            MctsTreeNode::Unexplored => {
-                if let Some(v) = self.board_value(state, depth, visited) {
-                    *node = MctsTreeNode::Leaf(v);
-                    v
-                } else {
-                    let (v, p) = self.value_and_policy(state);
-                    *node = MctsTreeNode::Parent(MctsParent {
-                        policy: p,
-                        children: Default::default(),
-                    });
-                    v
-                }
-            }
-            MctsTreeNode::Leaf(v) => *v,
-            MctsTreeNode::Parent(node) => {
-                let parent_n_sqrt = node.children.values().map(|c| c.n).sum::<f32>().sqrt();
-                let u = |m: Move| {
-                    let child = node.children.get(&m);
-                    let q = child.map_or(0.0, |child| child.q / child.n);
-                    let n = child.map_or(0.0, |child| child.n);
-                    let p = node.policy[&m];
-                    q + self.exploration_factor * p * parent_n_sqrt / (n + 1.0)
-                };
+        let q = match &mut node.ty {
+            MctsNodeType::Leaf(v) => *v,
+            MctsNodeType::Parent(parent) => {
                 let all_legal_moves = moves::all_legal_moves(&state.board, state.player);
-                let best_move = all_legal_moves
-                    .iter()
-                    .copied()
-                    .max_by(|a, b| u(*a).total_cmp(&u(*b)))
-                    .unwrap();
+                let q = if parent.visited {
+                    if parent.children.is_empty() {
+                        parent.children =
+                            self.expand_node_children(state, &all_legal_moves, depth, visited);
+                    };
+                    let n_sqrt = node.n.sqrt();
+                    let u = |m: Move| -> f32 {
+                        let child = parent.children.get(&m).unwrap();
+                        child.v()
+                            + self.exploration_factor * parent.policy[&m] * n_sqrt / (child.n + 1.0)
+                    };
+                    let best_move = all_legal_moves
+                        .iter()
+                        .copied()
+                        .max_by(|a, b| u(*a).total_cmp(&u(*b)))
+                        .unwrap();
 
-                let next_state = state.make_move(best_move);
-                let child = node.children.entry(best_move).or_insert(MctsChild {
-                    q: 0.0,
-                    n: 0.0,
-                    node: MctsTreeNode::Unexplored,
-                });
-                visited.insert(state.clone());
-                let v = -self.explore_impl(&mut child.node, &next_state, visited, depth + 1);
-                visited.remove(state);
-
-                child.q += v;
-                child.n += 1.0;
-                v
+                    let next_state = state.make_move(best_move);
+                    visited.insert(state.clone());
+                    let q = -self.perform_one_rollout(
+                        parent.children.get_mut(&best_move).unwrap(),
+                        &next_state,
+                        visited,
+                        depth + 1,
+                    );
+                    visited.remove(state);
+                    q
+                } else {
+                    parent.visited = true;
+                    parent.q / node.n
+                    // TODO: node.v()
+                };
+                parent.q += q;
+                q
             }
-        }
+        };
+
+        node.n += 1.0;
+        q
     }
 
-    fn node_improved_policy(p: &MctsParent, temperature: f32) -> FxHashMap<Move, f32> {
-        assert!(temperature >= 0.0);
-        if temperature == 0.0 {
-            let argmax = p
-                .children
-                .iter()
-                .max_by(|a, b| a.1.n.total_cmp(&b.1.n))
-                .unwrap()
-                .0;
-            let mut ret = FxHashMap::<Move, f32>::default();
-            ret.insert(*argmax, 1.0);
-            ret
-        } else {
-            let inv_temp = 1.0;
-            // let inv_temp = 1.0 / temperature;
-            let adjusted_children = p
-                .children
-                .iter()
-                .map(|(m, c)| (*m, c.n.powf(inv_temp)))
-                .collect::<Vec<_>>();
-            let total_n = adjusted_children.iter().fold(0.0, |a, b| a + b.1);
-            adjusted_children
-                .into_iter()
-                .map(|(m, n)| (m, n / total_n))
-                .collect()
-        }
+    fn node_improved_policy(node: &MctsParent) -> FxHashMap<Move, f32> {
+        let adjusted_children = node
+            .children
+            .iter()
+            .map(|(m, c)| (*m, c.n))
+            .collect::<Vec<_>>();
+        let total_n = adjusted_children.iter().fold(0.0, |a, b| a + b.1);
+        adjusted_children
+            .into_iter()
+            .map(|(m, n)| (m, n / total_n))
+            .collect()
     }
 
-    fn random_move(policy: &FxHashMap<Move, f32>) -> Move {
+    fn random_move(policy: &FxHashMap<Move, f32>, temperature: f32) -> Move {
+        let inv_temp = 1.0 / temperature;
+        let mut temp_modified_policy = policy
+            .iter()
+            .map(|(&m, &p)| (m, p.powf(inv_temp)))
+            .collect::<Vec<_>>();
+        let sum_prob: f32 = temp_modified_policy.iter().map(|&(_, p)| p).sum();
+        for (_, p) in &mut temp_modified_policy {
+            *p /= sum_prob;
+        }
         let mut rand: f32 = thread_rng().gen_range(0.0..1.0);
-        let mut last_move = None;
-        for (&m, p) in policy {
+        for &(m, p) in &temp_modified_policy {
             rand -= p;
             if rand <= 0.0 {
                 return m;
             }
-            last_move = Some(m);
         }
-        dbg!(policy);
-        warn!("random_move: probabilities didn't sum to 1.0?");
-        last_move.unwrap()
+        dbg!(&temp_modified_policy);
+        panic!("random_move: probabilities didn't sum to 1.0?");
     }
 
-    fn get_examples(&self, board: &BoardSquare<W, H>) -> Vec<MctsExample<W, H>> {
+    fn create_root_node(&self, state: &BoardState<W, H>) -> MctsNode {
+        let (v, policy) = self.value_and_policy(state);
+        MctsNode {
+            n: 1.0,
+            ty: MctsNodeType::Parent(MctsParent {
+                visited: false,
+                q: v,
+                policy,
+                children: Default::default(),
+            }),
+        }
+    }
+
+    fn get_examples(&self, state: &BoardState<W, H>) -> Vec<MctsExample<W, H>> {
+        let mut state = state.clone();
         let mut examples = Vec::<MctsExample<W, H>>::default();
 
-        let mut tree = MctsTreeNode::Unexplored;
-        let mut state = BoardState {
-            board: board.clone(),
-            player: Player::White,
-        };
+        let mut visited = FxHashSet::default();
+        let mut node = self.create_root_node(&state);
         let mut depth = 0;
         loop {
+            visited.insert(state.clone());
             // perform some rollouts from current depth
-            for _ in 0..self.num_rollouts_per_game {
-                self.explore_impl(&mut tree, &state, &mut Default::default(), depth);
+            for _ in 0..self.num_rollouts_per_state {
+                self.perform_one_rollout(&mut node, &state, &mut visited, depth);
             }
-            match tree {
-                MctsTreeNode::Unexplored => panic!("unexplored node?"),
-                MctsTreeNode::Leaf(v) => {
+            match node.ty {
+                MctsNodeType::Leaf(v) => {
                     for e in &mut examples {
+                        assert_ne!(node.n, 0.0);
                         e.reward = v;
                         if e.state.player != state.player {
                             e.reward *= -1.0;
@@ -827,15 +910,15 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
                     }
                     break;
                 }
-                MctsTreeNode::Parent(mut p) => {
-                    let improved_policy = Self::node_improved_policy(&p, 1.0);
-                    let m = Self::random_move(&improved_policy);
+                MctsNodeType::Parent(mut parent) => {
+                    let improved_policy = Self::node_improved_policy(&parent);
+                    let m = Self::random_move(&improved_policy, 0.5);
                     examples.push(MctsExample {
                         state: state.clone(),
                         policy: improved_policy,
                         reward: f32::NAN,
                     });
-                    tree = p.children.remove(&m).unwrap().node;
+                    node = parent.children.remove(&m).unwrap();
                     state = state.make_move(m);
                     depth += 1;
                 }
@@ -844,10 +927,11 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         examples
     }
 
-    fn train(&mut self, board: &BoardSquare<W, H>) -> TrainingStats {
+    fn train(&mut self, state: &BoardState<W, H>) -> TrainingStats {
         let mut examples = Vec::default();
-        for _ in 0..self.num_games_per_epoch {
-            examples.append(&mut self.get_examples(board));
+        for g in 0..self.num_games_per_epoch {
+            info!("game {g}/{}", self.num_games_per_epoch);
+            examples.append(&mut self.get_examples(state));
         }
         let mut num_zero_examples = 0;
         let mut num_pos_one_examples = 0;
@@ -860,7 +944,7 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
             } else if e.reward == -1.0 {
                 num_neg_one_examples += 1
             } else {
-                panic!();
+                panic!("reward is not -1/0/1");
             }
         }
         let (xs, target_vs, target_ps) = self.examples_to_training_data(&examples);
@@ -873,7 +957,10 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         let value_loss = vs_loss.double_value(&[]);
         let policy_loss = ps_loss.double_value(&[]);
 
-        let loss = vs_loss + ps_loss;
+        // weight value loss more
+        // value loss tends to be order of 0.1
+        // policy loss tends to be order of 5
+        let loss = 10 * vs_loss + ps_loss;
         let mut opt = nn::Sgd::default()
             .build(&self.var_store, self.learning_rate)
             .unwrap();
@@ -890,7 +977,7 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
 }
 
 fn should_take_new_model<const W: usize, const H: usize>(
-    _board: &BoardSquare<W, H>,
+    _state: &BoardState<W, H>,
     _old: &Mcts<W, H>,
     _new: &Mcts<W, H>,
 ) -> bool {
@@ -905,27 +992,32 @@ pub fn train_ai(
     learning_rate: f64,
     exploration_factor: f32,
     num_games_per_epoch: usize,
-    num_rollouts_per_game: usize,
+    num_rollouts_per_state: usize,
 ) {
     let mut stats_file = stats_path.map(|p| File::create(p).unwrap());
-    let board = presets::mini();
+    let mut state = BoardState {
+        board: presets::mini(),
+        player: Player::White,
+    };
 
     let dev = Device::cuda_if_available();
-    let mut mcts = Mcts::new(dev);
+    let params = MctsParams {
+        exploration_factor,
+        learning_rate,
+        num_games_per_epoch,
+        num_rollouts_per_state,
+    };
+    let mut mcts = Mcts::with_params(dev, params);
     if let Some(load) = &load_vars_path {
         info!("loading weights from {load:?}");
         mcts.load_vars(load);
     }
-    mcts.exploration_factor = exploration_factor;
-    mcts.learning_rate = learning_rate;
-    mcts.num_games_per_epoch = num_games_per_epoch;
-    mcts.num_rollouts_per_game = num_rollouts_per_game;
     for epoch in 0..epochs {
-        info!("-- begin epoch {epoch}");
+        info!("-- begin epoch {epoch}/{epochs}");
 
         let timer = Timer::new();
         let prev = mcts.clone();
-        let stats = mcts.train(&board);
+        let stats = mcts.train(&state);
 
         info!("num examples with reward  0.0: {}", stats.num_zero_examples);
         info!(
@@ -938,7 +1030,6 @@ pub fn train_ai(
         );
         info!("value loss:  {}", stats.value_loss);
         info!("policy loss: {}", stats.policy_loss);
-        info!("total loss:  {}", stats.value_loss + stats.policy_loss);
 
         if let Some(s) = &mut stats_file {
             writeln!(
@@ -952,7 +1043,7 @@ pub fn train_ai(
         }
 
         info!("pitting old vs new model...");
-        if should_take_new_model(&board, &prev, &mcts) {
+        if should_take_new_model(&state, &prev, &mcts) {
             info!("using new model");
             if let Some(save) = &save_vars_path {
                 info!("saving weights to {save:?}");
@@ -968,15 +1059,16 @@ pub fn train_ai(
 
     println!("---------------------------");
     println!("playing game...");
-    let mut state = BoardState {
-        board: board.clone(),
-        player: Player::White,
-    };
     let mut visited = FxHashSet::default();
+    let mut depth = 0;
+    let mut node = mcts.create_root_node(&state);
     loop {
-        println!("move {}", visited.len());
+        println!("move {depth}");
         println!("{:?}", &state.board);
-        if !visited.insert(state.clone()) {
+        if let MctsNodeType::Leaf(v) = &node.ty {
+            println!("mcts says game is finished with value {v}");
+        }
+        if visited.contains(&state) {
             println!("draw by repetition");
             break;
         }
@@ -988,21 +1080,28 @@ pub fn train_ai(
             println!("white wins");
             break;
         }
-
-        let (_, policy) = mcts.value_and_policy(&state);
-        let mut best_p = 0.0;
-        let mut best_m = Move {
-            from: Coord::new(0, 0),
-            to: Coord::new(0, 0),
-        };
-        dbg!(&policy);
-        for (m, p) in policy {
-            if p > best_p {
-                best_p = p;
-                best_m = m;
-            }
+        for _ in 0..num_rollouts_per_state {
+            mcts.perform_one_rollout(&mut node, &state, &mut visited, depth);
         }
-        state = state.make_move(best_m);
+        // get child with highest v()
+        let m = *match &node.ty {
+            MctsNodeType::Leaf(_) => panic!("evaluating leaf node?"),
+            MctsNodeType::Parent(parent) => {
+                parent
+                    .children
+                    .iter()
+                    .max_by(|(_, c1), (_, c2)| c1.v().total_cmp(&c2.v()))
+                    .unwrap()
+                    .0
+            }
+        };
+        visited.insert(state.clone());
+        state = state.make_move(m);
+        node = match node.ty {
+            MctsNodeType::Leaf(_) => panic!("evaluating leaf node?"),
+            MctsNodeType::Parent(mut parent) => parent.children.remove(&m).unwrap(),
+        };
+        depth += 1;
     }
 }
 
@@ -1131,10 +1230,14 @@ mod tests {
             (Coord::new(0, 0), Piece::new(Player::White, Type::King)),
             (Coord::new(0, 1), Piece::new(Player::Black, Type::King)),
         ]);
+        let state = BoardState {
+            board,
+            player: Player::White,
+        };
 
         let dev = Device::Cpu;
         let mcts = Mcts::new(dev);
-        let examples = mcts.get_examples(&board);
+        let examples = mcts.get_examples(&state);
         assert_eq!(examples.len(), 1);
         assert_eq!(examples[0].reward, 1.0);
         assert_eq!(examples[0].state.player, Player::White);
@@ -1154,10 +1257,14 @@ mod tests {
             (Coord::new(0, 0), Piece::new(Player::White, Type::King)),
             (Coord::new(0, 2), Piece::new(Player::Black, Type::King)),
         ]);
+        let state = BoardState {
+            board,
+            player: Player::White,
+        };
 
         let dev = Device::Cpu;
         let mcts = Mcts::new(dev);
-        let examples = mcts.get_examples(&board);
+        let examples = mcts.get_examples(&state);
         assert_eq!(examples.len(), 2);
         assert_eq!(examples[0].reward, -1.0);
         assert_eq!(examples[0].state.player, Player::White);
@@ -1189,10 +1296,14 @@ mod tests {
             (Coord::new(0, 3), Piece::new(Player::Black, Type::Knight)),
             (Coord::new(0, 5), Piece::new(Player::Black, Type::King)),
         ]);
+        let state = BoardState {
+            board,
+            player: Player::White,
+        };
 
         let dev = Device::Cpu;
         let mcts = Mcts::new(dev);
-        let examples = mcts.get_examples(&board);
+        let examples = mcts.get_examples(&state);
         assert_eq!(examples.len(), 4);
         for e in examples {
             assert_eq!(e.reward, 0.0);
@@ -1200,12 +1311,15 @@ mod tests {
     }
 
     #[test]
-    fn test_get_examples() {
-        let board = presets::los_alamos();
+    fn test_get_examples_smoke() {
+        let state = BoardState {
+            board: presets::mini(),
+            player: Player::White,
+        };
 
         let dev = Device::Cpu;
-        let mcts = Mcts::new(dev);
-        let examples = mcts.get_examples(&board);
+        let mcts = Mcts::with_params(dev, MctsParams::for_testing());
+        let examples = mcts.get_examples(&state);
         assert!(examples.len() > 4);
         assert!(examples.len() <= MAX_DEPTH);
         let first_player = examples[0].state.player;
