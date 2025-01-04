@@ -1,7 +1,6 @@
 promotion to pieces other than queen
 AI
   double check visited draws
-  batch all node children boards through NN when populating node children
 add tests for derive crates (https://ferrous-systems.com/blog/testing-proc-macros/)
 tablebase
   pawn en passant/castling

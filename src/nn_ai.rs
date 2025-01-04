@@ -1,7 +1,7 @@
 use crate::board::{presets, Board, BoardSquare, Move};
 use crate::coord::Coord;
 use crate::moves;
-use crate::nn::{board_to_tensor, boards_to_tensor, NNBody, NNPolicyHead, NNValueHead};
+use crate::nn::{board_to_tensor, NNBody, NNPolicyHead, NNValueHead};
 use crate::piece::Type;
 use crate::player::Player;
 use crate::timer::Timer;
@@ -264,19 +264,45 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         None
     }
 
-    fn value_and_policy(&self, state: &BoardState<W, H>) -> (f32, FxHashMap<Move, f32>) {
-        let xs = boards_to_tensor(&[state.board.clone()], state.player, self.dev);
+    fn value_and_policy_one(&self, state: &BoardState<W, H>) -> (f32, FxHashMap<Move, f32>) {
+        let mut res = self.value_and_policy(std::array::from_ref(state));
+        assert_eq!(res.len(), 1);
+        res.remove(0)
+    }
+
+    fn value_and_policy(&self, states: &[BoardState<W, H>]) -> Vec<(f32, FxHashMap<Move, f32>)> {
+        if states.is_empty() {
+            return vec![];
+        }
+        let xs = Tensor::stack(
+            &states
+                .iter()
+                .map(|s| board_to_tensor(&s.board, s.player, self.dev))
+                .collect::<Vec<_>>(),
+            0,
+        );
 
         let bt = self.nn_body.forward_t(&xs, false);
         let pt = self.nn_policy_head.forward_t(&bt, false);
         let vt = self.nn_value_head.forward_t(&bt, false);
 
-        let len = pt.size2().unwrap().1 as usize;
-        let mut probs: Vec<f32> = vec![0.0; len];
-        pt.softmax(-1, Kind::Float).i(0).copy_data(&mut probs, len);
-        let policy = move_probabilities(&probs, &self.all_possible_moves, state);
-
-        (vt.double_value(&[0]) as f32, policy)
+        assert_eq!(vt.size1().unwrap() as usize, states.len());
+        assert_eq!(pt.size2().unwrap().0 as usize, states.len());
+        let policy_len = pt.size2().unwrap().1 as usize;
+        let mut probs: Vec<f32> = vec![0.0; policy_len];
+        states
+            .iter()
+            .enumerate()
+            .map(|(i, state)| {
+                pt.softmax(-1, Kind::Float)
+                    .i(i as i64)
+                    .copy_data(&mut probs, policy_len);
+                (
+                    vt.double_value(&[i as i64]) as f32,
+                    move_probabilities(&probs, &self.all_possible_moves, state),
+                )
+            })
+            .collect()
     }
 
     fn policy_to_training_data(&self, policy: &FxHashMap<Move, f32>) -> Tensor {
@@ -330,15 +356,31 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         visited: &FxHashSet<BoardState<W, H>>,
     ) -> FxHashMap<Move, MctsNode> {
         let mut children = FxHashMap::default();
+        let mut states_to_eval = Vec::new();
+        let mut moves_to_eval = Vec::new();
         for &m in all_legal_moves {
             let next_state = state.make_move(m);
-            let next_node = if let Some(v) = self.board_value(&next_state, depth + 1, visited) {
-                MctsNode {
-                    n: 1.0,
-                    ty: MctsNodeType::Leaf(v),
-                }
+            if let Some(v) = self.board_value(&next_state, depth + 1, visited) {
+                children.insert(
+                    m,
+                    MctsNode {
+                        n: 1.0,
+                        ty: MctsNodeType::Leaf(v),
+                    },
+                );
             } else {
-                let (v, policy) = self.value_and_policy(&next_state);
+                moves_to_eval.push(m);
+                states_to_eval.push(next_state);
+            };
+        }
+
+        for ((v, policy), m) in self
+            .value_and_policy(&states_to_eval)
+            .into_iter()
+            .zip(moves_to_eval.into_iter())
+        {
+            children.insert(
+                m,
                 MctsNode {
                     n: 1.0,
                     ty: MctsNodeType::Parent(MctsParent {
@@ -347,10 +389,10 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
                         policy,
                         children: Default::default(),
                     }),
-                }
-            };
-            children.insert(m, next_node);
+                },
+            );
         }
+
         children
     }
 
@@ -441,7 +483,7 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
     }
 
     fn create_root_node(&self, state: &BoardState<W, H>) -> MctsNode {
-        let (v, policy) = self.value_and_policy(state);
+        let (v, policy) = self.value_and_policy_one(state);
         MctsNode {
             n: 1.0,
             ty: MctsNodeType::Parent(MctsParent {
@@ -800,7 +842,7 @@ mod tests {
 
         let dev = Device::Cpu;
         let mcts = Mcts::new(dev);
-        let (v, p) = mcts.value_and_policy(&BoardState {
+        let (v, p) = mcts.value_and_policy_one(&BoardState {
             board,
             player: Player::White,
         });
@@ -819,9 +861,9 @@ mod tests {
         let mcts1 = Mcts::new(dev);
         let mcts2 = Mcts::new(dev);
         let mcts_clone = mcts1.clone();
-        let (v1, _) = mcts1.value_and_policy(&state);
-        let (v2, _) = mcts2.value_and_policy(&state);
-        let (v3, _) = mcts_clone.value_and_policy(&state);
+        let (v1, _) = mcts1.value_and_policy_one(&state);
+        let (v2, _) = mcts2.value_and_policy_one(&state);
+        let (v3, _) = mcts_clone.value_and_policy_one(&state);
         assert_ne!(v1, v2);
         assert_eq!(v1, v3);
     }
@@ -830,11 +872,11 @@ mod tests {
     fn test_mcts_white_black() {
         let dev = Device::Cpu;
         let mcts = Mcts::new(dev);
-        let (v1, _) = mcts.value_and_policy(&BoardState {
+        let (v1, _) = mcts.value_and_policy_one(&BoardState {
             board: presets::mini(),
             player: Player::White,
         });
-        let (v2, _) = mcts.value_and_policy(&BoardState {
+        let (v2, _) = mcts.value_and_policy_one(&BoardState {
             board: presets::mini(),
             player: Player::Black,
         });
