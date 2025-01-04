@@ -495,8 +495,8 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         }
     }
 
-    fn get_examples(&self, state: &BoardState<W, H>) -> Vec<MctsExample<W, H>> {
-        let mut state = state.clone();
+    fn get_examples(&self, starting_state: &BoardState<W, H>) -> Vec<MctsExample<W, H>> {
+        let mut state = starting_state.clone();
         let mut examples = Vec::<MctsExample<W, H>>::default();
 
         let mut visited = FxHashSet::default();
@@ -536,11 +536,11 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         examples
     }
 
-    fn train(&mut self, state: &BoardState<W, H>) -> TrainingStats {
+    fn train(&mut self, starting_state: &BoardState<W, H>) -> TrainingStats {
         let mut examples = Vec::default();
         for g in 0..self.num_games_per_epoch {
             info!("game {g}/{}", self.num_games_per_epoch);
-            examples.append(&mut self.get_examples(state));
+            examples.append(&mut self.get_examples(starting_state));
         }
         let mut num_zero_examples = 0;
         let mut num_pos_one_examples = 0;
