@@ -77,6 +77,21 @@ fn move_probabilities<const W: usize, const H: usize>(
     ret
 }
 
+#[derive(Copy, Clone)]
+enum GameResult {
+    Draw,
+    Loss,
+}
+
+impl GameResult {
+    fn value(&self) -> f32 {
+        match self {
+            GameResult::Loss => -1.0,
+            GameResult::Draw => 0.0,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct BoardState<const W: usize, const H: usize> {
     // this is always the unflipped board
@@ -92,6 +107,30 @@ impl<const W: usize, const H: usize> BoardState<W, H> {
             board: clone,
             player: self.player.next(),
         }
+    }
+
+    fn game_result(
+        &self,
+        depth: usize,
+        visited: &FxHashSet<BoardState<W, H>>,
+    ) -> Option<GameResult> {
+        // if game is too long, consider it a draw
+        if depth >= MAX_DEPTH {
+            return Some(GameResult::Draw);
+        }
+
+        // if king is captured, player loses
+        if self.board.maybe_king_coord(self.player).is_none() {
+            return Some(GameResult::Loss);
+        }
+
+        // if state has been seen this game before, consider it a draw
+        if visited.contains(self) {
+            return Some(GameResult::Draw);
+        }
+
+        // TODO: use tablebase
+        None
     }
 }
 
@@ -239,31 +278,6 @@ struct TrainingStats {
 }
 
 impl<const W: usize, const H: usize> Mcts<W, H> {
-    fn board_value(
-        &self,
-        state: &BoardState<W, H>,
-        depth: usize,
-        visited: &FxHashSet<BoardState<W, H>>,
-    ) -> Option<f32> {
-        // if game is too long, consider it a draw
-        if depth >= MAX_DEPTH {
-            return Some(0.0);
-        }
-
-        // if king is captured, player loses
-        if state.board.maybe_king_coord(state.player).is_none() {
-            return Some(-1.0);
-        }
-
-        // if state has been seen this game before, consider it a draw
-        if visited.contains(state) {
-            return Some(0.0);
-        }
-
-        // TODO: use tablebase
-        None
-    }
-
     fn value_and_policy_one(&self, state: &BoardState<W, H>) -> (f32, FxHashMap<Move, f32>) {
         let mut res = self.value_and_policy(std::array::from_ref(state));
         assert_eq!(res.len(), 1);
@@ -360,7 +374,10 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         let mut moves_to_eval = Vec::new();
         for &m in all_legal_moves {
             let next_state = state.make_move(m);
-            if let Some(v) = self.board_value(&next_state, depth + 1, visited) {
+            if let Some(v) = next_state
+                .game_result(depth + 1, visited)
+                .map(|r| r.value())
+            {
                 children.insert(
                     m,
                     MctsNode {
@@ -674,19 +691,14 @@ pub fn train_ai(
     loop {
         println!("move {depth}");
         println!("{:?}", &state.board);
-        if let MctsNodeType::Leaf(v) = &node.ty {
-            println!("mcts says game is finished with value {v}");
-        }
-        if visited.contains(&state) {
-            println!("draw by repetition");
-            break;
-        }
-        if state.board.maybe_king_coord(Player::White).is_none() {
-            println!("black wins");
-            break;
-        }
-        if state.board.maybe_king_coord(Player::Black).is_none() {
-            println!("white wins");
+        if let Some(res) = state.game_result(depth, &visited) {
+            match res {
+                GameResult::Draw => println!("draw"),
+                GameResult::Loss => match state.player {
+                    Player::White => println!("black wins"),
+                    Player::Black => println!("white wins"),
+                },
+            }
             break;
         }
         for _ in 0..num_rollouts_per_state {
