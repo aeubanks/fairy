@@ -109,13 +109,9 @@ impl<const W: usize, const H: usize> BoardState<W, H> {
         }
     }
 
-    fn game_result(
-        &self,
-        depth: usize,
-        visited: &FxHashSet<BoardState<W, H>>,
-    ) -> Option<GameResult> {
+    fn game_result(&self, visited: &FxHashSet<BoardState<W, H>>) -> Option<GameResult> {
         // if game is too long, consider it a draw
-        if depth >= MAX_DEPTH {
+        if visited.len() >= MAX_DEPTH {
             return Some(GameResult::Draw);
         }
 
@@ -366,7 +362,6 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         &self,
         state: &BoardState<W, H>,
         all_legal_moves: &[Move],
-        depth: usize,
         visited: &FxHashSet<BoardState<W, H>>,
     ) -> FxHashMap<Move, MctsNode> {
         let mut children = FxHashMap::default();
@@ -374,10 +369,7 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         let mut moves_to_eval = Vec::new();
         for &m in all_legal_moves {
             let next_state = state.make_move(m);
-            if let Some(v) = next_state
-                .game_result(depth + 1, visited)
-                .map(|r| r.value())
-            {
+            if let Some(v) = next_state.game_result(visited).map(|r| r.value()) {
                 children.insert(
                     m,
                     MctsNode {
@@ -418,7 +410,6 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         node: &mut MctsNode,
         state: &BoardState<W, H>,
         visited: &mut FxHashSet<BoardState<W, H>>,
-        depth: usize,
     ) -> f32 {
         let q = match &mut node.ty {
             MctsNodeType::Leaf(v) => *v,
@@ -427,7 +418,7 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
                 let q = if parent.visited {
                     if parent.children.is_empty() {
                         parent.children =
-                            self.expand_node_children(state, &all_legal_moves, depth, visited);
+                            self.expand_node_children(state, &all_legal_moves, visited);
                     };
                     let n_sqrt = node.n.sqrt();
                     let u = |m: Move| -> f32 {
@@ -447,7 +438,6 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
                         parent.children.get_mut(&best_move).unwrap(),
                         &next_state,
                         visited,
-                        depth + 1,
                     );
                     visited.remove(state);
                     q
@@ -518,12 +508,11 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
 
         let mut visited = FxHashSet::default();
         let mut node = self.create_root_node(&state);
-        let mut depth = 0;
         loop {
             visited.insert(state.clone());
             // perform some rollouts from current depth
             for _ in 0..self.num_rollouts_per_state {
-                self.perform_one_rollout(&mut node, &state, &mut visited, depth);
+                self.perform_one_rollout(&mut node, &state, &mut visited);
             }
             match node.ty {
                 MctsNodeType::Leaf(v) => {
@@ -546,7 +535,6 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
                     });
                     node = parent.children.remove(&m).unwrap();
                     state = state.make_move(m);
-                    depth += 1;
                 }
             }
         }
@@ -686,12 +674,11 @@ pub fn train_ai(
     println!("---------------------------");
     println!("playing game...");
     let mut visited = FxHashSet::default();
-    let mut depth = 0;
     let mut node = mcts.create_root_node(&state);
     loop {
-        println!("move {depth}");
+        println!("move {}", visited.len());
         println!("{:?}", &state.board);
-        if let Some(res) = state.game_result(depth, &visited) {
+        if let Some(res) = state.game_result(&visited) {
             match res {
                 GameResult::Draw => println!("draw"),
                 GameResult::Loss => match state.player {
@@ -702,7 +689,7 @@ pub fn train_ai(
             break;
         }
         for _ in 0..num_rollouts_per_state {
-            mcts.perform_one_rollout(&mut node, &state, &mut visited, depth);
+            mcts.perform_one_rollout(&mut node, &state, &mut visited);
         }
         // get child with highest v()
         let m = *match &node.ty {
@@ -722,7 +709,6 @@ pub fn train_ai(
             MctsNodeType::Leaf(_) => panic!("evaluating leaf node?"),
             MctsNodeType::Parent(mut parent) => parent.children.remove(&m).unwrap(),
         };
-        depth += 1;
     }
 }
 
