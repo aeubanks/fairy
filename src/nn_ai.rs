@@ -405,6 +405,20 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
         children
     }
 
+    fn best_move(&self, node: &MctsNode) -> Move {
+        match &node.ty {
+            MctsNodeType::Leaf(_) => panic!("evaluating leaf node?"),
+            MctsNodeType::Parent(parent) => {
+                *parent
+                    .children
+                    .iter()
+                    .max_by(|(_, c1), (_, c2)| (-c1.v()).total_cmp(&(-c2.v())))
+                    .unwrap()
+                    .0
+            }
+        }
+    }
+
     fn perform_one_rollout(
         &self,
         node: &mut MctsNode,
@@ -423,8 +437,7 @@ impl<const W: usize, const H: usize> Mcts<W, H> {
                     let n_sqrt = node.n.sqrt();
                     let u = |m: Move| -> f32 {
                         let child = parent.children.get(&m).unwrap();
-                        child.v()
-                            + self.exploration_factor * parent.policy[&m] * n_sqrt / (child.n + 1.0)
+                        -child.v() + self.exploration_factor * parent.policy[&m] * n_sqrt / child.n
                     };
                     let best_move = all_legal_moves
                         .iter()
@@ -691,18 +704,7 @@ pub fn train_ai(
         for _ in 0..num_rollouts_per_state {
             mcts.perform_one_rollout(&mut node, &state, &mut visited);
         }
-        // get child with highest v()
-        let m = *match &node.ty {
-            MctsNodeType::Leaf(_) => panic!("evaluating leaf node?"),
-            MctsNodeType::Parent(parent) => {
-                parent
-                    .children
-                    .iter()
-                    .max_by(|(_, c1), (_, c2)| c1.v().total_cmp(&c2.v()))
-                    .unwrap()
-                    .0
-            }
-        };
+        let m = mcts.best_move(&node);
         visited.insert(state.clone());
         state = state.make_move(m);
         node = match node.ty {
@@ -879,5 +881,30 @@ mod tests {
             player: Player::Black,
         });
         assert_eq!(v1, v2);
+    }
+
+    #[test]
+    fn test_obvious_best_move() {
+        let dev = Device::Cpu;
+        let mcts = Mcts::with_params(dev, MctsParams::for_testing());
+        let state = BoardState {
+            board: BoardSquare::<2, 2>::with_pieces(&[
+                (Coord::new(0, 0), Piece::new(Player::White, Type::King)),
+                (Coord::new(1, 1), Piece::new(Player::Black, Type::King)),
+            ]),
+            player: Player::White,
+        };
+        let mut visited = FxHashSet::default();
+        let mut node = mcts.create_root_node(&state);
+        for _ in 0..20 {
+            mcts.perform_one_rollout(&mut node, &state, &mut visited);
+        }
+        assert_eq!(
+            mcts.best_move(&node),
+            Move {
+                from: Coord::new(0, 0),
+                to: Coord::new(1, 1)
+            }
+        );
     }
 }
